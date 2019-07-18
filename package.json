@@ -1,0 +1,56 @@
+{
+	"name": "http2-wrapper",
+	"version": "1.0.0-alpha.0",
+	"description": "HTTP2 client, just with the familiar `https` API",
+	"main": "source",
+	"engines": {
+		"node": ">=8.16.0"
+	},
+	"scripts": {
+		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc ava",
+		"coveralls": "nyc report --reporter=text-lcov | coveralls"
+	},
+	"files": [
+		"source"
+	],
+	"keywords": [
+		"http2",
+		"https",
+		"http",
+		"request"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/szmarczak/http2-wrapper.git"
+	},
+	"author": "Szymon Marczak",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/szmarczak/http2-wrapper/issues"
+	},
+	"homepage": "https://github.com/szmarczak/http2-wrapper#readme",
+	"dependencies": {
+		"quick-lru": "^4.0.1",
+		"resolve-alpn": "^1.0.0"
+	},
+	"devDependencies": {
+		"@sindresorhus/is": "^1.0.0",
+		"ava": "^2.2.0",
+		"benchmark": "^2.1.4",
+		"coveralls": "^3.0.5",
+		"create-cert": "^1.0.6",
+		"get-stream": "^5.1.0",
+		"nyc": "^14.1.1",
+		"p-event": "^4.1.0",
+		"tempy": "^0.3.0",
+		"to-readable-stream": "^2.1.0",
+		"xo": "^0.24.0"
+	},
+	"ava": {
+		"timeout": "2m",
+		"concurrency": "4",
+		"helpers": [
+			"test/helpers/*"
+		]
+	}
+}
