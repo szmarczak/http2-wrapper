@@ -313,6 +313,8 @@ if (isCompatible) {
 	});
 
 	test('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
+		t.plan(1);
+
 		server.get('/', (request, response) => {
 			setTimeout(() => {
 				response.end();
@@ -331,7 +333,9 @@ if (isCompatible) {
 		secondStream.end();
 		await pEvent(secondStream, 'close');
 
-		t.is(agent.freeSessions[agent.getName(server.url)].length, 2);
+		setImmediate(() => {
+			t.is(agent.freeSessions[agent.getName(server.url)].length, 2);
+		});
 	});
 
 	test('prevents overloading sessions', singleRequestWrapper, async (t, server) => {
