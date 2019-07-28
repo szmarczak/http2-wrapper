@@ -240,9 +240,11 @@ Max free sessions per origin.
 
 Returns a `string` containing a proper name for sessions created with these options.
 
-#### agent.getSession(authority, options)
+#### agent.getSession(authority, options, name)
 
-Returns a Promise giving free `Http2Session`. If no free sessions are found, a new one is created.
+Returns a Promise giving free `Http2Session` under the provided name. If no free sessions are found, a new one is created.
+
+If the `name` argument is `undefined`, it defaults to `agent.getName(authority, options)`.
 
 ##### authority
 

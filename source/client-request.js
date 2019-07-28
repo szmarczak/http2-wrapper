@@ -53,7 +53,7 @@ class ClientRequest extends Writable {
 			this[kSession] = options.session;
 		} else if (options.agent === false) {
 			this.agent = new Agent({maxFreeSessions: 0});
-		} else if (options.agent === null || typeof options.agent === 'undefined') {
+		} else if (typeof options.agent === 'undefined' || options.agent === null) {
 			if (typeof options.createConnection === 'function') {
 				// This is a workaround - we don't have to create the session on our own.
 				this.agent = new Agent({maxFreeSessions: 0});
@@ -103,7 +103,7 @@ class ClientRequest extends Writable {
 		this[kOptions] = options;
 		this[kAuthority] = options.authority || new URL(`https://${options.hostname || options.host}:${options.port}`);
 
-		if (this.agent && (options.preconnect || typeof options.preconnect === 'undefined')) {
+		if (this.agent && (typeof options.preconnect === 'undefined' || options.preconnect)) {
 			this.agent.getSession(this[kAuthority], options).catch(() => {});
 		}
 

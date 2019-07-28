@@ -92,7 +92,7 @@ if (isCompatible) {
 		t.is(first, second);
 	});
 
-	test('gives the queued session if exists', singleRequestWrapper, async (t, server) => {
+	test('gives the queued session if exists', wrapper, async (t, server) => {
 		server.get('/infinite', () => {});
 
 		const agent = new Agent({
@@ -313,6 +313,8 @@ if (isCompatible) {
 	});
 
 	test('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
+		t.plan(1);
+
 		server.get('/', (request, response) => {
 			setTimeout(() => {
 				response.end();
@@ -331,16 +333,27 @@ if (isCompatible) {
 		secondStream.end();
 		await pEvent(secondStream, 'close');
 
-		t.is(agent.freeSessions[agent.getName(server.url)].length, 2);
+		setImmediate(() => {
+			t.is(agent.freeSessions[agent.getName(server.url)].length, 2);
+		});
 	});
 
-	test('sessions can be overloaded', singleRequestWrapper, async (t, server) => {
+	test('prevents overloading sessions', singleRequestWrapper, async (t, server) => {
 		const agent = new Agent();
 
 		agent.getSession(server.url);
 		const requestPromises = Promise.all([agent.request(server.url), agent.request(server.url)]);
 
 		const requests = await requestPromises;
+		t.not(requests[0].session, requests[1].session);
+	});
+
+	test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
+		const agent = new Agent();
+
+		const session = await agent.getSession(server.url);
+		const requests = [session.request(), session.request()];
+
 		t.is(requests[0].session, requests[1].session);
 	});
 

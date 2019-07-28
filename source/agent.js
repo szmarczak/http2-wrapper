@@ -110,10 +110,11 @@ class Agent extends EventEmitter {
 		}
 	}
 
-	async getSession(authority, options) {
+	async getSession(authority, options, name) {
 		return new Promise((resolve, reject) => {
-			const name = this.getName(authority, options);
 			const detached = {resolve, reject};
+
+			name = name || this.getName(authority, options);
 
 			if (Reflect.has(this.freeSessions, name)) {
 				resolve(this.freeSessions[name][0]);
@@ -122,7 +123,6 @@ class Agent extends EventEmitter {
 			}
 
 			if (Reflect.has(this.queue, name)) {
-				// TODO: limit the maximum amount of listeners
 				this.queue[name].listeners.push(detached);
 
 				return;
@@ -130,15 +130,14 @@ class Agent extends EventEmitter {
 
 			const listeners = [detached];
 
-			const free = () => {
-				// If our entry is replaced,`completed` will be `false`.
-				// Or the entry will be `undefined` if all seats are taken.
-				if (Reflect.has(this.queue, name) && this.queue[name].completed) {
+			const removeFromQueue = () => {
+				// Our entry can be replaced. We cannot remove the new one.
+				if (this.queue[name] === entry) {
 					delete this.queue[name];
 				}
 			};
 
-			this.queue[name] = () => {
+			const entry = () => {
 				try {
 					let receivedSettings = false;
 
@@ -168,14 +167,30 @@ class Agent extends EventEmitter {
 							}
 						}
 
-						free();
+						removeFromQueue();
 
 						removeSession(this.freeSessions, name, session);
 						this._processQueue(name);
 					});
 
 					session.once('remoteSettings', () => {
-						free();
+						removeFromQueue();
+
+						const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams);
+
+						if (movedListeners.length !== 0) {
+							while (Reflect.has(this.freeSessions, name) && movedListeners.length !== 0) {
+								movedListeners.shift().resolve(this.freeSessions[name][0]);
+							}
+
+							if (movedListeners.length !== 0) {
+								this.getSession(authority, options, name);
+
+								// Replace listeners with the new ones
+								this.queue[name].listeners.length = 0;
+								this.queue[name].listeners.push(...movedListeners);
+							}
+						}
 
 						if (Reflect.has(this.freeSessions, name)) {
 							this.freeSessions[name].push(session);
@@ -239,8 +254,10 @@ class Agent extends EventEmitter {
 				}
 			};
 
-			this.queue[name].listeners = listeners;
-			this.queue[name].completed = false;
+			entry.listeners = listeners;
+			entry.completed = false;
+
+			this.queue[name] = entry;
 			this._processQueue(name);
 		});
 	}
