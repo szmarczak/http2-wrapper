@@ -92,7 +92,7 @@ if (isCompatible) {
 		t.is(first, second);
 	});
 
-	test('gives the queued session if exists', singleRequestWrapper, async (t, server) => {
+	test('gives the queued session if exists', wrapper, async (t, server) => {
 		server.get('/infinite', () => {});
 
 		const agent = new Agent({
@@ -334,14 +334,14 @@ if (isCompatible) {
 		t.is(agent.freeSessions[agent.getName(server.url)].length, 2);
 	});
 
-	test('sessions can be overloaded', singleRequestWrapper, async (t, server) => {
+	test('prevents overloading sessions', singleRequestWrapper, async (t, server) => {
 		const agent = new Agent();
 
 		agent.getSession(server.url);
 		const requestPromises = Promise.all([agent.request(server.url), agent.request(server.url)]);
 
 		const requests = await requestPromises;
-		t.is(requests[0].session, requests[1].session);
+		t.not(requests[0].session, requests[1].session);
 	});
 
 	// eslint-disable-next-line ava/no-skip-test
