@@ -344,6 +344,15 @@ if (isCompatible) {
 		t.not(requests[0].session, requests[1].session);
 	});
 
+	test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
+		const agent = new Agent();
+
+		const session = await agent.getSession(server.url);
+		const requests = [session.request(), session.request()];
+
+		t.is(requests[0].session, requests[1].session);
+	});
+
 	// eslint-disable-next-line ava/no-skip-test
 	test.skip('throws on invalid usage', wrapper, async (t, server) => {
 		const agent = new Agent();
