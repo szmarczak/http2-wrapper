@@ -1,5 +1,5 @@
 'use strict';
-const http2 = require('.'); // Note: using local version
+const http2 = require('../source'); // Note: using local version
 
 class MyAgent extends http2.Agent {
 	createConnection(authority, options) {

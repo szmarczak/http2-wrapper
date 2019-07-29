@@ -40,6 +40,8 @@
 		"coveralls": "^3.0.5",
 		"create-cert": "^1.0.6",
 		"get-stream": "^5.1.0",
+		"got": "^9.6.0",
+		"many-keys-map": "^1.0.2",
 		"nyc": "^14.1.1",
 		"p-event": "^4.1.0",
 		"tempy": "^0.3.0",

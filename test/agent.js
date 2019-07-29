@@ -357,6 +357,26 @@ if (isCompatible) {
 		t.is(requests[0].session, requests[1].session);
 	});
 
+	test('emits `session` event when a new session is created', wrapper, async (t, server) => {
+		t.plan(1);
+
+		const agent = new Agent();
+
+		agent.once('session', session => {
+			t.truthy(session);
+		});
+
+		await agent.getSession(server.url);
+	});
+
+	test('`.settings` property', wrapper, async (t, server) => {
+		const agent = new Agent();
+		agent.settings.maxHeaderListSize = 100;
+
+		const session = await agent.getSession(server.url);
+		t.is(session.localSettings.maxHeaderListSize, 100);
+	});
+
 	// eslint-disable-next-line ava/no-skip-test
 	test.skip('throws on invalid usage', wrapper, async (t, server) => {
 		const agent = new Agent();
