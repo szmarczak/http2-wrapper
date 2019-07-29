@@ -1,7 +1,7 @@
 'use strict';
 const ManyKeysMap = require('many-keys-map');
 const {extend: gotExtend} = require('got');
-const http2 = require('../../source'); // Note: using local version
+const http2 = require('../../source'); // Note: using the local version
 
 class PushAgent extends http2.Agent {
 	constructor(options) {
