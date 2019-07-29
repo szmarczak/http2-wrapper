@@ -279,6 +279,7 @@ Destroys **all** sessions.
  - [WebSockets over HTTP2 is not supported yet](https://github.com/nodejs/node/issues/15230), although there is [a proposal](https://tools.ietf.org/html/rfc8441) already.
  - [HTTP2 sockets cannot be malformed](https://github.com/nodejs/node/blob/cc8250fab86486632fdeb63892be735d7628cd13/lib/internal/http2/core.js#L725), therefore modifying the socket will have no effect.
  - HTTP2 is a binary protocol. Headers are sent without any validation.
+ - You can make [a custom Agent](examples/push-stream/index.js) to support push streams.
 
 ## Benchmarks
 
