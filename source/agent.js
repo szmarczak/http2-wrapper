@@ -74,6 +74,10 @@ class Agent extends EventEmitter {
 		this.timeout = timeout;
 		this.maxSessions = maxSessions;
 		this.maxFreeSessions = maxFreeSessions;
+
+		this.settings = {
+			enablePush: false
+		};
 	}
 
 	getName(authority, options = {}) {
@@ -143,6 +147,7 @@ class Agent extends EventEmitter {
 
 					const session = http2.connect(authority, {
 						createConnection: this.createConnection,
+						settings: this.settings,
 						...options
 					});
 					session[kCurrentStreamsCount] = 0;
@@ -173,7 +178,7 @@ class Agent extends EventEmitter {
 						this._processQueue(name);
 					});
 
-					session.once('remoteSettings', () => {
+					session.once('localSettings', () => {
 						removeFromQueue();
 
 						const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams);
@@ -245,6 +250,8 @@ class Agent extends EventEmitter {
 
 						return stream;
 					};
+
+					this.emit('session', session);
 				} catch (error) {
 					for (const listener of listeners) {
 						listener.reject(error);

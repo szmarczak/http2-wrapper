@@ -1,5 +1,5 @@
 'use strict';
-const http2 = require('.'); // Note: using local version
+const http2 = require('../source'); // Note: using the local version
 
 const options = {
 	hostname: 'nghttp2.org',
