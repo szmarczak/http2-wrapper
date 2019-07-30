@@ -16,12 +16,9 @@ const nameKeys = [
 	'maxReservedRemoteStreams',
 	'maxSendHeaderBlockLength',
 	'paddingStrategy',
-	'peerMaxConcurrentStreams',
-	'settings',
 
 	// `tls.connect()` options
 	'localAddress',
-	'family',
 	'path',
 	'rejectUnauthorized',
 	'minDHSize',
@@ -67,9 +64,24 @@ class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1} = {}) {
 		super();
 
-		this.busySessions = {};
-		this.freeSessions = {};
 		this.queue = {};
+
+		this.sessions = {
+			// optionsX: {
+			// 	originA: {
+			// 		freeSessions: [
+			// 			session3,
+			// 			...
+			// 		],
+			// 		busySessions: [
+			// 			session1,
+			// 			...
+			// 		]
+			// 	},
+			// 	...
+			// },
+			// ...
+		};
 
 		this.timeout = timeout;
 		this.maxSessions = maxSessions;
@@ -80,28 +92,18 @@ class Agent extends EventEmitter {
 		};
 	}
 
-	getName(authority, options = {}) {
-		if (typeof authority === 'string') {
-			authority = new URL(authority);
-		}
+	_optionsToString(options) {
+		let serialized = '';
 
-		const port = authority.port || 443;
-		const host = authority.hostname || authority.host || 'localhost';
-
-		let name = `${host}:${port}`;
-
-		// TODO: this should ignore defaults too
-		for (const key of nameKeys) {
-			if (Reflect.has(options, key)) {
-				if (typeof options[key] === 'object') {
-					name += `:${JSON.stringify(options[key])}`;
-				} else {
-					name += `:${options[key]}`;
+		if (options) {
+			for (const key of nameKeys) {
+				if (Reflect.has(options, key)) {
+					serialized += `:${options[key]}`;
 				}
 			}
 		}
 
-		return name;
+		return serialized;
 	}
 
 	_processQueue(name) {
@@ -118,7 +120,18 @@ class Agent extends EventEmitter {
 		return new Promise((resolve, reject) => {
 			const detached = {resolve, reject};
 
-			name = name || this.getName(authority, options);
+			if (!name) {
+				if (typeof authority === 'string') {
+					authority = new URL(authority);
+				}
+
+				const port = authority.port || 443;
+				const host = authority.hostname || authority.host || 'localhost';
+
+				name = `${host}:${port}`;
+			}
+
+			const optionsString = this._optionsToString(options);
 
 			if (Reflect.has(this.freeSessions, name)) {
 				resolve(this.freeSessions[name][0]);
@@ -152,6 +165,10 @@ class Agent extends EventEmitter {
 					});
 					session[kCurrentStreamsCount] = 0;
 
+					const applyOrigins = () => {
+
+					};
+
 					session.setTimeout(this.timeout, () => {
 						// `.close()` would wait until all streams all closed
 						session.destroy();
@@ -178,8 +195,14 @@ class Agent extends EventEmitter {
 						this._processQueue(name);
 					});
 
+					session.on('origin', originSet => {
+						applyOrigins();
+						// PlayerTwo.every(val => PlayerOne.includes(val));
+					});
+
 					session.once('localSettings', () => {
 						removeFromQueue();
+						applyOrigins();
 
 						const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams);
 
@@ -271,9 +294,8 @@ class Agent extends EventEmitter {
 
 	async request(authority, options, headers) {
 		const session = await this.getSession(authority, options);
-		const stream = session.request(headers);
 
-		return stream;
+		return session.request(headers);
 	}
 
 	createConnection(authority, options) {
