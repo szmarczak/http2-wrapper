@@ -42,24 +42,6 @@ const nameKeys = [
 	'sessionIdContext'
 ];
 
-const removeSession = (where, name, session) => {
-	if (Reflect.has(where, name)) {
-		const index = where[name].indexOf(session);
-
-		if (index !== -1) {
-			where[name].splice(index, 1);
-
-			if (where[name].length === 0) {
-				delete where[name];
-			}
-
-			return true;
-		}
-	}
-
-	return false;
-};
-
 class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1} = {}) {
 		super();
@@ -81,8 +63,6 @@ class Agent extends EventEmitter {
 		if (typeof authority === 'string') {
 			authority = new URL(authority);
 		}
-
-		let name;
 
 		const port = authority.port || 443;
 		const host = authority.hostname || authority.host || 'localhost';
@@ -113,6 +93,7 @@ class Agent extends EventEmitter {
 	async getSession(authority, options) {
 		return new Promise((resolve, reject) => {
 			const name = this.getName(authority, options);
+			const detached = {resolve, reject};
 
 			if (Reflect.has(this.freeSessions, name)) {
 				resolve(this.freeSessions[name][0]);
@@ -126,7 +107,6 @@ class Agent extends EventEmitter {
 				return;
 			}
 
-			const detached = {resolve, reject};
 			const listeners = [detached];
 
 			const removeFromQueue = () => {
@@ -155,11 +135,12 @@ class Agent extends EventEmitter {
 						return this.freeSessions;
 					};
 
-					let cachedOrigins = [];
+					let previousOrigins = [];
+					let previousParent = this.freeSessions;
 					const removeOrigins = () => {
 						const parent = getParent();
 
-						for (const origin of cachedOrigins) {
+						for (const origin of previousOrigins) {
 							const name = this.getName(origin, options);
 							const sessions = parent[name];
 
@@ -171,12 +152,26 @@ class Agent extends EventEmitter {
 
 							this._processQueue(name);
 						}
+
+						previousOrigins = [];
 					};
 
 					const updateOrigins = () => {
+						const parent = getParent();
+
+						if (parent === previousParent && !session.destroyed) {
+							return;
+						}
+
 						removeOrigins();
 
-						const parent = getParent();
+						if (session.destroyed) {
+							return;
+						}
+
+						if (parent === this.freeSessions && (this.freeSessions[name] || []).length >= this.maxFreeSessions) {
+							return false;
+						}
 
 						for (const origin of session.originSet) {
 							const name = this.getName(origin, options);
@@ -189,7 +184,10 @@ class Agent extends EventEmitter {
 							}
 						}
 
-						cachedOrigins = session.originSet;
+						previousOrigins = session.originSet;
+						previousParent = parent;
+
+						return true;
 					};
 
 					const handleOverload = () => {
@@ -259,34 +257,18 @@ class Agent extends EventEmitter {
 						});
 
 						session.ref();
+						session[kCurrentStreamsCount]++;
 
-						if (++session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
-							removeSession(this.freeSessions, name, session);
-
-							if (Reflect.has(this.busySessions, name)) {
-								this.busySessions[name].push(session);
-							} else {
-								this.busySessions[name] = [session];
-							}
-						}
+						updateOrigins();
 
 						stream.once('close', () => {
-							if (--session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
-								if (session[kCurrentStreamsCount] === 0) {
-									session.unref();
-								}
+							session[kCurrentStreamsCount]--;
 
-								if (removeSession(this.busySessions, name, session) && !session.destroyed) {
-									if ((this.freeSessions[name] || []).length < this.maxFreeSessions) {
-										if (Reflect.has(this.freeSessions, name)) {
-											this.freeSessions[name].push(session);
-										} else {
-											this.freeSessions[name] = [session];
-										}
-									} else {
-										session.close();
-									}
-								}
+							console.log('CLOSING', session[kCurrentStreamsCount]);
+							if (updateOrigins() === false) {
+								session.close();
+							} else if (session[kCurrentStreamsCount] === 0) {
+								session.unref();
 							}
 						});
 
@@ -324,12 +306,12 @@ class Agent extends EventEmitter {
 	static connect(authority, options) {
 		options.ALPNProtocols = ['h2'];
 
-		if (typeof options.servername === 'undefined') {
-			options.servername = authority.host;
-		}
-
 		const port = authority.port || 443;
 		const host = authority.hostname || authority.host;
+
+		if (typeof options.servername === 'undefined') {
+			options.servername = host;
+		}
 
 		return tls.connect(port, host, options);
 	}

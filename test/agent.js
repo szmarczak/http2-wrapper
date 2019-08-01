@@ -297,9 +297,7 @@ if (isCompatible) {
 
 		const firstSession = await agent.getSession(server.url);
 		const secondSession = await agent.getSession(server.url, {
-			settings: {
-				peerMaxConcurrentStreams: 1
-			}
+			maxSessionMemory: 1
 		});
 
 		t.not(firstSession, secondSession);
@@ -312,7 +310,7 @@ if (isCompatible) {
 		t.is(session.socket.servername, 'foobar');
 	});
 
-	test('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
+	test.only('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
 		t.plan(1);
 
 		server.get('/', (request, response) => {
@@ -334,6 +332,7 @@ if (isCompatible) {
 		await pEvent(secondStream, 'close');
 
 		setImmediate(() => {
+			console.log('free', agent.freeSessions, 'busy', agent.busySessions);
 			t.is(agent.freeSessions[agent.getName(server.url)].length, 2);
 		});
 	});
