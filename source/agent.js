@@ -64,24 +64,9 @@ class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1} = {}) {
 		super();
 
+		this.busySessions = {};
+		this.freeSessions = {};
 		this.queue = {};
-
-		this.sessions = {
-			// optionsX: {
-			// 	originA: {
-			// 		freeSessions: [
-			// 			session3,
-			// 			...
-			// 		],
-			// 		busySessions: [
-			// 			session1,
-			// 			...
-			// 		]
-			// 	},
-			// 	...
-			// },
-			// ...
-		};
 
 		this.timeout = timeout;
 		this.maxSessions = maxSessions;
@@ -92,18 +77,27 @@ class Agent extends EventEmitter {
 		};
 	}
 
-	_optionsToString(options) {
-		let serialized = '';
+	getName(authority, options) {
+		if (typeof authority === 'string') {
+			authority = new URL(authority);
+		}
+
+		let name;
+
+		const port = authority.port || 443;
+		const host = authority.hostname || authority.host || 'localhost';
+
+		let name = `${host}:${port}`;
 
 		if (options) {
 			for (const key of nameKeys) {
 				if (Reflect.has(options, key)) {
-					serialized += `:${options[key]}`;
+					name += `:${options[key]}`;
 				}
 			}
 		}
 
-		return serialized;
+		return name;
 	}
 
 	_processQueue(name) {
@@ -116,22 +110,9 @@ class Agent extends EventEmitter {
 		}
 	}
 
-	async getSession(authority, options, name) {
+	async getSession(authority, options) {
 		return new Promise((resolve, reject) => {
-			const detached = {resolve, reject};
-
-			if (!name) {
-				if (typeof authority === 'string') {
-					authority = new URL(authority);
-				}
-
-				const port = authority.port || 443;
-				const host = authority.hostname || authority.host || 'localhost';
-
-				name = `${host}:${port}`;
-			}
-
-			const optionsString = this._optionsToString(options);
+			const name = this.getName(authority, options);
 
 			if (Reflect.has(this.freeSessions, name)) {
 				resolve(this.freeSessions[name][0]);
@@ -145,6 +126,7 @@ class Agent extends EventEmitter {
 				return;
 			}
 
+			const detached = {resolve, reject};
 			const listeners = [detached];
 
 			const removeFromQueue = () => {
@@ -165,12 +147,71 @@ class Agent extends EventEmitter {
 					});
 					session[kCurrentStreamsCount] = 0;
 
-					const applyOrigins = () => {
+					const getParent = () => {
+						if (session[kCurrentStreamsCount] === session.remoteSettings.maxConcurrentStreams) {
+							return this.busySessions;
+						}
 
+						return this.freeSessions;
+					};
+
+					let cachedOrigins = [];
+					const removeOrigins = () => {
+						const parent = getParent();
+
+						for (const origin of cachedOrigins) {
+							const name = this.getName(origin, options);
+							const sessions = parent[name];
+
+							if (sessions && sessions.length > 1) {
+								sessions.splice(sessions.indexOf(session), 1);
+							} else {
+								delete parent[name];
+							}
+
+							this._processQueue(name);
+						}
+					};
+
+					const updateOrigins = () => {
+						removeOrigins();
+
+						const parent = getParent();
+
+						for (const origin of session.originSet) {
+							const name = this.getName(origin, options);
+							const sessions = parent[name];
+
+							if (sessions) {
+								sessions.push(session);
+							} else {
+								parent[name] = [session];
+							}
+						}
+
+						cachedOrigins = session.originSet;
+					};
+
+					const handleOverload = () => {
+						const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams);
+
+						if (movedListeners.length !== 0) {
+							while (Reflect.has(this.freeSessions, name) && movedListeners.length !== 0) {
+								movedListeners.shift().resolve(this.freeSessions[name][0]);
+							}
+
+							if (movedListeners.length !== 0) {
+								this.getSession(authority, options, name);
+
+								// Replace listeners with the new ones
+								this.queue[name].listeners.length = 0;
+								this.queue[name].listeners.push(...movedListeners);
+							}
+						}
 					};
 
 					session.setTimeout(this.timeout, () => {
-						// `.close()` would wait until all streams all closed
+						// `session.close()` would wait until all streams all closed
 						session.destroy();
 					});
 
@@ -190,41 +231,19 @@ class Agent extends EventEmitter {
 						}
 
 						removeFromQueue();
-
-						removeSession(this.freeSessions, name, session);
-						this._processQueue(name);
+						removeOrigins();
 					});
 
-					session.on('origin', originSet => {
-						applyOrigins();
-						// PlayerTwo.every(val => PlayerOne.includes(val));
+					session.on('origin', () => {
+						updateOrigins();
+
+						// TODO: close sessions which originSet is full covered by this session
 					});
 
 					session.once('localSettings', () => {
 						removeFromQueue();
-						applyOrigins();
-
-						const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams);
-
-						if (movedListeners.length !== 0) {
-							while (Reflect.has(this.freeSessions, name) && movedListeners.length !== 0) {
-								movedListeners.shift().resolve(this.freeSessions[name][0]);
-							}
-
-							if (movedListeners.length !== 0) {
-								this.getSession(authority, options, name);
-
-								// Replace listeners with the new ones
-								this.queue[name].listeners.length = 0;
-								this.queue[name].listeners.push(...movedListeners);
-							}
-						}
-
-						if (Reflect.has(this.freeSessions, name)) {
-							this.freeSessions[name].push(session);
-						} else {
-							this.freeSessions[name] = [session];
-						}
+						handleOverload();
+						updateOrigins();
 
 						for (const listener of listeners) {
 							listener.resolve(session);

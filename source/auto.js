@@ -14,27 +14,30 @@ const prepareRequest = async options => {
 	if (options.protocol === 'https:') {
 		const host = options.hostname || options.host || 'localhost';
 		const port = options.port || 443;
-		const ALPNProtocols = options.ALPNProtocols || ['h2', 'http/1.1'];
-		const name = `${host}:${port}:${ALPNProtocols.sort()}`;
 
-		let alpnProtocol = cache.get(name);
+		if (isCompatible) {
+			const ALPNProtocols = options.ALPNProtocols || ['h2', 'http/1.1'];
+			const name = `${host}:${port}:${ALPNProtocols.sort()}`;
 
-		if (typeof alpnProtocol === 'undefined') {
-			alpnProtocol = (await httpResolveALPN(options)).alpnProtocol;
-			cache.set(name, alpnProtocol);
-		}
+			let alpnProtocol = cache.get(name);
 
-		if (alpnProtocol === 'h2' && isCompatible) {
-			return (options, callback) => {
-				if (options.agent && options.agent.http2) {
-					options = {
-						...options,
-						agent: options.agent.http2
-					};
-				}
+			if (typeof alpnProtocol === 'undefined') {
+				alpnProtocol = (await httpResolveALPN(options)).alpnProtocol;
+				cache.set(name, alpnProtocol);
+			}
 
-				return Http2ClientRequest.request(options, callback);
-			};
+			if (alpnProtocol === 'h2') {
+				return (options, callback) => {
+					if (options.agent && options.agent.http2) {
+						options = {
+							...options,
+							agent: options.agent.http2
+						};
+					}
+
+					return Http2ClientRequest.request(options, callback);
+				};
+			}
 		}
 
 		return (options, callback) => {
