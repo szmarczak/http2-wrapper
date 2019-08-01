@@ -16,12 +16,9 @@ const nameKeys = [
 	'maxReservedRemoteStreams',
 	'maxSendHeaderBlockLength',
 	'paddingStrategy',
-	'peerMaxConcurrentStreams',
-	'settings',
 
 	// `tls.connect()` options
 	'localAddress',
-	'family',
 	'path',
 	'rejectUnauthorized',
 	'minDHSize',
@@ -80,7 +77,7 @@ class Agent extends EventEmitter {
 		};
 	}
 
-	getName(authority, options = {}) {
+	getName(authority, options) {
 		if (typeof authority === 'string') {
 			authority = new URL(authority);
 		}
@@ -90,12 +87,9 @@ class Agent extends EventEmitter {
 
 		let name = `${host}:${port}`;
 
-		// TODO: this should ignore defaults too
-		for (const key of nameKeys) {
-			if (Reflect.has(options, key)) {
-				if (typeof options[key] === 'object') {
-					name += `:${JSON.stringify(options[key])}`;
-				} else {
+		if (options) {
+			for (const key of nameKeys) {
+				if (Reflect.has(options, key)) {
 					name += `:${options[key]}`;
 				}
 			}
@@ -283,12 +277,12 @@ class Agent extends EventEmitter {
 	static connect(authority, options) {
 		options.ALPNProtocols = ['h2'];
 
-		if (typeof options.servername === 'undefined') {
-			options.servername = authority.host;
-		}
-
 		const port = authority.port || 443;
 		const host = authority.hostname || authority.host;
+
+		if (typeof options.servername === 'undefined') {
+			options.servername = host;
+		}
 
 		return tls.connect(port, host, options);
 	}

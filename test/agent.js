@@ -297,9 +297,7 @@ if (isCompatible) {
 
 		const firstSession = await agent.getSession(server.url);
 		const secondSession = await agent.getSession(server.url, {
-			settings: {
-				peerMaxConcurrentStreams: 1
-			}
+			maxSessionMemory: 1
 		});
 
 		t.not(firstSession, secondSession);
