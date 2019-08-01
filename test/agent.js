@@ -104,11 +104,11 @@ if (isCompatible) {
 
 		const firstPromise = agent.getSession(server.url, {});
 
-		t.is(typeof Object.values(agent.queue)[0], 'function');
+		t.is(typeof Object.values(agent.queue[''])[0], 'function');
 
 		const secondPromise = agent.getSession(server.url, {});
 
-		t.is(typeof Object.values(agent.queue)[0], 'function');
+		t.is(typeof Object.values(agent.queue[''])[0], 'function');
 		t.is(await firstPromise, await secondPromise);
 	});
 
@@ -148,7 +148,7 @@ if (isCompatible) {
 			':path': '/infinite'
 		});
 
-		t.is(typeof Object.values(agent.queue)[0], 'function');
+		t.is(typeof Object.values(agent.queue[''])[0], 'function');
 		t.is(Object.values(agent.freeSessions).length, 0);
 		t.is(Object.values(agent.busySessions)[0].length, 1);
 
@@ -335,7 +335,7 @@ if (isCompatible) {
 		await pEvent(secondStream, 'close');
 
 		setImmediate(() => {
-			t.is(agent.freeSessions[agent.getName(server.url)].length, 2);
+			t.is(agent.freeSessions[''].length, 2);
 		});
 	});
 

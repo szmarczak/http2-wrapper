@@ -61,6 +61,16 @@ const removeSession = (where, name, session) => {
 	return false;
 };
 
+const getSessions = (where, name, normalizedAuthority) => {
+	if (Reflect.has(where, name)) {
+		return where[name].filter(session => {
+			return session.originSet.includes(normalizedAuthority);
+		});
+	}
+
+	return [];
+};
+
 class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
 		super();
@@ -80,61 +90,84 @@ class Agent extends EventEmitter {
 		this.tlsSessionCache = new QuickLRU({maxSize: maxCachedTlsSessions});
 	}
 
-	getName(authority, options) {
+	normalizeAuthority(authority) {
 		if (typeof authority === 'string') {
 			authority = new URL(authority);
 		}
 
-		const port = authority.port || 443;
 		const host = authority.hostname || authority.host || 'localhost';
+		const port = authority.port || 443;
 
-		let name = `${host}:${port}`;
+		return `https://${host}:${port}`;
+	}
+
+	normalizeOptions(options) {
+		let normalized = '';
 
 		if (options) {
 			for (const key of nameKeys) {
 				if (Reflect.has(options, key)) {
-					name += `:${options[key]}`;
+					normalized += `:${options[key]}`;
 				}
 			}
 		}
 
-		return name;
+		return normalized;
 	}
 
-	_processQueue(name) {
-		const busyLength = Reflect.has(this.busySessions, name) ? this.busySessions[name].length : 0;
+	_processQueue(normalizedOptions, normalizedAuthority) {
+		if (!Reflect.has(this.queue, normalizedOptions) || !Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+			return;
+		}
 
-		if (busyLength < this.maxSessions && Reflect.has(this.queue, name) && !this.queue[name].completed) {
-			this.queue[name].completed = true;
+		const busyLength = getSessions(this.busySessions, normalizedOptions, normalizedAuthority).length;
+		const item = this.queue[normalizedOptions][normalizedAuthority];
 
-			this.queue[name]();
+		if (busyLength < this.maxSessions && !item.completed) {
+			item.completed = true;
+
+			item();
 		}
 	}
 
-	async getSession(authority, options, name) {
+	async getSession(authority, options) {
 		return new Promise((resolve, reject) => {
 			const detached = {resolve, reject};
+			const normalizedOptions = this.normalizeOptions(options);
+			const normalizedAuthority = this.normalizeAuthority(authority);
 
-			name = name || this.getName(authority, options);
+			if (Reflect.has(this.freeSessions, normalizedOptions)) {
+				const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
 
-			if (Reflect.has(this.freeSessions, name)) {
-				resolve(this.freeSessions[name][0]);
+				if (freeSessions.length !== 0) {
+					resolve(freeSessions.reduce((previousValue, nextValue) => {
+						if (nextValue[kCurrentStreamsCount] > previousValue[kCurrentStreamsCount]) {
+							return nextValue;
+						}
 
-				return;
+						return previousValue;
+					}));
+
+					return;
+				}
 			}
 
-			if (Reflect.has(this.queue, name)) {
-				this.queue[name].listeners.push(detached);
+			if (Reflect.has(this.queue, normalizedOptions)) {
+				if (Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+					this.queue[normalizedOptions][normalizedAuthority].listeners.push(detached);
 
-				return;
+					return;
+				}
+			} else {
+				this.queue[normalizedOptions] = {};
 			}
 
 			const listeners = [detached];
 
 			const removeFromQueue = () => {
 				// Our entry can be replaced. We cannot remove the new one.
-				if (this.queue[name] === entry) {
-					delete this.queue[name];
+				if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedAuthority] === entry) {
+					delete this.queue[normalizedOptions][normalizedAuthority];
 				}
 			};
 
@@ -177,9 +210,13 @@ class Agent extends EventEmitter {
 						}
 
 						removeFromQueue();
+						removeSession(this.freeSessions, normalizedOptions, session);
+						this._processQueue(normalizedOptions, normalizedAuthority);
+					});
 
-						removeSession(this.freeSessions, name, session);
-						this._processQueue(name);
+					session.once('origin', () => {
+						// TODO: close sessions which Origin Set is fully covered by this session
+						// TODO: check if items in the queue may be covered by this session
 					});
 
 					session.once('localSettings', () => {
@@ -188,23 +225,30 @@ class Agent extends EventEmitter {
 						const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams);
 
 						if (movedListeners.length !== 0) {
-							while (Reflect.has(this.freeSessions, name) && movedListeners.length !== 0) {
-								movedListeners.shift().resolve(this.freeSessions[name][0]);
+							const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
+
+							while (freeSessions.length !== 0 && movedListeners.length !== 0) {
+								movedListeners.shift().resolve(freeSessions[0]);
+
+								if (freeSessions[0][kCurrentStreamsCount] >= freeSessions[0].remoteSettings.maxConcurrentStreams) {
+									freeSessions.shift();
+								}
 							}
 
 							if (movedListeners.length !== 0) {
-								this.getSession(authority, options, name);
+								this.getSession(authority, options);
 
 								// Replace listeners with the new ones
-								this.queue[name].listeners.length = 0;
-								this.queue[name].listeners.push(...movedListeners);
+								const {listeners} = this.queue[normalizedOptions][normalizedAuthority];
+								listeners.length = 0;
+								listeners.push(...movedListeners);
 							}
 						}
 
-						if (Reflect.has(this.freeSessions, name)) {
-							this.freeSessions[name].push(session);
+						if (Reflect.has(this.freeSessions, normalizedOptions)) {
+							this.freeSessions[normalizedOptions].push(session);
 						} else {
-							this.freeSessions[name] = [session];
+							this.freeSessions[normalizedOptions] = [session];
 						}
 
 						for (const listener of listeners) {
@@ -223,12 +267,12 @@ class Agent extends EventEmitter {
 						session.ref();
 
 						if (++session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
-							removeSession(this.freeSessions, name, session);
+							removeSession(this.freeSessions, normalizedOptions, session);
 
-							if (Reflect.has(this.busySessions, name)) {
-								this.busySessions[name].push(session);
+							if (Reflect.has(this.busySessions, normalizedOptions)) {
+								this.busySessions[normalizedOptions].push(session);
 							} else {
-								this.busySessions[name] = [session];
+								this.busySessions[normalizedOptions] = [session];
 							}
 						}
 
@@ -238,12 +282,14 @@ class Agent extends EventEmitter {
 									session.unref();
 								}
 
-								if (removeSession(this.busySessions, name, session) && !session.destroyed) {
-									if ((this.freeSessions[name] || []).length < this.maxFreeSessions) {
-										if (Reflect.has(this.freeSessions, name)) {
-											this.freeSessions[name].push(session);
+								if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed) {
+									const freeSessionsLength = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority).length;
+
+									if (freeSessionsLength < this.maxFreeSessions) {
+										if (Reflect.has(this.freeSessions, normalizedOptions)) {
+											this.freeSessions[normalizedOptions].push(session);
 										} else {
-											this.freeSessions[name] = [session];
+											this.freeSessions[normalizedOptions] = [session];
 										}
 									} else {
 										session.close();
@@ -261,15 +307,15 @@ class Agent extends EventEmitter {
 						listener.reject(error);
 					}
 
-					delete this.queue[name];
+					delete this.queue[normalizedOptions][normalizedAuthority];
 				}
 			};
 
 			entry.listeners = listeners;
 			entry.completed = false;
 
-			this.queue[name] = entry;
-			this._processQueue(name);
+			this.queue[normalizedOptions][normalizedAuthority] = entry;
+			this._processQueue(normalizedOptions, normalizedAuthority);
 		});
 	}
 
