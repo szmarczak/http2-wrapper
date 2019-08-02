@@ -185,6 +185,10 @@ class Agent extends EventEmitter {
 				// Our entry can be replaced. We cannot remove the new one.
 				if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedAuthority] === entry) {
 					delete this.queue[normalizedOptions][normalizedAuthority];
+
+					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+						delete this.queue[normalizedOptions];
+					}
 				}
 			};
 
@@ -250,6 +254,10 @@ class Agent extends EventEmitter {
 
 								if (movedListeners.length === 0) {
 									delete this.queue[normalizedOptions][authority];
+
+									if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+										delete this.queue[normalizedOptions];
+									}
 								}
 							}
 						}
