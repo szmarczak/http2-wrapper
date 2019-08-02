@@ -71,6 +71,22 @@ const getSessions = (where, name, normalizedAuthority) => {
 	return [];
 };
 
+const closeCoveredSessions = (where, session) => {
+	if (typeof where === 'undefined') {
+		return;
+	}
+
+	for (const coveredSession of where) {
+		if (
+			coveredSession !== session &&
+			coveredSession.originSet.every(origin => session.originSet.includes(origin)) &&
+			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
+		) {
+			coveredSession.close();
+		}
+	}
+};
+
 class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
 		super();
@@ -215,8 +231,27 @@ class Agent extends EventEmitter {
 					});
 
 					session.once('origin', () => {
-						// TODO: close sessions which Origin Set is fully covered by this session
-						// TODO: check if items in the queue may be covered by this session
+						if (session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
+							return;
+						}
+
+						closeCoveredSessions(this.freeSessions[normalizedOptions], session);
+						closeCoveredSessions(this.busySessions[normalizedOptions], session);
+
+						for (const authority in this.queue[normalizedOptions]) {
+							if (session.originSet.includes(authority)) {
+								const {listeners} = this.queue[normalizedOptions][authority];
+								const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams - session[kCurrentStreamsCount]);
+
+								while (movedListeners.length !== 0 && session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
+									movedListeners.shift().resolve(session);
+								}
+
+								if (movedListeners.length === 0) {
+									delete this.queue[normalizedOptions][authority];
+								}
+							}
+						}
 					});
 
 					session.once('localSettings', () => {
@@ -291,6 +326,9 @@ class Agent extends EventEmitter {
 										} else {
 											this.freeSessions[normalizedOptions] = [session];
 										}
+
+										closeCoveredSessions(this.freeSessions[normalizedOptions], session);
+										closeCoveredSessions(this.busySessions[normalizedOptions], session);
 									} else {
 										session.close();
 									}
