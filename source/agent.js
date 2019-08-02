@@ -80,6 +80,7 @@ const closeCoveredSessions = (where, session) => {
 		if (
 			coveredSession !== session &&
 			coveredSession.originSet.every(origin => session.originSet.includes(origin)) &&
+			coveredSession[kCurrentStreamsCount] !== 0 &&
 			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
 		) {
 			coveredSession.close();
