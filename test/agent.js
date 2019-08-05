@@ -8,6 +8,8 @@ import {Agent} from '../source';
 import isCompatible from '../source/utils/is-compatible';
 import {createWrapper} from './helpers/server';
 
+const supportsTlsSessions = process.versions.node.split('.')[0] >= 11;
+
 if (isCompatible) {
 	process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -376,37 +378,39 @@ if (isCompatible) {
 		t.is(session.localSettings.maxHeaderListSize, 100);
 	});
 
-	test('caches a TLS session when successfully connected', wrapper, async (t, server) => {
-		const agent = new Agent();
-		await agent.getSession(server.url);
+	if (supportsTlsSessions) {
+		test('caches a TLS session when successfully connected', wrapper, async (t, server) => {
+			const agent = new Agent();
+			await agent.getSession(server.url);
 
-		t.true(is.buffer(agent.tlsSessionCache.get(agent.getName(server.url))));
-	});
+			t.true(is.buffer(agent.tlsSessionCache.get(agent.getName(server.url))));
+		});
 
-	test('reuses a TLS session', wrapper, async (t, server) => {
-		const agent = new Agent();
-		const session = await agent.getSession(server.url);
-		const tlsSession = agent.tlsSessionCache.get(agent.getName(server.url));
+		test('reuses a TLS session', wrapper, async (t, server) => {
+			const agent = new Agent();
+			const session = await agent.getSession(server.url);
+			const tlsSession = agent.tlsSessionCache.get(agent.getName(server.url));
 
-		session.close();
-		await pEvent(session, 'close');
+			session.close();
+			await pEvent(session, 'close');
 
-		const secondSession = await agent.getSession(server.url);
+			const secondSession = await agent.getSession(server.url);
 
-		t.deepEqual(secondSession.socket.getSession(), tlsSession);
-		t.true(is.buffer(tlsSession));
-	});
+			t.deepEqual(secondSession.socket.getSession(), tlsSession);
+			t.true(is.buffer(tlsSession));
+		});
 
-	test('purges the TLS session on session error', wrapper, async (t, server) => {
-		const agent = new Agent();
-		const session = await agent.getSession(server.url);
-		t.true(is.buffer(agent.tlsSessionCache.get(agent.getName(server.url))));
+		test('purges the TLS session on session error', wrapper, async (t, server) => {
+			const agent = new Agent();
+			const session = await agent.getSession(server.url);
+			t.true(is.buffer(agent.tlsSessionCache.get(agent.getName(server.url))));
 
-		session.destroy(new Error('Ouch.'));
-		await pEvent(session, 'close', {rejectionEvents: []});
+			session.destroy(new Error('Ouch.'));
+			await pEvent(session, 'close', {rejectionEvents: []});
 
-		t.true(is.undefined(agent.tlsSessionCache.get(agent.getName(server.url))));
-	});
+			t.true(is.undefined(agent.tlsSessionCache.get(agent.getName(server.url))));
+		});
+	}
 
 	// eslint-disable-next-line ava/no-skip-test
 	test.skip('throws on invalid usage', wrapper, async (t, server) => {
