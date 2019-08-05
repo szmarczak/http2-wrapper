@@ -16,7 +16,7 @@ I recommend adapting to the [`http2`](https://nodejs.org/api/http2.html) module 
 > `$ npm install http2-wrapper`<br>
 > `$ yarn add http2-wrapper`
 
-It's best to run `http2-wrapper` under **latest** Node. It provides the most stability.
+It's best to run `http2-wrapper` under **the latest** version of Node. It provides the best stability.
 
 ## Usage
 ```js
