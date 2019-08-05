@@ -313,8 +313,7 @@ if (isCompatible) {
 	});
 
 	// Blocking: https://github.com/nodejs/node/issues/28985
-	// eslint-disable-next-line ava/no-skip-test
-	test.skip('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
+	test.only('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
 		t.plan(1);
 
 		server.get('/', (request, response) => {
@@ -326,18 +325,13 @@ if (isCompatible) {
 		const agent = new Agent({maxFreeSessions: 2});
 
 		const firstRequest = await agent.request(server.url);
+		const promise = pEvent(firstRequest.session, 'close');
+		firstRequest.session.destroy();
+
+		await promise;
+
 		const secondRequest = await agent.request(server.url);
-
-		firstRequest.close();
-		secondRequest.close();
-
-		const secondStream = await agent.request(server.url);
-		secondStream.end();
-		await pEvent(secondStream, 'close');
-
-		setImmediate(() => {
-			t.is(agent.freeSessions[''].length, 2);
-		});
+		console.log(secondRequest.session.originSet);
 	});
 
 	test('prevents overloading sessions', singleRequestWrapper, async (t, server) => {
