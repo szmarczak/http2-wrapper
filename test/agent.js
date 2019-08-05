@@ -219,9 +219,8 @@ if (isCompatible) {
 	});
 
 	test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrapper, async (t, server) => {
-		const agent = new Agent();
-
 		{
+			const agent = new Agent();
 			const session = await agent.getSession(server.url);
 
 			agent.closeFreeSessions();
@@ -233,13 +232,13 @@ if (isCompatible) {
 		}
 
 		{
+			const agent = new Agent();
 			const session = await agent.getSession(server.url);
 			(await agent.request(server.url)).end();
 
 			agent.closeFreeSessions();
 
 			t.is(session.closed, false);
-
 			t.is(Object.values(agent.freeSessions).length, 1);
 		}
 	});
@@ -313,7 +312,9 @@ if (isCompatible) {
 		t.is(session.socket.servername, 'foobar');
 	});
 
-	test('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
+	// Blocking: https://github.com/nodejs/node/issues/28985
+	// eslint-disable-next-line ava/no-skip-test
+	test.skip('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
 		t.plan(1);
 
 		server.get('/', (request, response) => {
@@ -383,13 +384,13 @@ if (isCompatible) {
 			const agent = new Agent();
 			await agent.getSession(server.url);
 
-			t.true(is.buffer(agent.tlsSessionCache.get(agent.getName(server.url))));
+			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`)));
 		});
 
 		test('reuses a TLS session', wrapper, async (t, server) => {
 			const agent = new Agent();
 			const session = await agent.getSession(server.url);
-			const tlsSession = agent.tlsSessionCache.get(agent.getName(server.url));
+			const tlsSession = agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`);
 
 			session.close();
 			await pEvent(session, 'close');
@@ -403,12 +404,12 @@ if (isCompatible) {
 		test('purges the TLS session on session error', wrapper, async (t, server) => {
 			const agent = new Agent();
 			const session = await agent.getSession(server.url);
-			t.true(is.buffer(agent.tlsSessionCache.get(agent.getName(server.url))));
+			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`)));
 
 			session.destroy(new Error('Ouch.'));
 			await pEvent(session, 'close', {rejectionEvents: []});
 
-			t.true(is.undefined(agent.tlsSessionCache.get(agent.getName(server.url))));
+			t.true(is.undefined(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`)));
 		});
 	}
 

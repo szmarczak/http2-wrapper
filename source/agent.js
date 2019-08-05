@@ -194,6 +194,7 @@ class Agent extends EventEmitter {
 
 			const entry = () => {
 				try {
+					const name = `${normalizedAuthority}:${normalizedOptions}`;
 					let receivedSettings = false;
 
 					const session = http2.connect(authority, {
