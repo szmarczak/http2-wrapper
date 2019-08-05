@@ -3,6 +3,7 @@ import tls from 'tls';
 import test from 'ava';
 import createCert from 'create-cert';
 import pEvent from 'p-event';
+import is from '@sindresorhus/is';
 import {Agent} from '../source';
 import isCompatible from '../source/utils/is-compatible';
 import {createWrapper} from './helpers/server';
@@ -373,6 +374,38 @@ if (isCompatible) {
 
 		const session = await agent.getSession(server.url);
 		t.is(session.localSettings.maxHeaderListSize, 100);
+	});
+
+	test('caches a TLS session when successfully connected', wrapper, async (t, server) => {
+		const agent = new Agent();
+		await agent.getSession(server.url);
+
+		t.true(is.buffer(agent.tlsSessionCache.get(agent.getName(server.url))));
+	});
+
+	test('reuses a TLS session', wrapper, async (t, server) => {
+		const agent = new Agent();
+		const session = await agent.getSession(server.url);
+		const tlsSession = agent.tlsSessionCache.get(agent.getName(server.url));
+
+		session.close();
+		await pEvent(session, 'close');
+
+		const secondSession = await agent.getSession(server.url);
+
+		t.deepEqual(secondSession.socket.getSession(), tlsSession);
+		t.true(is.buffer(tlsSession));
+	});
+
+	test('purges the TLS session on session error', wrapper, async (t, server) => {
+		const agent = new Agent();
+		const session = await agent.getSession(server.url);
+		t.true(is.buffer(agent.tlsSessionCache.get(agent.getName(server.url))));
+
+		session.destroy(new Error('Ouch.'));
+		await pEvent(session, 'close', {rejectionEvents: []});
+
+		t.true(is.undefined(agent.tlsSessionCache.get(agent.getName(server.url))));
 	});
 
 	// eslint-disable-next-line ava/no-skip-test

@@ -3,6 +3,7 @@ const {URL} = require('url');
 const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
+const QuickLRU = require('quick-lru');
 
 const kCurrentStreamsCount = Symbol('currentStreamsCount');
 const kRequest = Symbol('request');
@@ -61,7 +62,7 @@ const removeSession = (where, name, session) => {
 };
 
 class Agent extends EventEmitter {
-	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1} = {}) {
+	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
 		super();
 
 		this.busySessions = {};
@@ -75,6 +76,8 @@ class Agent extends EventEmitter {
 		this.settings = {
 			enablePush: false
 		};
+
+		this.tlsSessionCache = new QuickLRU({maxSize: maxCachedTlsSessions});
 	}
 
 	getName(authority, options) {
@@ -142,13 +145,13 @@ class Agent extends EventEmitter {
 					const session = http2.connect(authority, {
 						createConnection: this.createConnection,
 						settings: this.settings,
+						session: this.tlsSessionCache.get(name),
 						...options
 					});
 					session[kCurrentStreamsCount] = 0;
 
-					session.setTimeout(this.timeout, () => {
-						// `.close()` would wait until all streams all closed
-						session.destroy();
+					session.socket.once('session', session => {
+						this.tlsSessionCache.set(name, session);
 					});
 
 					session.once('error', error => {
@@ -157,6 +160,13 @@ class Agent extends EventEmitter {
 						for (const listener of listeners) {
 							listener.reject(error);
 						}
+
+						this.tlsSessionCache.delete(name);
+					});
+
+					session.setTimeout(this.timeout, () => {
+						// `.close()` would wait until all streams all closed
+						session.destroy();
 					});
 
 					session.once('close', () => {
