@@ -196,17 +196,32 @@ class Agent extends EventEmitter {
 				try {
 					const name = `${normalizedAuthority}:${normalizedOptions}`;
 					let receivedSettings = false;
+					let servername;
+
+					const tlsSessionCache = this.tlsSessionCache.get(name);
 
 					const session = http2.connect(authority, {
 						createConnection: this.createConnection,
 						settings: this.settings,
-						session: this.tlsSessionCache.get(name),
+						session: tlsSessionCache ? tlsSessionCache.session : undefined,
 						...options
 					});
 					session[kCurrentStreamsCount] = 0;
 
 					session.socket.once('session', session => {
-						this.tlsSessionCache.set(name, session);
+						this.tlsSessionCache.set(name, {
+							session,
+							servername
+						});
+					});
+
+					// See https://github.com/nodejs/node/issues/28985
+					session.socket.once('secureConnect', () => {
+						servername = session.socket.servername;
+
+						if (servername === false && typeof tlsSessionCache !== 'undefined') {
+							session.socket.servername = tlsSessionCache.servername;
+						}
 					});
 
 					session.once('error', error => {

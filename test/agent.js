@@ -312,9 +312,7 @@ if (isCompatible) {
 		t.is(session.socket.servername, 'foobar');
 	});
 
-	// Blocking: https://github.com/nodejs/node/issues/28985
-	// eslint-disable-next-line ava/no-skip-test
-	test.skip('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
+	test('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
 		t.plan(1);
 
 		server.get('/', (request, response) => {
@@ -384,13 +382,13 @@ if (isCompatible) {
 			const agent = new Agent();
 			await agent.getSession(server.url);
 
-			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`)));
+			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session));
 		});
 
 		test('reuses a TLS session', wrapper, async (t, server) => {
 			const agent = new Agent();
 			const session = await agent.getSession(server.url);
-			const tlsSession = agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`);
+			const tlsSession = agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session;
 
 			session.close();
 			await pEvent(session, 'close');
@@ -404,7 +402,7 @@ if (isCompatible) {
 		test('purges the TLS session on session error', wrapper, async (t, server) => {
 			const agent = new Agent();
 			const session = await agent.getSession(server.url);
-			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`)));
+			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session));
 
 			session.destroy(new Error('Ouch.'));
 			await pEvent(session, 'close', {rejectionEvents: []});
