@@ -248,6 +248,11 @@ class Agent extends EventEmitter {
 
 						removeFromQueue();
 						removeSession(this.freeSessions, normalizedOptions, session);
+
+						// TODO: this needs tests (session `close` event emitted before its streams were closed)
+						// See https://travis-ci.org/szmarczak/http2-wrapper/jobs/587629103#L282
+						removeSession(this.busySessions, normalizedOptions, session);
+
 						this._processQueue(normalizedOptions, normalizedAuthority);
 					});
 
