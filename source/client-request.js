@@ -30,14 +30,15 @@ class ClientRequest extends Writable {
 	constructor(input, options, callback) {
 		super();
 
-		if (typeof input === 'string' || input instanceof URL) {
-			input = urlToOptions(new URL(input));
+		const isInputNotOptions = typeof input === 'string' || input instanceof URL;
+		if (isInputNotOptions) {
+			input = urlToOptions(input instanceof URL ? input : new URL(input));
 		}
 
 		if (typeof options === 'function') {
 			// (options, callback)
 			callback = options;
-			options = input;
+			options = isInputNotOptions ? input : {...input};
 		} else {
 			// (input, options, callback)
 			options = {...input, ...options};
