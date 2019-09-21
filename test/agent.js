@@ -6,9 +6,11 @@ import pEvent from 'p-event';
 import is from '@sindresorhus/is';
 import {Agent} from '../source';
 import isCompatible from '../source/utils/is-compatible';
-import {createWrapper} from './helpers/server';
+import {createWrapper, createServer} from './helpers/server';
 
 const supportsTlsSessions = process.versions.node.split('.')[0] >= 11;
+
+const setImmediateAsync = () => new Promise(resolve => setImmediate(resolve));
 
 if (isCompatible) {
 	process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -430,5 +432,58 @@ if (isCompatible) {
 		await pEvent(session, 'origin');
 
 		t.is(await agent.getSession('https://example.com'), session);
+	});
+
+	test('closes covered sessions - `origin` event', wrapper, async (t, server) => {
+		const secondServer = await createServer();
+		const agent = new Agent();
+
+		await secondServer.listen();
+		secondServer.on('session', session => {
+			session.origin(secondServer.url, server.url);
+		});
+
+		const firstSession = await agent.getSession(server.url);
+		const secondSession = await agent.getSession(secondServer.url);
+		await pEvent(secondSession, 'origin');
+
+		t.true(firstSession.closed);
+		t.false(secondSession.closed);
+
+		t.true(firstSession.destroyed);
+		t.false(secondSession.destroyed);
+
+		await secondServer.gracefulClose();
+	});
+
+	test('closes covered sessions - session no longer busy', singleRequestWrapper, async (t, server) => {
+		const secondServer = await createServer();
+		const agent = new Agent();
+
+		await secondServer.listen();
+		secondServer.on('session', session => {
+			session.origin(secondServer.url, server.url);
+		});
+
+		const firstSession = await agent.getSession(server.url);
+		const request = await agent.request(server.url);
+
+		const secondSession = await agent.getSession(secondServer.url);
+		await pEvent(secondSession, 'origin');
+
+		t.true(firstSession.closed);
+		t.false(secondSession.closed);
+
+		t.false(firstSession.destroyed);
+		t.false(firstSession.destroyed);
+
+		request.close();
+
+		await setImmediateAsync();
+
+		t.true(firstSession.destroyed);
+		t.false(secondSession.destroyed);
+
+		await secondServer.gracefulClose();
 	});
 }

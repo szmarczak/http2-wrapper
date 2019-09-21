@@ -239,7 +239,7 @@ class Agent extends EventEmitter {
 					});
 
 					session.setTimeout(this.timeout, () => {
-						// `.close()` would wait until all streams all closed
+						// `.close()` gracefully closes the session. Current streams wouldn't be terminated that way.
 						session.destroy();
 					});
 
