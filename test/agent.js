@@ -418,4 +418,17 @@ if (isCompatible) {
 
 		t.throws(() => session.request(), 'Invalid usage. Use `await agent.request(authority, options, headers)` instead.');
 	});
+
+	test('doesn\'t create a new session if there exists an authoritive one', wrapper, async (t, server) => {
+		server.on('session', session => {
+			session.origin(server.url, 'https://example.com');
+		});
+
+		const agent = new Agent();
+
+		const session = await agent.getSession(server.url);
+		await pEvent(session, 'origin');
+
+		t.is(await agent.getSession('https://example.com'), session);
+	});
 }

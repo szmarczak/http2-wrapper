@@ -115,6 +115,10 @@ class Agent extends EventEmitter {
 		const host = authority.hostname || authority.host || 'localhost';
 		const port = authority.port || 443;
 
+		if (port === 443) {
+			return `https://${host}`;
+		}
+
 		return `https://${host}:${port}`;
 	}
 
