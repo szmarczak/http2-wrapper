@@ -26,7 +26,18 @@ if (isCompatible) {
 		t.throws(() => makeRequest('invalid://'), 'Protocol "invalid:" not supported. Expected "https:"');
 	});
 
-	test('accepts `string` as the URL parameter', wrapper, async (t, server) => {
+	test('accepts `URL` as the input parameter', wrapper, async (t, server) => {
+		server.get('/200', okHandler);
+
+		const request = makeRequest(new URL(`${server.url}/200`));
+		request.end();
+
+		const response = await pEvent(request, 'response');
+		const data = await getStream(response);
+		t.is(data, 'ok');
+	});
+
+	test('accepts `string` as the input parameter', wrapper, async (t, server) => {
 		server.get('/200', okHandler);
 
 		const request = makeRequest(`${server.url}/200`);
@@ -37,7 +48,7 @@ if (isCompatible) {
 		t.is(data, 'ok');
 	});
 
-	test('accepts `options` as the URL parameter', wrapper, async (t, server) => {
+	test('accepts `options` as the input parameter', wrapper, async (t, server) => {
 		server.get('/200', okHandler);
 
 		const request = makeRequest({
@@ -51,7 +62,7 @@ if (isCompatible) {
 		t.is(data, 'ok');
 	});
 
-	test('accepts options when passing string as URL', wrapper, async (t, server) => {
+	test('accepts options when passing string as input', wrapper, async (t, server) => {
 		const request = makeRequest(server.url, {
 			headers: {
 				foo: 'bar'
