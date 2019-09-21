@@ -71,12 +71,12 @@ const getSessions = (where, name, normalizedAuthority) => {
 	return [];
 };
 
-const closeCoveredSessions = (where, session) => {
-	if (typeof where === 'undefined') {
+const closeCoveredSessions = (where, name, session) => {
+	if (!Reflect.has(where, name)) {
 		return;
 	}
 
-	for (const coveredSession of where) {
+	for (const coveredSession of where[name]) {
 		if (
 			coveredSession !== session &&
 			coveredSession.originSet.length < session.originSet.length &&
@@ -261,8 +261,8 @@ class Agent extends EventEmitter {
 							return;
 						}
 
-						closeCoveredSessions(this.freeSessions[normalizedOptions], session);
-						closeCoveredSessions(this.busySessions[normalizedOptions], session);
+						closeCoveredSessions(this.freeSessions, normalizedOptions, session);
+						closeCoveredSessions(this.busySessions, normalizedOptions, session);
 
 						for (const authority in this.queue[normalizedOptions]) {
 							if (session.originSet.includes(authority)) {
@@ -357,8 +357,8 @@ class Agent extends EventEmitter {
 											this.freeSessions[normalizedOptions] = [session];
 										}
 
-										closeCoveredSessions(this.freeSessions[normalizedOptions], session);
-										closeCoveredSessions(this.busySessions[normalizedOptions], session);
+										closeCoveredSessions(this.freeSessions, normalizedOptions, session);
+										closeCoveredSessions(this.busySessions, normalizedOptions, session);
 									} else {
 										session.close();
 									}
