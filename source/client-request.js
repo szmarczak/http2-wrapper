@@ -43,22 +43,22 @@ class ClientRequest extends Writable {
 			options = {...input, ...options};
 		}
 
-		if (options.agent) {
-			if (typeof options.agent.request !== 'function') {
-				throw new ERR_INVALID_ARG_TYPE('options.agent', ['Agent-like Object', 'undefined', 'false'], options.agent);
-			}
-
-			this.agent = options.agent;
-		} else if (options.session) {
+		if (options.session) {
 			this[kSession] = options.session;
 		} else if (options.agent === false) {
 			this.agent = new Agent({maxFreeSessions: 0});
-		} else if (typeof options.createConnection === 'function') {
-			// This is a workaround - we don't have to create the session on our own.
-			this.agent = new Agent({maxFreeSessions: 0});
-			this.agent.createConnection = options.createConnection;
+		} else if (typeof options.agent === 'undefined' || options.agent === null) {
+			if (typeof options.createConnection === 'function') {
+				// This is a workaround - we don't have to create the session on our own.
+				this.agent = new Agent({maxFreeSessions: 0});
+				this.agent.createConnection = options.createConnection;
+			} else {
+				this.agent = globalAgent;
+			}
+		} else if (typeof options.agent.request === 'function') {
+			this.agent = options.agent;
 		} else {
-			this.agent = globalAgent;
+			throw new ERR_INVALID_ARG_TYPE('options.agent', ['Agent-like Object', 'undefined', 'false'], options.agent);
 		}
 
 		if (!options.port) {

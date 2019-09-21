@@ -6,7 +6,7 @@ import pEvent from 'p-event';
 import getStream from 'get-stream';
 import tempy from 'tempy';
 import is from '@sindresorhus/is';
-import {request as makeRequest, get, constants, connect, Agent} from '../source';
+import {request as makeRequest, get, constants, connect, Agent, globalAgent} from '../source';
 import isCompatible from '../source/utils/is-compatible';
 import {createWrapper, createServer, createProxyServer} from './helpers/server';
 
@@ -502,13 +502,23 @@ if (isCompatible) {
 
 	test('throws on invalid `agent` option', t => {
 		t.throws(
-			() => makeRequest({agent: 123}),
+			() => makeRequest({agent: 0}),
 			'The "options.agent" property must be one of type Agent-like Object, undefined or false. Received number'
 		);
 	});
 
-	test('the `agent` option can be `null`', t => {
-		t.notThrows(() => makeRequest({agent: null}).abort());
+	test('uses `globalAgent` if `agent` is `null`', t => {
+		const request = makeRequest({agent: null});
+		t.is(request.agent, globalAgent);
+
+		request.abort();
+	});
+
+	test('uses `globalAgent` if `agent` is `undefined`', t => {
+		const request = makeRequest({agent: undefined});
+		t.is(request.agent, globalAgent);
+
+		request.abort();
 	});
 
 	test('the `createConnection` option works', wrapper, async (t, server) => {
