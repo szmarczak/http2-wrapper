@@ -28,26 +28,32 @@ const createPlainServer = async (options, handler) => {
 		server.url = `${server.options.protocol}//${server.options.hostname}:${server.options.port}`;
 	});
 
-	let sessionsCount = 0;
+	const sessions = [];
 	let hasConnected = false;
 
 	server.on('session', session => {
 		hasConnected = true;
-		sessionsCount++;
+		sessions.push(session);
 
 		session.once('close', () => {
-			sessionsCount--;
+			sessions.splice(sessions.indexOf(session), 1);
 		});
 
 		session.setTimeout(1000);
 	});
+
+	server.origin = (...args) => {
+		for (const session of sessions) {
+			session.origin(...args);
+		}
+	};
 
 	server.gracefulClose = async () => {
 		let elapsed = 0;
 		const tick = 10;
 
 		// eslint-disable-next-line no-unmodified-loop-condition
-		while ((sessionsCount !== 0 || !hasConnected) && elapsed < 1000) {
+		while ((sessions.length !== 0 || !hasConnected) && elapsed < 1000) {
 			await delay(tick); // eslint-disable-line no-await-in-loop
 			elapsed += tick;
 		}

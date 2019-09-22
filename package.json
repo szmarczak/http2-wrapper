@@ -8,7 +8,8 @@
 	},
 	"scripts": {
 		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc ava",
-		"coveralls": "nyc report --reporter=text-lcov | coveralls"
+		"coveralls": "nyc report --reporter=text-lcov | coveralls",
+		"report": "npm test && nyc report --reporter=html"
 	},
 	"files": [
 		"source"

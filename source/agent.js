@@ -88,6 +88,28 @@ const closeCoveredSessions = (where, name, session) => {
 	}
 };
 
+const closeIfCovered = (where, name, session) => {
+	if (!Reflect.has(where, name)) {
+		return;
+	}
+
+	// We don't have to check if freeSession === session,
+	// because closeIfCovered is called only when the given session is busy.
+	for (const freeSession of where[name]) {
+		if (
+			session.originSet.length < freeSession.originSet.length &&
+			session.originSet.every(origin => freeSession.originSet.includes(origin)) &&
+			session[kCurrentStreamsCount] + freeSession[kCurrentStreamsCount] <= freeSession.remoteSettings.maxConcurrentStreams
+		) {
+			session.close();
+
+			return true;
+		}
+	}
+
+	return false;
+};
+
 class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
 		super();
@@ -262,6 +284,7 @@ class Agent extends EventEmitter {
 
 					session.once('origin', () => {
 						if (session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
+							closeIfCovered(this.freeSessions, normalizedOptions, session);
 							return;
 						}
 
@@ -287,6 +310,8 @@ class Agent extends EventEmitter {
 							}
 						}
 					});
+
+					// TODO: close covered sessions on remoteSettings
 
 					session.once('localSettings', () => {
 						removeFromQueue();
@@ -351,7 +376,7 @@ class Agent extends EventEmitter {
 									session.unref();
 								}
 
-								if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed) {
+								if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed && !session.closed) {
 									const freeSessionsLength = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority).length;
 
 									if (freeSessionsLength < this.maxFreeSessions) {
