@@ -88,28 +88,6 @@ const closeCoveredSessions = (where, name, session) => {
 	}
 };
 
-const closeIfCovered = (where, name, session) => {
-	if (!Reflect.has(where, name)) {
-		return;
-	}
-
-	// We don't have to check if freeSession === session,
-	// because closeIfCovered is called only when the given session is busy.
-	for (const freeSession of where[name]) {
-		if (
-			session.originSet.length < freeSession.originSet.length &&
-			session.originSet.every(origin => freeSession.originSet.includes(origin)) &&
-			session[kCurrentStreamsCount] + freeSession[kCurrentStreamsCount] <= freeSession.remoteSettings.maxConcurrentStreams
-		) {
-			session.close();
-
-			return true;
-		}
-	}
-
-	return false;
-};
-
 class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
 		super();
