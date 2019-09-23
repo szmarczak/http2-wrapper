@@ -404,40 +404,6 @@ if (isCompatible) {
 		await secondServer.gracefulClose();
 	});
 
-	test('the anti-overload mechanism looks for valid authorities', singleRequestWrapper, async (t, server) => {
-		const secondServer = await createServer();
-		const agent = new Agent({
-			maxSessions: 1
-		});
-
-		await secondServer.listen();
-
-		const session = await agent.getSession(server.url);
-		const request = session.request();
-
-		let isResolved = false;
-		const secondSessionPromise = agent.getSession(server.url);
-
-		// eslint-disable-next-line promise/prefer-await-to-then
-		secondSessionPromise.then(() => {
-			isResolved = true;
-		});
-
-		await agent.getSession(secondServer.url);
-
-		await setImmediateAsync();
-
-		t.false(isResolved);
-
-		request.close();
-
-		await setImmediateAsync();
-
-		t.true(isResolved);
-
-		await secondServer.gracefulClose();
-	});
-
 	test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
 		const agent = new Agent();
 
