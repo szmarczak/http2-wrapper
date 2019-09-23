@@ -528,37 +528,6 @@ if (isCompatible) {
 		await secondServer.gracefulClose();
 	});
 
-	// TODO:
-	test.only('closes sessions which became covered by shrinking their `originSet`', singleRequestWrapper, async (t, server) => {
-		const secondServer = await createServer();
-		const agent = new Agent();
-
-		server.on('session', session => {
-			session.origin(server.url, secondServer.url);
-		});
-
-		secondServer.on('session', session => {
-			session.origin(secondServer.url, server.url);
-		});
-		await secondServer.listen();
-
-		const request = await agent.request(server.url);
-		const {session} = request;
-
-		const secondRequest = await agent.request(secondServer.url);
-
-		request.close();
-
-		await setImmediateAsync();
-		console.log('y');
-		t.true(session.closed);
-		t.true(session.destroyed);
-
-		secondRequest.close();
-
-		await secondServer.gracefulClose();
-	});
-
 	test('uses sessions which are more loaded to use fewer connections', tripleRequestWrapper, async (t, server) => {
 		const SESSIONS_COUNT = 3;
 		const REQUESTS_COUNT = 3;

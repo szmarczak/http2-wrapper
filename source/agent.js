@@ -282,9 +282,9 @@ class Agent extends EventEmitter {
 						this._processQueue(normalizedOptions, normalizedAuthority);
 					});
 
+					// The Origin Set cannot shrink.
 					session.once('origin', () => {
 						if (session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
-							closeIfCovered(this.freeSessions, normalizedOptions, session);
 							return;
 						}
 
@@ -310,8 +310,6 @@ class Agent extends EventEmitter {
 							}
 						}
 					});
-
-					// TODO: close covered sessions on remoteSettings
 
 					session.once('localSettings', () => {
 						removeFromQueue();
@@ -385,6 +383,9 @@ class Agent extends EventEmitter {
 										} else {
 											this.freeSessions[normalizedOptions] = [session];
 										}
+
+										// The session cannot be uncovered at this point. To be uncovered,
+										// the only possible way is to make another session cover this one.
 
 										closeCoveredSessions(this.freeSessions, normalizedOptions, session);
 										closeCoveredSessions(this.busySessions, normalizedOptions, session);

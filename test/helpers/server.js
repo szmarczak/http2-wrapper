@@ -42,12 +42,6 @@ const createPlainServer = async (options, handler) => {
 		session.setTimeout(1000);
 	});
 
-	server.origin = (...args) => {
-		for (const session of sessions) {
-			session.origin(...args);
-		}
-	};
-
 	server.gracefulClose = async () => {
 		let elapsed = 0;
 		const tick = 10;
