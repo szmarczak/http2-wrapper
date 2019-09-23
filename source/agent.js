@@ -260,15 +260,7 @@ class Agent extends EventEmitter {
 						this._processQueue(normalizedOptions, normalizedAuthority);
 					});
 
-					// The Origin Set cannot shrink. No need to check if it suddenly became "uncovered".
-					session.once('origin', () => {
-						if (session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
-							return;
-						}
-
-						closeCoveredSessions(this.freeSessions, normalizedOptions, session);
-						closeCoveredSessions(this.busySessions, normalizedOptions, session);
-
+					const checkQueue = () => {
 						for (const authority in this.queue[normalizedOptions]) {
 							if (session.originSet.includes(authority)) {
 								const {listeners} = this.queue[normalizedOptions][authority];
@@ -287,6 +279,17 @@ class Agent extends EventEmitter {
 								}
 							}
 						}
+					};
+
+					// The Origin Set cannot shrink. No need to check if it suddenly became "uncovered".
+					session.once('origin', () => {
+						if (session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
+							return;
+						}
+
+						closeCoveredSessions(this.freeSessions, normalizedOptions, session);
+						closeCoveredSessions(this.busySessions, normalizedOptions, session);
+						checkQueue();
 					});
 
 					session.once('localSettings', () => {
@@ -367,6 +370,7 @@ class Agent extends EventEmitter {
 
 										closeCoveredSessions(this.freeSessions, normalizedOptions, session);
 										closeCoveredSessions(this.busySessions, normalizedOptions, session);
+										checkQueue();
 									} else {
 										session.close();
 									}

@@ -143,23 +143,39 @@ if (isCompatible) {
 	});
 
 	test('`maxSessions` option', singleRequestWrapper, async (t, server) => {
-		server.get('/infinite', () => {});
+		const queue = [];
+		server.get('/', (request, response) => {
+			queue.push(() => response.end('ok'));
+		});
 
 		const agent = new Agent({
 			maxSessions: 1
 		});
 
-		(await agent.request(server.url, server.options, {
-			':path': '/infinite'
-		})).end();
-
-		agent.request(server.url, server.options, {
-			':path': '/infinite'
-		});
+		const firstRequest = (await agent.request(server.url, server.options)).end();
+		const secondRequestPromise = agent.request(server.url, server.options);
 
 		t.is(typeof Object.values(agent.queue[''])[0], 'function');
 		t.is(Object.values(agent.freeSessions).length, 0);
 		t.is(Object.values(agent.busySessions)[0].length, 1);
+
+		await new Promise(resolve => {
+			const interval = setInterval(() => {
+				if (queue.length !== 0) {
+					resolve();
+
+					clearInterval(interval);
+				}
+			}, 100);
+		});
+
+		// TODO: get rid of `serverSession.setTimeout()` as it breaks this test
+
+		queue.shift()();
+		await pEvent(firstRequest, 'response');
+		firstRequest.resume();
+
+		await secondRequestPromise;
 
 		agent.destroy();
 	});
@@ -385,6 +401,40 @@ if (isCompatible) {
 		t.false(thirdSession.destroyed);
 
 		request.close();
+		await secondServer.gracefulClose();
+	});
+
+	test('the anti-overload mechanism looks for valid authorities', singleRequestWrapper, async (t, server) => {
+		const secondServer = await createServer();
+		const agent = new Agent({
+			maxSessions: 1
+		});
+
+		await secondServer.listen();
+
+		const session = await agent.getSession(server.url);
+		const request = session.request();
+
+		let isResolved = false;
+		const secondSessionPromise = agent.getSession(server.url);
+
+		// eslint-disable-next-line promise/prefer-await-to-then
+		secondSessionPromise.then(() => {
+			isResolved = true;
+		});
+
+		await agent.getSession(secondServer.url);
+
+		await setImmediateAsync();
+
+		t.false(isResolved);
+
+		request.close();
+
+		await setImmediateAsync();
+
+		t.true(isResolved);
+
 		await secondServer.gracefulClose();
 	});
 
