@@ -260,7 +260,7 @@ class Agent extends EventEmitter {
 						this._processQueue(normalizedOptions, normalizedAuthority);
 					});
 
-					// The Origin Set cannot shrink.
+					// The Origin Set cannot shrink. No need to check if it suddenly became "uncovered".
 					session.once('origin', () => {
 						if (session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
 							return;
@@ -272,13 +272,13 @@ class Agent extends EventEmitter {
 						for (const authority in this.queue[normalizedOptions]) {
 							if (session.originSet.includes(authority)) {
 								const {listeners} = this.queue[normalizedOptions][authority];
-								const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams - session[kCurrentStreamsCount]);
+								const movedListeners = listeners.splice(0, session.remoteSettings.maxConcurrentStreams - session[kCurrentStreamsCount]);
 
 								while (movedListeners.length !== 0 && session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
 									movedListeners.shift().resolve(session);
 								}
 
-								if (movedListeners.length === 0) {
+								if (this.queue[normalizedOptions][authority].length === 0) {
 									delete this.queue[normalizedOptions][authority];
 
 									if (Object.keys(this.queue[normalizedOptions]).length === 0) {

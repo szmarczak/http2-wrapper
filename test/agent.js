@@ -357,6 +357,37 @@ if (isCompatible) {
 		t.not(requests[0].session, requests[1].session);
 	});
 
+	test('prevents overloading sessions #2', singleRequestWrapper, async (t, server) => {
+		const secondServer = await createServer();
+		const agent = new Agent({
+			maxSessions: 1
+		});
+
+		secondServer.on('session', session => {
+			session.origin(server.url);
+		});
+		await secondServer.listen();
+
+		const session = await agent.getSession(server.url);
+		const request = session.request();
+
+		const secondSessionPromise = agent.getSession(server.url);
+
+		const thirdSession = await agent.getSession(secondServer.url);
+
+		const secondSession = await secondSessionPromise;
+		t.is(secondSession, thirdSession);
+
+		t.true(session.closed);
+		t.false(session.destroyed);
+
+		t.false(thirdSession.closed);
+		t.false(thirdSession.destroyed);
+
+		request.close();
+		await secondServer.gracefulClose();
+	});
+
 	test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
 		const agent = new Agent();
 
@@ -430,7 +461,7 @@ if (isCompatible) {
 
 	test('doesn\'t create a new session if there exists an authoritive one', wrapper, async (t, server) => {
 		server.on('session', session => {
-			session.origin(server.url, 'https://example.com');
+			session.origin('https://example.com');
 		});
 
 		const agent = new Agent();
@@ -446,7 +477,7 @@ if (isCompatible) {
 		const agent = new Agent();
 
 		secondServer.on('session', session => {
-			session.origin(secondServer.url, server.url);
+			session.origin(server.url);
 		});
 		await secondServer.listen();
 
@@ -468,7 +499,7 @@ if (isCompatible) {
 		const agent = new Agent();
 
 		secondServer.on('session', session => {
-			session.origin(secondServer.url, server.url);
+			session.origin(server.url);
 		});
 		await secondServer.listen();
 
@@ -500,7 +531,7 @@ if (isCompatible) {
 
 		await secondServer.listen();
 		server.on('session', session => {
-			session.origin(server.url, secondServer.url);
+			session.origin(secondServer.url);
 		});
 
 		const request = await agent.request(server.url);
