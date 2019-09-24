@@ -267,29 +267,31 @@ class Agent extends EventEmitter {
 				});
 
 				const checkQueue = () => {
-					if (!Reflect.has(this.queue, normalizedOptions) || !Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+					if (!Reflect.has(this.queue, normalizedOptions)) {
 						return;
 					}
 
-					const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
+					for (const origin of session.originSet) {
+						if (Reflect.has(this.queue[normalizedOptions], origin)) {
+							// TODO: can this.queue[...][...] change while running this loop?
+							const {listeners} = this.queue[normalizedOptions][origin];
+							while (listeners.length !== 0 && session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
+								listeners.shift().resolve(session);
+							}
 
-					// TODO: can this.queue[...][...] change while running this loop?
-					const {listeners} = this.queue[normalizedOptions][normalizedAuthority];
-					while (freeSessions.length !== 0 && listeners.length !== 0 && freeSessions[0][kCurrentStreamsCount] < freeSessions[0].remoteSettings.maxConcurrentStreams) {
-						listeners.shift().resolve(freeSessions[0]);
+							if (this.queue[normalizedOptions][origin].length === 0) {
+								delete this.queue[normalizedOptions][origin];
 
-						if (freeSessions[0][kCurrentStreamsCount] >= freeSessions[0].remoteSettings.maxConcurrentStreams) {
-							freeSessions.shift();
+								if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+									delete this.queue[normalizedOptions];
+								}
+							}
 						}
 					}
 
-					if (this.queue[normalizedOptions][normalizedAuthority].length === 0) {
-						delete this.queue[normalizedOptions][normalizedAuthority];
-
-						if (Object.keys(this.queue[normalizedOptions]).length === 0) {
-							delete this.queue[normalizedOptions];
-						}
-					}
+					// So, it isn't possible for the queue to exceed two free sessions.
+					// The queue will start immediately if there's at least one free session.
+					// The queue will be cleared. If not, it will wait for another free session.
 				};
 
 				// The Origin Set cannot shrink. No need to check if it suddenly became "uncovered".
