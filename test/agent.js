@@ -330,8 +330,7 @@ if (isCompatible) {
 		t.not(firstSession, secondSession);
 	});
 
-	// eslint-disable-next-line ava/no-skip-test
-	test.skip('custom servername', wrapper, async (t, server) => {
+	test('custom servername', wrapper, async (t, server) => {
 		const agent = new Agent();
 
 		const session = await agent.getSession(server.url, {servername: 'foobar'});
