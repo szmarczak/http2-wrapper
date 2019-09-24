@@ -151,259 +151,282 @@ class Agent extends EventEmitter {
 		}
 	}
 
-	async getSession(authority, options) {
-		return new Promise((resolve, reject) => {
-			const detached = {resolve, reject};
-			const normalizedOptions = this.normalizeOptions(options);
-			const normalizedAuthority = this.normalizeAuthority(authority);
-
-			if (Reflect.has(this.freeSessions, normalizedOptions)) {
-				const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
-
-				if (freeSessions.length !== 0) {
-					resolve(freeSessions.reduce((previousValue, nextValue) => {
-						if (nextValue[kCurrentStreamsCount] > previousValue[kCurrentStreamsCount]) {
-							return nextValue;
-						}
-
-						return previousValue;
-					}));
-
-					return;
-				}
+	_getSession(authority, options, callback) {
+		const detached = {
+			resolve: (...args) => {
+				callback(null, ...args);
+			},
+			reject: error => {
+				callback(error);
 			}
+		};
+		const normalizedOptions = this.normalizeOptions(options);
+		const normalizedAuthority = this.normalizeAuthority(authority);
 
-			if (Reflect.has(this.queue, normalizedOptions)) {
-				if (Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
-					this.queue[normalizedOptions][normalizedAuthority].listeners.push(detached);
+		if (Reflect.has(this.freeSessions, normalizedOptions)) {
+			const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
 
-					return;
-				}
-			} else {
-				this.queue[normalizedOptions] = {};
-			}
-
-			const listeners = [detached];
-
-			const removeFromQueue = () => {
-				// Our entry can be replaced. We cannot remove the new one.
-				if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedAuthority] === entry) {
-					delete this.queue[normalizedOptions][normalizedAuthority];
-
-					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
-						delete this.queue[normalizedOptions];
+			if (freeSessions.length !== 0) {
+				detached.resolve(freeSessions.reduce((previousValue, nextValue) => {
+					if (nextValue[kCurrentStreamsCount] > previousValue[kCurrentStreamsCount]) {
+						return nextValue;
 					}
+
+					return previousValue;
+				}));
+
+				return;
+			}
+		}
+
+		if (Reflect.has(this.queue, normalizedOptions)) {
+			if (Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+				this.queue[normalizedOptions][normalizedAuthority].listeners.push(detached);
+
+				return;
+			}
+		} else {
+			this.queue[normalizedOptions] = {};
+		}
+
+		const listeners = [detached];
+
+		const removeFromQueue = () => {
+			// Our entry can be replaced. We cannot remove the new one.
+			if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedAuthority] === entry) {
+				delete this.queue[normalizedOptions][normalizedAuthority];
+
+				if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+					delete this.queue[normalizedOptions];
 				}
-			};
+			}
+		};
 
-			const entry = () => {
-				try {
-					const name = `${normalizedAuthority}:${normalizedOptions}`;
-					let receivedSettings = false;
-					let servername;
+		const entry = () => {
+			try {
+				const name = `${normalizedAuthority}:${normalizedOptions}`;
+				let receivedSettings = false;
+				let servername;
 
-					const tlsSessionCache = this.tlsSessionCache.get(name);
+				const tlsSessionCache = this.tlsSessionCache.get(name);
 
-					const session = http2.connect(authority, {
-						createConnection: this.createConnection,
-						settings: this.settings,
-						session: tlsSessionCache ? tlsSessionCache.session : undefined,
-						...options
+				const session = http2.connect(authority, {
+					createConnection: this.createConnection,
+					settings: this.settings,
+					session: tlsSessionCache ? tlsSessionCache.session : undefined,
+					...options
+				});
+				session[kCurrentStreamsCount] = 0;
+
+				session.socket.once('session', tlsSession => {
+					this.tlsSessionCache.set(name, {
+						session: tlsSession,
+						servername
 					});
-					session[kCurrentStreamsCount] = 0;
+				});
 
-					session.socket.once('session', session => {
-						this.tlsSessionCache.set(name, {
-							session,
-							servername
-						});
-					});
+				// See https://github.com/nodejs/node/issues/28985
+				session.socket.once('secureConnect', () => {
+					servername = session.socket.servername;
 
-					// See https://github.com/nodejs/node/issues/28985
-					session.socket.once('secureConnect', () => {
-						servername = session.socket.servername;
+					if (servername === false && typeof tlsSessionCache !== 'undefined') {
+						session.socket.servername = tlsSessionCache.servername;
+					}
+				});
 
-						if (servername === false && typeof tlsSessionCache !== 'undefined') {
-							session.socket.servername = tlsSessionCache.servername;
-						}
-					});
+				session.once('error', error => {
+					session.destroy();
 
-					session.once('error', error => {
-						session.destroy();
-
-						for (const listener of listeners) {
-							listener.reject(error);
-						}
-
-						this.tlsSessionCache.delete(name);
-					});
-
-					session.setTimeout(this.timeout, () => {
-						// `.close()` gracefully closes the session. Current streams wouldn't be terminated that way.
-						session.destroy();
-					});
-
-					session.once('close', () => {
-						if (!receivedSettings) {
-							for (const listener of listeners) {
-								listener.reject(new Error('Session closed without receiving a SETTINGS frame'));
-							}
-						}
-
-						removeFromQueue();
-						removeSession(this.freeSessions, normalizedOptions, session);
-
-						// TODO: this needs tests (session `close` event emitted before its streams were closed)
-						// See https://travis-ci.org/szmarczak/http2-wrapper/jobs/587629103#L282
-						removeSession(this.busySessions, normalizedOptions, session);
-
-						this._processQueue(normalizedOptions, normalizedAuthority);
-					});
-
-					const checkQueue = () => {
-						for (const authority in this.queue[normalizedOptions]) {
-							if (session.originSet.includes(authority)) {
-								const {listeners} = this.queue[normalizedOptions][authority];
-								const movedListeners = listeners.splice(0, session.remoteSettings.maxConcurrentStreams - session[kCurrentStreamsCount]);
-
-								while (movedListeners.length !== 0 && session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
-									movedListeners.shift().resolve(session);
-								}
-
-								if (this.queue[normalizedOptions][authority].length === 0) {
-									delete this.queue[normalizedOptions][authority];
-
-									if (Object.keys(this.queue[normalizedOptions]).length === 0) {
-										delete this.queue[normalizedOptions];
-									}
-								}
-							}
-						}
-					};
-
-					// The Origin Set cannot shrink. No need to check if it suddenly became "uncovered".
-					session.once('origin', () => {
-						if (session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
-							return;
-						}
-
-						closeCoveredSessions(this.freeSessions, normalizedOptions, session);
-						closeCoveredSessions(this.busySessions, normalizedOptions, session);
-						checkQueue();
-					});
-
-					session.once('localSettings', () => {
-						removeFromQueue();
-
-						const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams);
-
-						if (movedListeners.length !== 0) {
-							const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
-
-							while (freeSessions.length !== 0 && movedListeners.length !== 0) {
-								movedListeners.shift().resolve(freeSessions[0]);
-
-								if (freeSessions[0][kCurrentStreamsCount] >= freeSessions[0].remoteSettings.maxConcurrentStreams) {
-									freeSessions.shift();
-								}
-							}
-
-							if (movedListeners.length !== 0) {
-								this.getSession(authority, options);
-
-								// Replace listeners with the new ones
-								const {listeners} = this.queue[normalizedOptions][normalizedAuthority];
-								listeners.length = 0;
-								listeners.push(...movedListeners);
-							}
-						}
-
-						if (Reflect.has(this.freeSessions, normalizedOptions)) {
-							this.freeSessions[normalizedOptions].push(session);
-						} else {
-							this.freeSessions[normalizedOptions] = [session];
-						}
-
-						for (const listener of listeners) {
-							listener.resolve(session);
-						}
-
-						receivedSettings = true;
-					});
-
-					session[kRequest] = session.request;
-					session.request = headers => {
-						const stream = session[kRequest](headers, {
-							endStream: false
-						});
-
-						session.ref();
-
-						if (++session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
-							removeSession(this.freeSessions, normalizedOptions, session);
-
-							if (Reflect.has(this.busySessions, normalizedOptions)) {
-								this.busySessions[normalizedOptions].push(session);
-							} else {
-								this.busySessions[normalizedOptions] = [session];
-							}
-						}
-
-						stream.once('close', () => {
-							if (--session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
-								if (session[kCurrentStreamsCount] === 0) {
-									session.unref();
-								}
-
-								if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed && !session.closed) {
-									const freeSessionsLength = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority).length;
-
-									if (freeSessionsLength < this.maxFreeSessions) {
-										if (Reflect.has(this.freeSessions, normalizedOptions)) {
-											this.freeSessions[normalizedOptions].push(session);
-										} else {
-											this.freeSessions[normalizedOptions] = [session];
-										}
-
-										// The session cannot be uncovered at this point. To be uncovered,
-										// the only possible way is to make another session cover this one.
-
-										closeCoveredSessions(this.freeSessions, normalizedOptions, session);
-										closeCoveredSessions(this.busySessions, normalizedOptions, session);
-										checkQueue();
-									} else {
-										session.close();
-									}
-								}
-							}
-						});
-
-						return stream;
-					};
-
-					this.emit('session', session);
-				} catch (error) {
 					for (const listener of listeners) {
 						listener.reject(error);
 					}
 
-					delete this.queue[normalizedOptions][normalizedAuthority];
+					this.tlsSessionCache.delete(name);
+				});
+
+				session.setTimeout(this.timeout, () => {
+					// `.close()` gracefully closes the session. Current streams wouldn't be terminated that way.
+					session.destroy();
+				});
+
+				session.once('close', () => {
+					if (!receivedSettings) {
+						for (const listener of listeners) {
+							listener.reject(new Error('Session closed without receiving a SETTINGS frame'));
+						}
+					}
+
+					removeFromQueue();
+					removeSession(this.freeSessions, normalizedOptions, session);
+
+					// TODO: this needs tests (session `close` event emitted before its streams were closed)
+					// See https://travis-ci.org/szmarczak/http2-wrapper/jobs/587629103#L282
+					removeSession(this.busySessions, normalizedOptions, session);
+
+					this._processQueue(normalizedOptions, normalizedAuthority);
+				});
+
+				const checkQueue = () => {
+					if (!Reflect.has(this.queue, normalizedOptions) || !Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+						return;
+					}
+
+					const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
+
+					// TODO: can this.queue[...][...] change while running this loop?
+					const {listeners} = this.queue[normalizedOptions][normalizedAuthority];
+					while (freeSessions.length !== 0 && listeners.length !== 0 && freeSessions[0][kCurrentStreamsCount] < freeSessions[0].remoteSettings.maxConcurrentStreams) {
+						listeners.shift().resolve(freeSessions[0]);
+
+						if (freeSessions[0][kCurrentStreamsCount] >= freeSessions[0].remoteSettings.maxConcurrentStreams) {
+							freeSessions.shift();
+						}
+					}
+
+					if (this.queue[normalizedOptions][normalizedAuthority].length === 0) {
+						delete this.queue[normalizedOptions][normalizedAuthority];
+
+						if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+							delete this.queue[normalizedOptions];
+						}
+					}
+				};
+
+				// The Origin Set cannot shrink. No need to check if it suddenly became "uncovered".
+				session.once('origin', () => {
+					if (session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
+						return;
+					}
+
+					closeCoveredSessions(this.freeSessions, normalizedOptions, session);
+					closeCoveredSessions(this.busySessions, normalizedOptions, session);
+					checkQueue();
+				});
+
+				session.once('localSettings', () => {
+					if (Reflect.has(this.freeSessions, normalizedOptions)) {
+						this.freeSessions[normalizedOptions].push(session);
+					} else {
+						this.freeSessions[normalizedOptions] = [session];
+					}
+
+					checkQueue();
+
+					if (listeners.length !== 0) {
+						this.getSession(normalizedAuthority, options);
+
+						// Replace listeners with the new ones
+						const {listeners: newListeners} = this.queue[normalizedOptions][normalizedAuthority];
+						newListeners.length = 0;
+						newListeners.push(...listeners);
+					}
+
+					receivedSettings = true;
+					removeFromQueue();
+				});
+
+				session[kRequest] = session.request;
+				session.request = headers => {
+					const stream = session[kRequest](headers, {
+						endStream: false
+					});
+
+					session.ref();
+
+					if (++session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
+						removeSession(this.freeSessions, normalizedOptions, session);
+
+						if (Reflect.has(this.busySessions, normalizedOptions)) {
+							this.busySessions[normalizedOptions].push(session);
+						} else {
+							this.busySessions[normalizedOptions] = [session];
+						}
+					}
+
+					stream.once('close', () => {
+						if (--session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
+							if (session[kCurrentStreamsCount] === 0) {
+								session.unref();
+							}
+
+							if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed && !session.closed) {
+								const freeSessionsLength = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority).length;
+
+								if (freeSessionsLength < this.maxFreeSessions) {
+									if (Reflect.has(this.freeSessions, normalizedOptions)) {
+										this.freeSessions[normalizedOptions].push(session);
+									} else {
+										this.freeSessions[normalizedOptions] = [session];
+									}
+
+									// The session cannot be uncovered at this point. To be uncovered,
+									// the only possible way is to make another session cover this one.
+
+									closeCoveredSessions(this.freeSessions, normalizedOptions, session);
+									closeCoveredSessions(this.busySessions, normalizedOptions, session);
+									checkQueue();
+								} else {
+									session.close();
+								}
+							}
+						}
+					});
+
+					return stream;
+				};
+
+				this.emit('session', session);
+			} catch (error) {
+				for (const listener of listeners) {
+					listener.reject(error);
 				}
-			};
 
-			entry.listeners = listeners;
-			entry.completed = false;
+				delete this.queue[normalizedOptions][normalizedAuthority];
+			}
+		};
 
-			this.queue[normalizedOptions][normalizedAuthority] = entry;
-			this._processQueue(normalizedOptions, normalizedAuthority);
+		entry.listeners = listeners;
+		entry.completed = false;
+
+		this.queue[normalizedOptions][normalizedAuthority] = entry;
+		this._processQueue(normalizedOptions, normalizedAuthority);
+	}
+
+	async getSession(authority, options) {
+		return new Promise((resolve, reject) => {
+			this._getSession(authority, options, (error, session) => {
+				if (error === null) {
+					resolve(session);
+					return;
+				}
+
+				reject(error);
+			});
+		});
+	}
+
+	_request(authority, options, headers, callback) {
+		this._getSession(authority, options, (error, session) => {
+			if (error === null) {
+				callback(null, session.request(headers));
+				return;
+			}
+
+			callback(error);
 		});
 	}
 
 	async request(authority, options, headers) {
-		const session = await this.getSession(authority, options);
-		const stream = session.request(headers);
+		return new Promise((resolve, reject) => {
+			this._request(authority, options, headers, (error, request) => {
+				if (error === null) {
+					resolve(request);
+					return;
+				}
 
-		return stream;
+				reject(error);
+			});
+		});
 	}
 
 	createConnection(authority, options) {

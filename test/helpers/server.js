@@ -129,7 +129,7 @@ const createWrapper = options => {
 		await server.listen();
 
 		// Useful to fix uncaught exceptions:
-		// console.log(`${server.options.port} - ${t.title}`);
+		console.log(`${server.options.port} - ${t.title}`);
 
 		try {
 			await run(t, server);
