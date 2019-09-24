@@ -1,5 +1,6 @@
 'use strict';
-/* istanbul ignore file: https://github.com/nodejs/node/blob/d4c91f28148af8a6c1a95392e5c88cb93d4b61c6/lib/_http_agent.js */
+const net = require('net');
+/* istanbul ignore file: https://github.com/nodejs/node/blob/v12.10.0/lib/_http_agent.js */
 
 module.exports = (options, headers) => {
 	let servername = options.host;
@@ -16,6 +17,10 @@ module.exports = (options, headers) => {
 		} else {
 			servername = hostHeader.split(':', 1)[0];
 		}
+	}
+
+	if (net.isIP(servername)) {
+		return '';
 	}
 
 	return servername;

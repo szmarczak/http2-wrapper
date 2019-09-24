@@ -100,7 +100,7 @@ class ClientRequest extends Writable {
 		options.path = options.socketPath;
 
 		this[kOptions] = options;
-		this[kAuthority] = options.authority || new URL(`https://${options.hostname || options.host}:${options.port}`);
+		this[kAuthority] = options.authority || new URL(`https://${options.servername || options.hostname || options.host}:${options.port}`);
 
 		if (this.agent && options.preconnect !== false) {
 			this.agent.getSession(this[kAuthority], options).catch(() => {});

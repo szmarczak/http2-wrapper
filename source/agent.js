@@ -276,6 +276,7 @@ class Agent extends EventEmitter {
 							// TODO: can this.queue[...][...] change while running this loop?
 							const {listeners} = this.queue[normalizedOptions][origin];
 							while (listeners.length !== 0 && session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
+								// We assume `resolve` will call `request(...)` *directly*
 								listeners.shift().resolve(session);
 							}
 

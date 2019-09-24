@@ -395,8 +395,7 @@ if (isCompatible) {
 		t.not(requests[0].session, requests[1].session);
 	});
 
-	// eslint-disable-next-line ava/no-skip-test
-	test.skip('prevents overloading sessions #2', singleRequestWrapper, async (t, server) => {
+	test('prevents overloading sessions #2', singleRequestWrapper, async (t, server) => {
 		const secondServer = await createServer();
 		const agent = new Agent({
 			maxSessions: 1
