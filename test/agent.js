@@ -168,6 +168,32 @@ if (isCompatible) {
 		agent.destroy();
 	});
 
+	test('doesn\'t break on session `close` event', singleRequestWrapper, async (t, server) => {
+		t.plan(2);
+
+		server.get('/', () => {});
+
+		const agent = new Agent();
+		const request = (await agent.request(server.url)).end();
+		const {session} = request;
+
+		const requestPromise = agent.request(server.url);
+
+		const emit = request.emit.bind(request);
+		request.emit = (event, ...args) => {
+			if (event === 'error') {
+				t.pass();
+			} else {
+				emit(event, ...args);
+			}
+		};
+
+		session.close();
+
+		await requestPromise;
+		t.pass();
+	});
+
 	test('can destroy free sessions', wrapper, async (t, server) => {
 		const agent = new Agent();
 		const session = await agent.getSession(server.url);

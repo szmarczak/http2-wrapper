@@ -64,7 +64,7 @@ const removeSession = (where, name, session) => {
 const getSessions = (where, name, normalizedAuthority) => {
 	if (Reflect.has(where, name)) {
 		return where[name].filter(session => {
-			return session.originSet.includes(normalizedAuthority);
+			return !session.closed && session.originSet.includes(normalizedAuthority);
 		});
 	}
 
@@ -258,10 +258,6 @@ class Agent extends EventEmitter {
 
 					removeFromQueue();
 					removeSession(this.freeSessions, normalizedOptions, session);
-
-					// TODO: this needs tests (session `close` event emitted before its streams were closed)
-					// See https://travis-ci.org/szmarczak/http2-wrapper/jobs/587629103#L282
-					removeSession(this.busySessions, normalizedOptions, session);
 
 					// This is needed. A session can be destroyed,
 					// so sessionsCount < maxSessions and there may be callback awaiting.
