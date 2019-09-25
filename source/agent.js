@@ -263,6 +263,8 @@ class Agent extends EventEmitter {
 					// See https://travis-ci.org/szmarczak/http2-wrapper/jobs/587629103#L282
 					removeSession(this.busySessions, normalizedOptions, session);
 
+					// This is needed. A session can be destroyed,
+					// so sessionsCount < maxSessions and there may be callback awaiting.
 					this._processQueue(normalizedOptions, normalizedAuthority);
 				});
 

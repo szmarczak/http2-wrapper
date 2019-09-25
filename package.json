@@ -7,9 +7,8 @@
 		"node": ">=8.16.0"
 	},
 	"scripts": {
-		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc ava",
-		"coveralls": "nyc report --reporter=text-lcov | coveralls",
-		"report": "npm test && nyc report --reporter=html"
+		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc --reporter=html --reporter=text ava",
+		"coveralls": "nyc report --reporter=text-lcov | coveralls"
 	},
 	"files": [
 		"source"

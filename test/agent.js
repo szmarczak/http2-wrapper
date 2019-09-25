@@ -143,39 +143,27 @@ if (isCompatible) {
 	});
 
 	test('`maxSessions` option', singleRequestWrapper, async (t, server) => {
-		const queue = [];
 		server.get('/', (request, response) => {
-			queue.push(() => response.end('ok'));
+			process.nextTick(() => {
+				response.end();
+			});
 		});
 
 		const agent = new Agent({
 			maxSessions: 1
 		});
 
-		const firstRequest = (await agent.request(server.url, server.options)).end();
-		const secondRequestPromise = agent.request(server.url, server.options);
+		const {session} = (await agent.request(server.url, server.options)).end();
+		const requestPromise = agent.request(server.url, server.options);
 
 		t.is(typeof Object.values(agent.queue[''])[0], 'function');
 		t.is(Object.values(agent.freeSessions).length, 0);
-		t.is(Object.values(agent.busySessions)[0].length, 1);
+		t.is(Object.values(agent.busySessions['']).length, 1);
 
-		await new Promise(resolve => {
-			const interval = setInterval(() => {
-				if (queue.length !== 0) {
-					resolve();
+		session.destroy();
 
-					clearInterval(interval);
-				}
-			}, 100);
-		});
-
-		// TODO: get rid of `serverSession.setTimeout()` as it breaks this test
-
-		queue.shift()();
-		await pEvent(firstRequest, 'response');
-		firstRequest.resume();
-
-		await secondRequestPromise;
+		const request = await requestPromise;
+		request.close();
 
 		agent.destroy();
 	});
