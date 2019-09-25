@@ -26,6 +26,31 @@ if (isCompatible) {
 		t.throws(() => makeRequest('invalid://'), 'Protocol "invalid:" not supported. Expected "https:"');
 	});
 
+	test('does not modify options', t => {
+		const inputs = [
+			undefined,
+			'https://example.com',
+			new URL('https://example.com')
+		];
+
+		const noop = () => {};
+
+		for (const input of inputs) {
+			const originalOptions = {
+				preconnect: false
+			};
+
+			const options = {
+				...originalOptions
+			};
+
+			const request = input ? makeRequest(input, options, noop) : makeRequest(options, noop);
+			request.abort();
+
+			t.deepEqual(options, originalOptions);
+		}
+	});
+
 	test('accepts `URL` as the input parameter', wrapper, async (t, server) => {
 		server.get('/200', okHandler);
 

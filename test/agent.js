@@ -168,6 +168,7 @@ if (isCompatible) {
 		agent.destroy();
 	});
 
+	// This sometimes fails on Node < 12
 	test('doesn\'t break on session `close` event', singleRequestWrapper, async (t, server) => {
 		t.plan(2);
 
@@ -465,13 +466,17 @@ if (isCompatible) {
 		agent.settings.maxHeaderListSize = 100;
 
 		const session = await agent.getSession(server.url);
+		await pEvent(session, 'localSettings');
+
 		t.is(session.localSettings.maxHeaderListSize, 100);
 	});
 
 	if (supportsTlsSessions) {
 		test('caches a TLS session when successfully connected', wrapper, async (t, server) => {
 			const agent = new Agent();
+
 			await agent.getSession(server.url);
+			await setImmediateAsync();
 
 			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session));
 		});
@@ -479,12 +484,15 @@ if (isCompatible) {
 		test('reuses a TLS session', wrapper, async (t, server) => {
 			const agent = new Agent();
 			const session = await agent.getSession(server.url);
+			await setImmediateAsync();
+
 			const tlsSession = agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session;
 
 			session.close();
 			await pEvent(session, 'close');
 
 			const secondSession = await agent.getSession(server.url);
+			await setImmediateAsync();
 
 			t.deepEqual(secondSession.socket.getSession(), tlsSession);
 			t.true(is.buffer(tlsSession));
@@ -493,6 +501,8 @@ if (isCompatible) {
 		test('purges the TLS session on session error', wrapper, async (t, server) => {
 			const agent = new Agent();
 			const session = await agent.getSession(server.url);
+			await setImmediateAsync();
+
 			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session));
 
 			session.destroy(new Error('Ouch.'));

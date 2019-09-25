@@ -160,6 +160,9 @@ class Agent extends EventEmitter {
 				callback(error);
 			}
 		};
+
+		const listeners = Array.isArray(callback) ? callback : [detached];
+
 		const normalizedOptions = this.normalizeOptions(options);
 		const normalizedAuthority = this.normalizeAuthority(authority, options && options.servername);
 
@@ -167,13 +170,15 @@ class Agent extends EventEmitter {
 			const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
 
 			if (freeSessions.length !== 0) {
-				detached.resolve(freeSessions.reduce((previousValue, nextValue) => {
-					if (nextValue[kCurrentStreamsCount] > previousValue[kCurrentStreamsCount]) {
-						return nextValue;
-					}
+				for (const listener of listeners) {
+					listener.resolve(freeSessions.reduce((previousValue, nextValue) => {
+						if (nextValue[kCurrentStreamsCount] > previousValue[kCurrentStreamsCount]) {
+							return nextValue;
+						}
 
-					return previousValue;
-				}));
+						return previousValue;
+					}));
+				}
 
 				return;
 			}
@@ -188,8 +193,6 @@ class Agent extends EventEmitter {
 		} else {
 			this.queue[normalizedOptions] = {};
 		}
-
-		const listeners = [detached];
 
 		const removeFromQueue = () => {
 			// Our entry can be replaced. We cannot remove the new one.
@@ -219,9 +222,11 @@ class Agent extends EventEmitter {
 				session[kCurrentStreamsCount] = 0;
 
 				session.socket.once('session', tlsSession => {
-					this.tlsSessionCache.set(name, {
-						session: tlsSession,
-						servername
+					setImmediate(() => {
+						this.tlsSessionCache.set(name, {
+							session: tlsSession,
+							servername
+						});
 					});
 				});
 
@@ -229,7 +234,7 @@ class Agent extends EventEmitter {
 				session.socket.once('secureConnect', () => {
 					servername = session.socket.servername;
 
-					if (servername === false && typeof tlsSessionCache !== 'undefined') {
+					if (servername === false && typeof tlsSessionCache !== 'undefined' && typeof tlsSessionCache.servername !== 'undefined') {
 						session.socket.servername = tlsSessionCache.servername;
 					}
 				});
@@ -283,6 +288,7 @@ class Agent extends EventEmitter {
 
 								if (Object.keys(this.queue[normalizedOptions]).length === 0) {
 									delete this.queue[normalizedOptions];
+									break;
 								}
 							}
 						}
@@ -304,7 +310,7 @@ class Agent extends EventEmitter {
 					checkQueue();
 				});
 
-				session.once('localSettings', () => {
+				session.once('remoteSettings', () => {
 					if (Reflect.has(this.freeSessions, normalizedOptions)) {
 						this.freeSessions[normalizedOptions].push(session);
 					} else {
@@ -314,12 +320,8 @@ class Agent extends EventEmitter {
 					checkQueue();
 
 					if (listeners.length !== 0) {
-						this.getSession(normalizedAuthority, options);
-
-						// Replace listeners with the new ones
-						const {listeners: newListeners} = this.queue[normalizedOptions][normalizedAuthority];
-						newListeners.length = 0;
-						newListeners.push(...listeners);
+						// Requests for a new session with predefined listeners
+						this._getSession(normalizedAuthority, options, listeners);
 					}
 
 					receivedSettings = true;
