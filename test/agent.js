@@ -478,7 +478,7 @@ if (isCompatible) {
 			await agent.getSession(server.url);
 			await setImmediateAsync();
 
-			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session));
+			t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`).session));
 		});
 
 		test('reuses a TLS session', wrapper, async (t, server) => {
@@ -486,7 +486,7 @@ if (isCompatible) {
 			const session = await agent.getSession(server.url);
 			await setImmediateAsync();
 
-			const tlsSession = agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session;
+			const tlsSession = agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`).session;
 
 			session.close();
 			await pEvent(session, 'close');
@@ -503,12 +503,12 @@ if (isCompatible) {
 			const session = await agent.getSession(server.url);
 			await setImmediateAsync();
 
-			t.true(is.buffer(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`).session));
+			t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`).session));
 
 			session.destroy(new Error('Ouch.'));
 			await pEvent(session, 'close', {rejectionEvents: []});
 
-			t.true(is.undefined(agent.tlsSessionCache.get(`${agent.normalizeAuthority(server.url)}:`)));
+			t.true(is.undefined(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`)));
 		});
 	}
 

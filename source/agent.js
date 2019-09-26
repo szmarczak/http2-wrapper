@@ -107,7 +107,7 @@ class Agent extends EventEmitter {
 		this.tlsSessionCache = new QuickLRU({maxSize: maxCachedTlsSessions});
 	}
 
-	normalizeAuthority(authority, servername) {
+	static normalizeAuthority(authority, servername) {
 		if (typeof authority === 'string') {
 			authority = new URL(authority);
 		}
@@ -122,12 +122,12 @@ class Agent extends EventEmitter {
 		return `https://${host}:${port}`;
 	}
 
-	normalizeOptions(options) {
+	static normalizeOptions(options) {
 		let normalized = '';
 
 		if (options) {
 			for (const key of nameKeys) {
-				if (Reflect.has(options, key)) {
+				if (options[key]) {
 					normalized += `:${options[key]}`;
 				}
 			}
@@ -163,8 +163,8 @@ class Agent extends EventEmitter {
 
 		const listeners = Array.isArray(callback) ? callback : [detached];
 
-		const normalizedOptions = this.normalizeOptions(options);
-		const normalizedAuthority = this.normalizeAuthority(authority, options && options.servername);
+		const normalizedOptions = Agent.normalizeOptions(options);
+		const normalizedAuthority = Agent.normalizeAuthority(authority, options && options.servername);
 
 		if (Reflect.has(this.freeSessions, normalizedOptions)) {
 			const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);

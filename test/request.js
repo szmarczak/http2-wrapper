@@ -150,20 +150,6 @@ if (isCompatible) {
 		t.true((/self signed certificate/).test(error.message) || error.message === 'unable to verify the first certificate');
 	});
 
-	test('`authority` option', async t => {
-		const localServer = await createServer();
-		await localServer.listen();
-
-		const request = makeRequest({...localServer.options, authority: localServer.options});
-		request.end();
-
-		const response = await pEvent(request, 'response');
-		const data = JSON.parse(await getStream(response));
-		await localServer.close();
-
-		t.is(data.headers[':authority'], `${localServer.options.hostname}:${localServer.options.port}`);
-	});
-
 	test('`tlsSession` option', wrapper, async (t, server) => {
 		const request = makeRequest(server.url, {tlsSession: 'not a buffer', agent: false});
 		request.end();
@@ -572,6 +558,27 @@ if (isCompatible) {
 		request.abort();
 
 		t.true(called);
+	});
+
+	test('sets proper `:authority` header', wrapper, async (t, server) => {
+		server.on('session', session => {
+			session.origin('https://example.com');
+		});
+
+		server.get('/', (request, response) => {
+			response.end(request.headers[':authority']);
+		});
+
+		const agent = new Agent();
+		const session = await agent.getSession(server.url);
+		await new Promise(resolve => setImmediate(resolve));
+		console.log(session.originSet);
+
+		const request = makeRequest('https://example.com', {agent}).end();
+		const response = await pEvent(request, 'response');
+		const body = await getStream(response);
+
+		t.is(body, 'example.com');
 	});
 
 	if (process.platform !== 'win32') {

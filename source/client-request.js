@@ -100,7 +100,11 @@ class ClientRequest extends Writable {
 		options.path = options.socketPath;
 
 		this[kOptions] = options;
-		this[kAuthority] = options.authority || options; // TODO: can we totally get rid of parsing host, port etc. on our own?
+		this[kAuthority] = Agent.normalizeAuthority(options, options.servername);
+
+		if (!Reflect.has(this[kHeaders], ':authority')) {
+			this[kHeaders][':authority'] = this[kAuthority].slice(8);
+		}
 
 		if (this.agent && options.preconnect !== false) {
 			this.agent.getSession(this[kAuthority], options).catch(() => {});
