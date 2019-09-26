@@ -168,12 +168,12 @@ class Agent extends EventEmitter {
 
 				if (freeSessions.length !== 0) {
 					for (const listener of listeners) {
-						listener.resolve(freeSessions.reduce((previousValue, nextValue) => {
-							if (nextValue[kCurrentStreamsCount] > previousValue[kCurrentStreamsCount]) {
-								return nextValue;
+						listener.resolve(freeSessions.reduce((previousSession, nextSession) => {
+							if (nextSession[kCurrentStreamsCount] > previousSession[kCurrentStreamsCount]) {
+								return nextSession;
 							}
 
-							return previousValue;
+							return previousSession;
 						}));
 					}
 
@@ -379,7 +379,7 @@ class Agent extends EventEmitter {
 						listener.reject(error);
 					}
 
-					delete this.queue[normalizedOptions][normalizedAuthority];
+					removeFromQueue();
 				}
 			};
 
