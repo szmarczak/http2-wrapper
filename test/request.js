@@ -9,6 +9,7 @@ import is from '@sindresorhus/is';
 import {request as makeRequest, get, constants, connect, Agent, globalAgent} from '../source';
 import isCompatible from '../source/utils/is-compatible';
 import {createWrapper, createServer, createProxyServer} from './helpers/server';
+import setImmediateAsync from './helpers/set-immediate-async';
 
 if (isCompatible) {
 	process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -570,9 +571,8 @@ if (isCompatible) {
 		});
 
 		const agent = new Agent();
-		const session = await agent.getSession(server.url);
-		await new Promise(resolve => setImmediate(resolve));
-		console.log(session.originSet);
+		await agent.getSession(server.url);
+		await setImmediateAsync();
 
 		const request = makeRequest('https://example.com', {agent}).end();
 		const response = await pEvent(request, 'response');

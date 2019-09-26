@@ -7,10 +7,9 @@ import is from '@sindresorhus/is';
 import {Agent} from '../source';
 import isCompatible from '../source/utils/is-compatible';
 import {createWrapper, createServer} from './helpers/server';
+import setImmediateAsync from './helpers/set-immediate-async';
 
 const supportsTlsSessions = process.versions.node.split('.')[0] >= 11;
-
-const setImmediateAsync = () => new Promise(resolve => setImmediate(resolve));
 
 if (isCompatible) {
 	process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -168,10 +167,7 @@ if (isCompatible) {
 		agent.destroy();
 	});
 
-	// This sometimes fails on Node < 12
 	test('doesn\'t break on session `close` event', singleRequestWrapper, async (t, server) => {
-		t.plan(2);
-
 		server.get('/', () => {});
 
 		const agent = new Agent();
@@ -192,7 +188,13 @@ if (isCompatible) {
 		session.close();
 
 		await requestPromise;
-		t.pass();
+		if (process.versions.node.split('.')[0] < 12) {
+			// Session `close` event is emitted before its streams send `close` event
+			t.pass();
+		} else {
+			// Session `close` event is emitted after its streams send `close` event
+			t.plan(1);
+		}
 	});
 
 	test('can destroy free sessions', wrapper, async (t, server) => {
@@ -286,8 +288,9 @@ if (isCompatible) {
 	test('throws if session is closed before receiving a SETTINGS frame', async t => {
 		const {key, cert} = await createCert();
 
+		const sockets = [];
 		const server = tls.createServer({key, cert, ALPNProtocols: ['h2']}, socket => {
-			setTimeout(() => socket.end(), 2000);
+			sockets.push(socket);
 		});
 
 		server.listen = promisify(server.listen.bind(server));
@@ -303,6 +306,10 @@ if (isCompatible) {
 			agent.request(`https://localhost:${server.address().port}`),
 			'Session closed without receiving a SETTINGS frame'
 		);
+
+		for (const socket of sockets) {
+			socket.destroy();
+		}
 
 		await server.close();
 	});
