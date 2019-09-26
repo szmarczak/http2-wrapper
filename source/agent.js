@@ -247,7 +247,7 @@ class Agent extends EventEmitter {
 					});
 
 					session.setTimeout(this.timeout, () => {
-						// `.close()` gracefully closes the session. Current streams wouldn't be terminated that way.
+						// Terminates all streams owend by this session. `session.close()` would gracefully close it instead.
 						session.destroy();
 					});
 
@@ -262,7 +262,7 @@ class Agent extends EventEmitter {
 						removeSession(this.freeSessions, normalizedOptions, session);
 
 						// This is needed. A session can be destroyed,
-						// so sessionsCount < maxSessions and there may be callback awaiting.
+						// so `sessionsCount < maxSessions` and there may be callback awaiting already.
 						this._processQueue(normalizedOptions, normalizedAuthority);
 					});
 
@@ -273,10 +273,9 @@ class Agent extends EventEmitter {
 
 						for (const origin of session.originSet) {
 							if (Reflect.has(this.queue[normalizedOptions], origin)) {
-								// TODO: can this.queue[...][...] change while running this loop?
 								const {listeners} = this.queue[normalizedOptions][origin];
 								while (listeners.length !== 0 && session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
-									// We assume `resolve(...)` will call `request(...)` *directly*,
+									// We assume `resolve(...)` calls `request(...)` *directly*,
 									// otherwise the session will get overloaded.
 									listeners.shift().resolve(session);
 								}
@@ -292,7 +291,7 @@ class Agent extends EventEmitter {
 							}
 						}
 
-						// So, it isn't possible for the queue to exceed two free sessions.
+						// It isn't possible for the queue to exceed the stream limit of two free sessions.
 						// The queue will start immediately if there's at least one free session.
 						// The queue will be cleared. If not, it will wait for another free session.
 					};
