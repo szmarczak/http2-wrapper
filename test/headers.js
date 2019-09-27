@@ -1,14 +1,16 @@
-import test from 'ava';
+import {serial as test} from 'ava';
 import pEvent from 'p-event';
 import getStream from 'get-stream';
-import {request as makeRequest} from '../source';
+import http2, {request as makeRequest} from '../source';
 import isCompatible from '../source/utils/is-compatible';
 import {createWrapper} from './helpers/server';
 
 if (isCompatible) {
 	process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-	const wrapper = createWrapper();
+	const wrapper = createWrapper({
+		beforeServerClose: () => http2.globalAgent.destroy()
+	});
 
 	test('setting headers', wrapper, async (t, server) => {
 		const request = makeRequest(server.options);

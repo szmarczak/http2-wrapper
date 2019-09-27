@@ -7,9 +7,8 @@
 		"node": ">=8.16.0"
 	},
 	"scripts": {
-		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc ava",
-		"coveralls": "nyc report --reporter=text-lcov | coveralls",
-		"report": "npm test && nyc report --reporter=html"
+		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc --reporter=html --reporter=text ava",
+		"coveralls": "nyc report --reporter=text-lcov | coveralls"
 	},
 	"files": [
 		"source"
@@ -36,12 +35,13 @@
 	},
 	"devDependencies": {
 		"@sindresorhus/is": "^1.0.0",
-		"ava": "^2.2.0",
+		"ava": "^2.4.0",
 		"benchmark": "^2.1.4",
 		"coveralls": "^3.0.5",
 		"create-cert": "^1.0.6",
 		"get-stream": "^5.1.0",
 		"got": "^9.6.0",
+		"lolex": "^4.2.0",
 		"many-keys-map": "^1.0.2",
 		"nyc": "^14.1.1",
 		"p-event": "^4.1.0",

@@ -1,8 +1,8 @@
-import test from 'ava';
+import {serial as test} from 'ava';
 import pEvent from 'p-event';
 import getStream from 'get-stream';
 import is from '@sindresorhus/is';
-import {request as makeRequest} from '../source';
+import {request as makeRequest, globalAgent} from '../source';
 import isCompatible from '../source/utils/is-compatible';
 import IncomingMessage from '../source/incoming-message';
 import {createWrapper} from './helpers/server';
@@ -10,7 +10,9 @@ import {createWrapper} from './helpers/server';
 if (isCompatible) {
 	process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-	const wrapper = createWrapper();
+	const wrapper = createWrapper({
+		beforeServerClose: () => globalAgent.destroy()
+	});
 
 	const intervalMs = 250;
 	const intervalHandler = (request, response) => {
@@ -128,17 +130,22 @@ if (isCompatible) {
 		await pEvent(response, 'data');
 		response.pause();
 
-		const interval = setInterval(async () => {
-			if (response.readableLength === 2) {
-				response.resume();
+		const run = () => new Promise(resolve => {
+			const interval = setInterval(async () => {
+				if (response.readableLength === 2) {
+					response.resume();
 
-				await pEvent(response, 'data');
-				t.deepEqual(chunks, ['0', '1', '2']);
+					await pEvent(response, 'data');
+					t.deepEqual(chunks, ['0', '1', '2']);
 
-				request.abort();
-				clearInterval(interval);
-			}
+					request.abort();
+					clearInterval(interval);
+					resolve();
+				}
+			});
 		});
+
+		await run();
 	});
 
 	test('reading parts of the response', wrapper, async (t, server) => {
@@ -155,15 +162,20 @@ if (isCompatible) {
 
 		t.is(response.read(1), '0');
 
-		const interval = setInterval(() => {
-			if (response.readableLength === 2) {
-				t.is(response.read(1), '1');
-				t.is(response.read(1), '2');
+		const run = () => new Promise(resolve => {
+			const interval = setInterval(() => {
+				if (response.readableLength === 2) {
+					t.is(response.read(1), '1');
+					t.is(response.read(1), '2');
 
-				request.abort();
-				clearInterval(interval);
-			}
+					request.abort();
+					clearInterval(interval);
+					resolve();
+				}
+			});
 		});
+
+		await run();
 	});
 
 	test('headers', wrapper, async (t, server) => {

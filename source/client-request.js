@@ -100,7 +100,11 @@ class ClientRequest extends Writable {
 		options.path = options.socketPath;
 
 		this[kOptions] = options;
-		this[kAuthority] = options.authority || new URL(`https://${options.hostname || options.host}:${options.port}`);
+		this[kAuthority] = Agent.normalizeAuthority(options, options.servername);
+
+		if (!Reflect.has(this[kHeaders], ':authority')) {
+			this[kHeaders][':authority'] = this[kAuthority].slice(8);
+		}
 
 		if (this.agent && options.preconnect !== false) {
 			this.agent.getSession(this[kAuthority], options).catch(() => {});
@@ -149,6 +153,10 @@ class ClientRequest extends Writable {
 	}
 
 	_final(callback) {
+		if (this.destroyed || this.aborted) {
+			return;
+		}
+
 		this.flushHeaders();
 
 		const callEnd = () => this._request.end(callback);
@@ -184,7 +192,7 @@ class ClientRequest extends Writable {
 	}
 
 	flushHeaders() {
-		if (this[kFlushedHeaders] && !this.destroyed && !this.aborted) {
+		if (this[kFlushedHeaders] || this.destroyed || this.aborted) {
 			return;
 		}
 
@@ -196,69 +204,70 @@ class ClientRequest extends Writable {
 		const onStream = stream => {
 			this._request = stream;
 
-			if (!this.destroyed && !this.aborted) {
-				// Forwards `timeout`, `continue`, `close` and `error` events to this instance.
-				if (!isConnectMethod) {
-					proxyEvents(this._request, this, ['timeout', 'continue', 'close', 'error']);
-				}
+			if (this.destroyed || this.aborted) {
+				this._request.close(NGHTTP2_CANCEL);
+				return;
+			}
 
-				// This event tells we are ready to listen for the data.
-				this._request.once('response', (headers, flags, rawHeaders) => {
-					this.res = new IncomingMessage(this.socket);
-					this.res.req = this;
-					this.res.statusCode = headers[HTTP2_HEADER_STATUS];
-					this.res.headers = headers;
-					this.res.rawHeaders = rawHeaders;
+			// Forwards `timeout`, `continue`, `close` and `error` events to this instance.
+			if (!isConnectMethod) {
+				proxyEvents(this._request, this, ['timeout', 'continue', 'close', 'error']);
+			}
 
-					this.res.once('end', () => {
-						if (this.aborted) {
-							this.res.aborted = true;
-							this.res.emit('aborted');
-						} else {
-							this.res.complete = true;
-						}
-					});
+			// This event tells we are ready to listen for the data.
+			this._request.once('response', (headers, flags, rawHeaders) => {
+				this.res = new IncomingMessage(this.socket);
+				this.res.req = this;
+				this.res.statusCode = headers[HTTP2_HEADER_STATUS];
+				this.res.headers = headers;
+				this.res.rawHeaders = rawHeaders;
 
-					if (isConnectMethod) {
-						this.res.upgrade = true;
-
-						// The HTTP1 API says the socket is detached here,
-						// but we can't do that so we pass the original HTTP2 request.
-						if (this.emit('connect', this.res, this._request, Buffer.alloc(0))) {
-							this.emit('close');
-						} else {
-							// No listeners attached, destroy the original request.
-							this._request.destroy();
-						}
+				this.res.once('end', () => {
+					if (this.aborted) {
+						this.res.aborted = true;
+						this.res.emit('aborted');
 					} else {
-						// Forwards data
-						this._request.pipe(this.res);
-
-						if (!this.emit('response', this.res)) {
-							// No listeners attached, dump the response.
-							this.res._dump();
-						}
+						this.res.complete = true;
 					}
 				});
 
-				// Emits `information` event
-				this._request.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
+				if (isConnectMethod) {
+					this.res.upgrade = true;
 
-				this._request.once('trailers', (trailers, flags, rawTrailers) => {
-					// Assigns trailers to the response object.
-					this.res.trailers = trailers;
-					this.res.rawTrailers = rawTrailers;
-				});
+					// The HTTP1 API says the socket is detached here,
+					// but we can't do that so we pass the original HTTP2 request.
+					if (this.emit('connect', this.res, this._request, Buffer.alloc(0))) {
+						this.emit('close');
+					} else {
+						// No listeners attached, destroy the original request.
+						this._request.destroy();
+					}
+				} else {
+					// Forwards data
+					this._request.pipe(this.res);
 
-				this.socket = this._request.session.socket;
-				this.connection = this._request.session.socket;
+					if (!this.emit('response', this.res)) {
+						// No listeners attached, dump the response.
+						this.res._dump();
+					}
+				}
+			});
 
-				process.nextTick(() => {
-					this.emit('socket', this._request.session.socket);
-				});
-			} else {
-				this._request.close(NGHTTP2_CANCEL);
-			}
+			// Emits `information` event
+			this._request.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
+
+			this._request.once('trailers', (trailers, flags, rawTrailers) => {
+				// Assigns trailers to the response object.
+				this.res.trailers = trailers;
+				this.res.rawTrailers = rawTrailers;
+			});
+
+			this.socket = this._request.session.socket;
+			this.connection = this._request.session.socket;
+
+			process.nextTick(() => {
+				this.emit('socket', this._request.session.socket);
+			});
 		};
 
 		// Makes a HTTP2 request

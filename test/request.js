@@ -1,7 +1,6 @@
 import EventEmitter from 'events';
 import net from 'net';
-import http2 from 'http2';
-import test from 'ava';
+import {serial as test} from 'ava';
 import pEvent from 'p-event';
 import getStream from 'get-stream';
 import tempy from 'tempy';
@@ -9,13 +8,22 @@ import is from '@sindresorhus/is';
 import {request as makeRequest, get, constants, connect, Agent, globalAgent} from '../source';
 import isCompatible from '../source/utils/is-compatible';
 import {createWrapper, createServer, createProxyServer} from './helpers/server';
+import setImmediateAsync from './helpers/set-immediate-async';
+
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+test.serial = test;
 
 if (isCompatible) {
 	process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-	const wrapper = createWrapper();
+	const wrapper = createWrapper({
+		beforeServerClose: () => globalAgent.destroy()
+	});
+
 	const proxyWrapper = createWrapper({
-		createServer: createProxyServer
+		createServer: createProxyServer,
+		beforeServerClose: () => globalAgent.destroy()
 	});
 
 	const okHandler = (request, response) => {
@@ -24,6 +32,31 @@ if (isCompatible) {
 
 	test('throws an error on invalid protocol', t => {
 		t.throws(() => makeRequest('invalid://'), 'Protocol "invalid:" not supported. Expected "https:"');
+	});
+
+	test('does not modify options', t => {
+		const inputs = [
+			undefined,
+			'https://example.com',
+			new URL('https://example.com')
+		];
+
+		const noop = () => {};
+
+		for (const input of inputs) {
+			const originalOptions = {
+				preconnect: false
+			};
+
+			const options = {
+				...originalOptions
+			};
+
+			const request = input ? makeRequest(input, options, noop) : makeRequest(options, noop);
+			request.abort();
+
+			t.deepEqual(options, originalOptions);
+		}
 	});
 
 	test('accepts `URL` as the input parameter', wrapper, async (t, server) => {
@@ -125,20 +158,6 @@ if (isCompatible) {
 		t.true((/self signed certificate/).test(error.message) || error.message === 'unable to verify the first certificate');
 	});
 
-	test('`authority` option', async t => {
-		const localServer = await createServer();
-		await localServer.listen();
-
-		const request = makeRequest({...localServer.options, authority: localServer.options});
-		request.end();
-
-		const response = await pEvent(request, 'response');
-		const data = JSON.parse(await getStream(response));
-		await localServer.close();
-
-		t.is(data.headers[':authority'], `${localServer.options.hostname}:${localServer.options.port}`);
-	});
-
 	test('`tlsSession` option', wrapper, async (t, server) => {
 		const request = makeRequest(server.url, {tlsSession: 'not a buffer', agent: false});
 		request.end();
@@ -173,7 +192,9 @@ if (isCompatible) {
 		request.end();
 
 		await pEvent(request, 'finish');
-		session.unref();
+		request.abort();
+		session.close();
+
 		t.true(called);
 	});
 
@@ -249,7 +270,7 @@ if (isCompatible) {
 	test('`headersSent` property is `false` before flushing headers', wrapper, (t, server) => {
 		const request = makeRequest(server.options);
 		t.false(request.headersSent);
-		request.end();
+		request.abort();
 	});
 
 	test('`headersSent` is `true` after flushing headers', wrapper, async (t, server) => {
@@ -261,6 +282,8 @@ if (isCompatible) {
 	});
 
 	test('`timeout` option', wrapper, async (t, server) => {
+		server.get('/', () => {});
+
 		const request = makeRequest({
 			...server.options,
 			timeout: 1
@@ -274,6 +297,8 @@ if (isCompatible) {
 	});
 
 	test('`.setTimeout()` works', wrapper, async (t, server) => {
+		server.get('/', () => {});
+
 		const request = makeRequest(server.options);
 		request.setTimeout(1);
 		request.end();
@@ -440,6 +465,35 @@ if (isCompatible) {
 		t.notThrows(() => request.end());
 	});
 
+	test('`.flushHeaders()` has no effect if `.abort()` had been run before', wrapper, (t, server) => {
+		const request = makeRequest(server.options);
+		request.abort();
+		t.notThrows(() => request.flushHeaders());
+	});
+
+	test('aborting after flushing headers may error because the request could be sent already', wrapper, async (t, server) => {
+		const request = makeRequest(server.options);
+		request.flushHeaders();
+		request.abort();
+
+		// It's also called after every test finishes
+		server.close();
+		server.close = () => {};
+
+		const error = await pEvent(request, 'error');
+		t.is(error.code, 'ECONNREFUSED');
+	});
+
+	test('`.abort()` works if it has received a stream recently', wrapper, async (t, server) => {
+		const request = makeRequest(server.options);
+		request.flushHeaders();
+		request.abort();
+
+		await delay(100);
+
+		t.true(request.aborted);
+	});
+
 	test('emits `abort` only once', wrapper, (t, server) => {
 		let aborts = 0;
 
@@ -456,6 +510,8 @@ if (isCompatible) {
 		request.end();
 
 		t.notThrows(() => request.setNoDelay());
+
+		request.abort();
 	});
 
 	test('`.setSocketKeepAlive()` doesn\'t throw', wrapper, (t, server) => {
@@ -463,6 +519,8 @@ if (isCompatible) {
 		request.end();
 
 		t.notThrows(() => request.setSocketKeepAlive());
+
+		request.abort();
 	});
 
 	test('`.maxHeadersCount` - getter', wrapper, async (t, server) => {
@@ -488,7 +546,7 @@ if (isCompatible) {
 	});
 
 	test('throws if making a request on a closed session', wrapper, async (t, server) => {
-		const session = http2.connect(server.url);
+		const session = connect(server.url);
 		session.destroy();
 
 		const request = makeRequest({
@@ -547,12 +605,36 @@ if (isCompatible) {
 		request.abort();
 
 		t.true(called);
+
+		request.agent.destroy();
+	});
+
+	test('sets proper `:authority` header', wrapper, async (t, server) => {
+		server.on('session', session => {
+			session.origin('https://example.com');
+		});
+
+		server.get('/', (request, response) => {
+			response.end(request.headers[':authority']);
+		});
+
+		const agent = new Agent();
+		await agent.getSession(server.url);
+		await setImmediateAsync();
+
+		const request = makeRequest('https://example.com', {agent}).end();
+		const response = await pEvent(request, 'response');
+		const body = await getStream(response);
+
+		t.is(body, 'example.com');
+
+		agent.destroy();
 	});
 
 	if (process.platform !== 'win32') {
 		const socketPath = tempy.file({extension: 'socket'});
 
-		test('`socketPath` option', async t => {
+		test.serial('`socketPath` option', async t => {
 			const localServer = await createServer();
 			await localServer.listen(socketPath);
 
@@ -565,6 +647,8 @@ if (isCompatible) {
 			const response = await pEvent(request, 'response');
 			const data = JSON.parse(await getStream(response));
 			t.truthy(data);
+
+			request.agent.destroy();
 
 			await localServer.close();
 		});

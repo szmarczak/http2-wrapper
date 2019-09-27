@@ -2,7 +2,7 @@ import tls from 'tls';
 import https from 'https';
 import http from 'http';
 import util from 'util';
-import test from 'ava';
+import {serial as test, afterEach} from 'ava';
 import pEvent from 'p-event';
 import getStream from 'get-stream';
 import http2 from '../source';
@@ -10,6 +10,12 @@ import isCompatible from '../source/utils/is-compatible';
 import {createServer} from './helpers/server';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+afterEach(() => {
+	http2.globalAgent.destroy();
+});
+
+test.serial = test;
 
 if (isCompatible) {
 	const createH1Server = () => {
@@ -76,6 +82,8 @@ if (isCompatible) {
 		const data = await getStream(response);
 		t.is(data, 'h2');
 		t.is(Object.keys(agent.freeSessions).length, 1);
+
+		agent.destroy();
 	});
 
 	test('https', async t => {
@@ -110,6 +118,8 @@ if (isCompatible) {
 		const data = await getStream(response);
 		t.is(data, 'http/1.1');
 		t.is(Object.keys(agent.sockets).length, 1);
+
+		agent.destroy();
 	});
 
 	test('http', async t => {
@@ -142,6 +152,8 @@ if (isCompatible) {
 		const data = await getStream(response);
 		t.is(data, 'http/1.1');
 		t.is(Object.keys(agent.sockets).length, 1);
+
+		agent.destroy();
 	});
 
 	test('accepts string as URL', async t => {
@@ -252,6 +264,7 @@ if (isCompatible) {
 
 				return tls.connect(h2s.address().port, 'localhost', {
 					...options,
+					servername: 'localhost',
 					allowHalfOpen: true,
 					ALPNProtocols: ['h2']
 				});
@@ -264,6 +277,8 @@ if (isCompatible) {
 		const data = await getStream(response);
 		t.is(data, 'h2');
 		t.true(called);
+
+		request.agent.destroy();
 	});
 } else {
 	test('fallbacks to HTTP1', async t => {
