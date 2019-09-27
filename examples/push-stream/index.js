@@ -27,25 +27,32 @@ class PushAgent extends http2.Agent {
 		});
 	}
 
-	async request(authority, options, headers) {
-		const session = await this.getSession(authority, options);
+	request(authority, options, headers) {
+		return new Promise((resolve, reject) => {
+			// We need to use semi-callback style to support the `maxFreeSessions` option mechanism.
+			// The code after `await agent.request()` isn't executed immediately after calling `resolve()`.
 
-		const parsedPushHeaders = PushAgent._parsePushHeaders(headers);
-		const cache = session.pushCache.get(parsedPushHeaders);
-		if (cache) {
-			const {stream, pushHeaders} = cache;
-			delete session.pushCache.delete(parsedPushHeaders);
+			this.getSession(authority, options, [{
+				reject,
+				resolve: session => {
+					const parsedPushHeaders = PushAgent._parsePushHeaders(headers);
+					const cache = session.pushCache.get(parsedPushHeaders);
+					if (cache) {
+						const {stream, pushHeaders} = cache;
+						delete session.pushCache.delete(parsedPushHeaders);
 
-			setImmediate(() => {
-				stream.emit('response', pushHeaders);
-			});
+						setImmediate(() => {
+							stream.emit('response', pushHeaders);
+						});
 
-			return stream;
-		}
+						resolve(stream);
+						return;
+					}
 
-		const stream = session.request(headers);
-
-		return stream;
+					resolve(session.request(headers));
+				}
+			}]);
+		});
 	}
 
 	static _parsePushHeaders(headers) {
@@ -59,11 +66,13 @@ class PushAgent extends http2.Agent {
 }
 
 (async () => {
+	const agent = new PushAgent();
+
 	const got = gotExtend({
 		baseUrl: 'https://localhost:3000',
 		request: http2.request,
 		rejectUnauthorized: false,
-		agent: new PushAgent()
+		agent
 	});
 
 	const response = await got('');
