@@ -56,9 +56,8 @@ class PushAgent extends http2.Agent {
 	}
 
 	static _parsePushHeaders(headers) {
-		// TODO: headers[':authority'] needs to be verified properly.
-
 		return [
+			headers[':authority'],
 			headers[':path'] || '/',
 			headers[':method'] || 'GET'
 		];
