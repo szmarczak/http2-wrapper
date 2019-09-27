@@ -11,13 +11,13 @@ import {createServer} from './helpers/server';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-afterEach(() => {
-	http2.globalAgent.destroy();
-});
-
 test.serial = test;
 
 if (isCompatible) {
+	afterEach(() => {
+		http2.globalAgent.destroy();
+	});
+
 	const createH1Server = () => {
 		const server = http.createServer((request, response) => {
 			response.end('http/1.1');
