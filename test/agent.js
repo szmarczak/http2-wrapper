@@ -283,7 +283,7 @@ if (isCompatible) {
 
 		t.is(Object.values(agent.busySessions)[0].length, 1);
 
-		agent.destroy(new Error(message));
+		agent.destroy();
 
 		const error = await pEvent(request, 'error');
 		t.is(error.message, message);
@@ -497,7 +497,7 @@ if (isCompatible) {
 
 			t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`).session));
 
-			session.destroy(new Error('Ouch.'));
+			session.destroy();
 			await pEvent(session, 'close', {rejectionEvents: []});
 
 			t.true(is.undefined(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`)));
@@ -831,5 +831,21 @@ if (isCompatible) {
 		t.is(session.listenerCount('error'), 0);
 
 		session.destroy();
+	});
+
+	test('`error` event', wrapper, async (t, server) => {
+		const message = 'hello';
+
+		const agent = new Agent();
+		const session = await agent.getSession(server.url);
+
+		const promise = pEvent(agent, 'error', {multiArgs: true});
+
+		session.destroy(new Error(message));
+
+		const [error, erroredSession] = await promise;
+
+		t.is(error.message, message);
+		t.is(erroredSession, session);
 	});
 }

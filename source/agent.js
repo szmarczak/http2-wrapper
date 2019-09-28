@@ -261,17 +261,18 @@ class Agent extends EventEmitter {
 						}
 					});
 
-					const errorListener = error => {
-						for (const listener of listeners) {
-							listener.reject(error);
+					// See https://github.com/nodejs/node/issues/28966
+					session.once('error', error => {
+						if (receivedSettings) {
+							this.emit('error', error, session);
+						} else {
+							for (const listener of listeners) {
+								listener.reject(error);
+							}
 						}
 
-						// The cache won't be deleted if it errored after it had connected.
-						// See https://github.com/nodejs/node/issues/28966
 						this.tlsSessionCache.delete(name);
-					};
-
-					session.once('error', errorListener);
+					});
 
 					session.setTimeout(this.timeout, () => {
 						// Terminates all streams owend by this session. `session.close()` would gracefully close it instead.
@@ -366,8 +367,6 @@ class Agent extends EventEmitter {
 							this.getSession(normalizedAuthority, options, listeners);
 							listeners.length = 0;
 						}
-
-						session.removeListener('error', errorListener);
 
 						receivedSettings = true;
 						removeFromQueue();

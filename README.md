@@ -355,6 +355,14 @@ agent.on('busy', session => {
 });
 ```
 
+#### Event: 'error'
+
+```js
+agent.on('error', (error, session) => {
+	// The session has errored.
+});
+```
+
 ## Notes
 
  - If you're interested in [WebSockets over HTTP2](https://tools.ietf.org/html/rfc8441), then [check out this discussion](https://github.com/websockets/ws/issues/1458).
