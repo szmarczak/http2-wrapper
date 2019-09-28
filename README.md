@@ -327,7 +327,7 @@ Destroys **all** sessions.
 
 ```js
 agent.on('session', session => {
-	// A new session has been created.
+	// A new session has been created by the Agent.
 });
 ```
 
@@ -335,7 +335,7 @@ agent.on('session', session => {
 
 ```js
 agent.on('close', session => {
-	// A session has been closed.
+	// A session has been closed by the Agent.
 });
 ```
 

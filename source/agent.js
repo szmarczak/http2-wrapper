@@ -469,12 +469,16 @@ class Agent extends EventEmitter {
 		for (const busySessions of Object.values(this.busySessions)) {
 			for (const session of busySessions) {
 				session.destroy(reason);
+
+				this.emit('close', session);
 			}
 		}
 
 		for (const freeSessions of Object.values(this.freeSessions)) {
 			for (const session of freeSessions) {
 				session.destroy(reason);
+
+				this.emit('close', session);
 			}
 		}
 

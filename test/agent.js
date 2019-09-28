@@ -836,4 +836,71 @@ if (isCompatible) {
 
 		agent.destroy();
 	});
+
+	test('`session` event', wrapper, async (t, server) => {
+		const agent = new Agent();
+
+		let called = false;
+		agent.once('session', session => {
+			called = true;
+
+			t.false(session.closed);
+		});
+
+		await agent.getSession(server.url);
+		t.true(called);
+
+		agent.destroy();
+	});
+
+	test('`close` event', wrapper, async (t, server) => {
+		const agent = new Agent({maxFreeSessions: 0});
+
+		let called = false;
+		agent.once('close', session => {
+			called = true;
+
+			t.true(session.closed);
+		});
+
+		(await agent.request(server.url)).close();
+
+		await setImmediateAsync();
+
+		t.true(called);
+
+		agent.destroy();
+	});
+
+	test('`free` event', singleRequestWrapper, async (t, server) => {
+		const agent = new Agent();
+
+		let called = false;
+		agent.once('free', session => {
+			called = true;
+
+			t.false(session.closed);
+		});
+
+		await agent.request(server.url);
+		t.true(called);
+
+		agent.destroy();
+	});
+
+	test('`busy` event', singleRequestWrapper, async (t, server) => {
+		const agent = new Agent();
+
+		let called = false;
+		agent.once('busy', session => {
+			called = true;
+
+			t.false(session.closed);
+		});
+
+		await agent.request(server.url);
+		t.true(called);
+
+		agent.destroy();
+	});
 }
