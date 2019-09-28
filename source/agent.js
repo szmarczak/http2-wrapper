@@ -266,6 +266,8 @@ class Agent extends EventEmitter {
 							listener.reject(error);
 						}
 
+						// The cache won't be deleted if it errored after it had connected.
+						// See https://github.com/nodejs/node/issues/28966
 						this.tlsSessionCache.delete(name);
 					};
 
