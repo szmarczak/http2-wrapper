@@ -823,4 +823,15 @@ if (isCompatible) {
 
 		agent.destroy();
 	});
+
+	test('does not break `session.destroy()` behavior', wrapper, async (t, server) => {
+		const message = 'hello';
+
+		const agent = new Agent();
+		const session = await agent.getSession(server.url);
+
+		t.is(session.listenerCount('error'), 0);
+
+		session.destroy();
+	});
 }

@@ -261,15 +261,15 @@ class Agent extends EventEmitter {
 						}
 					});
 
-					session.once('error', error => {
-						session.destroy();
-
+					const errorListener = error => {
 						for (const listener of listeners) {
 							listener.reject(error);
 						}
 
 						this.tlsSessionCache.delete(name);
-					});
+					};
+
+					session.once('error', errorListener);
 
 					session.setTimeout(this.timeout, () => {
 						// Terminates all streams owend by this session. `session.close()` would gracefully close it instead.
@@ -364,6 +364,8 @@ class Agent extends EventEmitter {
 							this.getSession(normalizedAuthority, options, listeners);
 							listeners.length = 0;
 						}
+
+						session.removeListener('error', errorListener);
 
 						receivedSettings = true;
 						removeFromQueue();
