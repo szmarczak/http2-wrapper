@@ -276,6 +276,8 @@ if (isCompatible) {
 		server.get('/infinite', () => {});
 
 		const agent = new Agent();
+		agent.once('error', () => {});
+
 		const request = await agent.request(server.url, server.options, {
 			':path': '/infinite'
 		});
@@ -283,7 +285,7 @@ if (isCompatible) {
 
 		t.is(Object.values(agent.busySessions)[0].length, 1);
 
-		agent.destroy();
+		agent.destroy(new Error(message));
 
 		const error = await pEvent(request, 'error');
 		t.is(error.message, message);
@@ -499,7 +501,7 @@ if (isCompatible) {
 
 			t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`).session));
 
-			session.destroy(new Error('hello'));
+			session.destroy(new Error(message));
 			await pEvent(session, 'close', {rejectionEvents: []});
 
 			t.true(is.undefined(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`)));
@@ -838,8 +840,6 @@ if (isCompatible) {
 	});
 
 	test('`error` event', wrapper, async (t, server) => {
-		const message = 'hello';
-
 		const agent = new Agent();
 		const session = await agent.getSession(server.url);
 
