@@ -13,7 +13,7 @@ class PushAgent extends http2.Agent {
 			session.pushCache = pushCache;
 
 			session.on('stream', (stream, requestHeaders) => {
-				const parsedPushHeaders = PushAgent._parsePushHeaders(requestHeaders);
+				const parsedPushHeaders = PushAgent._parsePushHeaders(undefined, requestHeaders);
 
 				if (pushCache.has(parsedPushHeaders)) {
 					stream.close(http2.constants.NGHTTP2_REFUSED_STREAM);
@@ -30,12 +30,14 @@ class PushAgent extends http2.Agent {
 	request(authority, options, headers) {
 		return new Promise((resolve, reject) => {
 			// We need to use semi-callback style to support the `maxFreeSessions` option mechanism.
-			// The code after `await agent.request()` isn't executed immediately after calling `resolve()`.
+			// The code after `await agent.getSession()` isn't executed immediately after calling `resolve()`.
 
 			this.getSession(authority, options, [{
 				reject,
 				resolve: session => {
-					const parsedPushHeaders = PushAgent._parsePushHeaders(headers);
+					const normalizedAuthority = http2.Agent.normalizeAuthority(authority, options.servername);
+
+					const parsedPushHeaders = PushAgent._parsePushHeaders(normalizedAuthority, headers);
 					const cache = session.pushCache.get(parsedPushHeaders);
 					if (cache) {
 						const {stream, pushHeaders} = cache;
@@ -55,9 +57,9 @@ class PushAgent extends http2.Agent {
 		});
 	}
 
-	static _parsePushHeaders(headers) {
+	static _parsePushHeaders(authority, headers) {
 		return [
-			headers[':authority'],
+			headers[':authority'] || authority,
 			headers[':path'] || '/',
 			headers[':method'] || 'GET'
 		];
