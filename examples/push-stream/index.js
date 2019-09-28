@@ -29,8 +29,10 @@ class PushAgent extends http2.Agent {
 
 	request(authority, options, headers) {
 		return new Promise((resolve, reject) => {
-			// We need to use semi-callback style to support the `maxFreeSessions` option mechanism.
-			// The code after `await agent.getSession()` isn't executed immediately after calling `resolve()`.
+			// The code after `await agent.getSession()` isn't executed immediately after calling `resolve()`,
+			// so we need to use semi-callback style to support the `maxFreeSessions` option mechanism.
+
+			// For further information please see the source code of the `processListeners` function (`source/agent.js` file).
 
 			this.getSession(authority, options, [{
 				reject,

@@ -144,7 +144,7 @@ class Agent extends EventEmitter {
 		return normalized;
 	}
 
-	_processQueue(normalizedOptions, normalizedAuthority) {
+	_tryToCreateNewSession(normalizedOptions, normalizedAuthority) {
 		if (!Reflect.has(this.queue, normalizedOptions) || !Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
 			return;
 		}
@@ -287,10 +287,10 @@ class Agent extends EventEmitter {
 
 						// This is needed. A session can be destroyed,
 						// so `sessionsCount < maxSessions` and there may be callback awaiting already.
-						this._processQueue(normalizedOptions, normalizedAuthority);
+						this._tryToCreateNewSession(normalizedOptions, normalizedAuthority);
 					});
 
-					const checkQueue = () => {
+					const processListeners = () => {
 						if (!Reflect.has(this.queue, normalizedOptions)) {
 							return;
 						}
@@ -328,7 +328,7 @@ class Agent extends EventEmitter {
 
 						closeCoveredSessions(this.freeSessions, normalizedOptions, session);
 						closeCoveredSessions(this.busySessions, normalizedOptions, session);
-						checkQueue();
+						processListeners();
 					});
 
 					session.once('remoteSettings', () => {
@@ -342,9 +342,9 @@ class Agent extends EventEmitter {
 						}
 
 						if (freeSession()) {
-							checkQueue();
+							processListeners();
 						} else if (this.maxFreeSessions === 0) {
-							checkQueue();
+							processListeners();
 							setImmediate(() => session.close());
 						} else {
 							session.close();
@@ -386,7 +386,7 @@ class Agent extends EventEmitter {
 									if (freeSession()) {
 										closeCoveredSessions(this.freeSessions, normalizedOptions, session);
 										closeCoveredSessions(this.busySessions, normalizedOptions, session);
-										checkQueue();
+										processListeners();
 									} else {
 										session.close();
 									}
@@ -412,7 +412,7 @@ class Agent extends EventEmitter {
 			entry.destroyed = false;
 
 			this.queue[normalizedOptions][normalizedAuthority] = entry;
-			this._processQueue(normalizedOptions, normalizedAuthority);
+			this._tryToCreateNewSession(normalizedOptions, normalizedAuthority);
 		});
 	}
 
