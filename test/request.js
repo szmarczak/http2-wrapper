@@ -477,7 +477,7 @@ if (isCompatible) {
 		t.notThrows(() => request.flushHeaders());
 	});
 
-	test('aborting after flushing headers may error because the request could be sent already', wrapper, async (t, server) => {
+	test('aborting after flushing headers errors when the connection gets broken', wrapper, async (t, server) => {
 		const request = makeRequest(server.options);
 		request.flushHeaders();
 		request.abort();
@@ -490,7 +490,7 @@ if (isCompatible) {
 		t.is(error.code, 'ECONNREFUSED');
 	});
 
-	test('`.abort()` works if it has received a stream recently', wrapper, async (t, server) => {
+	test('`.abort()` works', wrapper, async (t, server) => {
 		server.get('/', request => {
 			request.once('end', () => {
 				if (!request.aborted) {
@@ -559,7 +559,7 @@ if (isCompatible) {
 		t.true(is.number(request.maxHeadersCount));
 	});
 
-	test('throws if making a request on a closed session', wrapper, async (t, server) => {
+	test('throws if making a request using a closed session', wrapper, async (t, server) => {
 		const session = connect(server.url);
 		session.destroy();
 
