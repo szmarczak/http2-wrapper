@@ -93,7 +93,7 @@ const createServer = async options => {
 	return server;
 };
 
-const createWrapper = options => {
+const createPlainWrapper = options => {
 	return async (t, run) => {
 		const create = (options && options.createServer) || createServer;
 
@@ -119,6 +119,13 @@ const createWrapper = options => {
 			await server.close();
 		}
 	};
+};
+
+const createWrapper = options => {
+	const wrapper = createPlainWrapper(options);
+	wrapper.lolex = createPlainWrapper({...options, lolex: true});
+
+	return wrapper;
 };
 
 module.exports = {createServer, createProxyServer, createWrapper};

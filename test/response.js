@@ -7,6 +7,8 @@ import isCompatible from '../source/utils/is-compatible';
 import IncomingMessage from '../source/incoming-message';
 import {createWrapper} from './helpers/server';
 
+test.serial = test;
+
 if (isCompatible) {
 	process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -81,7 +83,7 @@ if (isCompatible) {
 		t.true(response._dumped);
 	});
 
-	test('`.setTimeout()` works', wrapper, async (t, server) => {
+	test.serial('`.setTimeout()` works', wrapper.lolex, async (t, server, clock) => {
 		server.get('/headers-only', (request, response) => {
 			response.writeHead(200);
 		});
@@ -92,7 +94,12 @@ if (isCompatible) {
 		const response = await pEvent(request, 'response');
 		response.setTimeout(1, () => request.abort());
 
-		await pEvent(response, 'aborted');
+		const promise = pEvent(response, 'aborted');
+
+		clock.tick(1);
+
+		await promise;
+
 		t.pass();
 	});
 

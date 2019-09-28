@@ -281,7 +281,7 @@ if (isCompatible) {
 		t.true(request.headersSent);
 	});
 
-	test('`timeout` option', wrapper, async (t, server) => {
+	test.serial('`timeout` option', wrapper.lolex, async (t, server, clock) => {
 		server.get('/', () => {});
 
 		const request = makeRequest({
@@ -290,20 +290,26 @@ if (isCompatible) {
 		});
 		request.end();
 
-		await pEvent(request, 'timeout');
+		const promise = pEvent(request, 'timeout');
+		clock.tick(1);
+
+		await promise;
 		request.abort();
 
 		t.pass();
 	});
 
-	test('`.setTimeout()` works', wrapper, async (t, server) => {
+	test.serial('`.setTimeout()` works', wrapper.lolex, async (t, server, clock) => {
 		server.get('/', () => {});
 
 		const request = makeRequest(server.options);
 		request.setTimeout(1);
 		request.end();
 
-		await pEvent(request, 'timeout');
+		const promise = pEvent(request, 'timeout');
+		clock.tick(1);
+
+		await promise;
 		request.abort();
 
 		t.pass();
@@ -476,7 +482,7 @@ if (isCompatible) {
 		request.flushHeaders();
 		request.abort();
 
-		// It's also called after every test finishes
+		// It's also called after every test finishes, so we need to overwrite `.close()` for this one.
 		server.close();
 		server.close = () => {};
 
@@ -485,6 +491,14 @@ if (isCompatible) {
 	});
 
 	test('`.abort()` works if it has received a stream recently', wrapper, async (t, server) => {
+		server.get('/', request => {
+			request.once('end', () => {
+				if (!request.aborted) {
+					t.fail('A request has been made');
+				}
+			});
+		});
+
 		const request = makeRequest(server.options);
 		request.flushHeaders();
 		request.abort();

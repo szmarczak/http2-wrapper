@@ -22,13 +22,6 @@ if (isCompatible) {
 		}
 	});
 
-	const singleRequestWrapperWithLolex = createWrapper({
-		settings: {
-			maxConcurrentStreams: 1
-		},
-		lolex: true
-	});
-
 	const tripleRequestWrapper = createWrapper({
 		settings: {
 			maxConcurrentStreams: 3
@@ -139,25 +132,22 @@ if (isCompatible) {
 		agent.destroy();
 	});
 
-	test.serial('`timeout` option', wrapper, async (t, server) => {
+	// TODO: use lolex here
+	test('`timeout` option', wrapper, async (t, server) => {
 		const timeout = 500;
 		const agent = new Agent({timeout});
 
 		const started = Date.now();
-		const request = await agent.request(server.url);
-		request.end().resume();
+		const session = await agent.getSession(server.url);
 
 		t.is(Object.values(agent.freeSessions)[0].length, 1);
 
-		request.once('socket', socket => {
-			socket.once('close', () => {
-				const now = Date.now();
-				const difference = now - started;
+		await pEvent(session, 'close');
+		const now = Date.now();
+		const difference = now - started;
 
-				t.is(Object.values(agent.freeSessions).length, 0);
-				t.true(difference <= timeout, `Timeout exceeded ${timeout}ms (${difference}ms)`);
-			});
-		});
+		t.is(Object.values(agent.freeSessions).length, 0);
+		t.true(difference >= timeout, `Timeout did not exceed ${timeout}ms (${difference}ms)`);
 
 		agent.destroy();
 	});
@@ -321,9 +311,8 @@ if (isCompatible) {
 	test('throws if session is closed before receiving a SETTINGS frame', async t => {
 		const {key, cert} = await createCert();
 
-		const sockets = [];
 		const server = tls.createServer({key, cert, ALPNProtocols: ['h2']}, socket => {
-			sockets.push(socket);
+			socket.destroy();
 		});
 
 		server.listen = promisify(server.listen.bind(server));
@@ -331,39 +320,35 @@ if (isCompatible) {
 
 		await server.listen();
 
-		const agent = new Agent({
-			timeout: 1000
-		});
+		const agent = new Agent();
 
 		await t.throwsAsync(
 			agent.request(`https://localhost:${server.address().port}`),
 			'Session closed without receiving a SETTINGS frame'
 		);
 
-		for (const socket of sockets) {
-			socket.destroy();
-		}
-
 		await server.close();
 	});
 
-	test('endless response', singleRequestWrapper, async (t, server) => {
-		const agent = new Agent({
-			timeout: 1000
-		});
+	test.serial('endless response', singleRequestWrapper.lolex, async (t, server, clock) => {
+		const timeout = 1000;
+		const agent = new Agent({timeout});
 
 		const secondStream = await agent.request(server.url);
-		await pEvent(secondStream, 'close');
 
+		const promise = pEvent(secondStream, 'close');
+
+		clock.tick(timeout);
+
+		await promise;
 		t.pass();
 
 		agent.destroy();
 	});
 
-	test('endless response (specific case)', singleRequestWrapper, async (t, server) => {
-		const agent = new Agent({
-			timeout: 1000
-		});
+	test.serial('endless response (specific case)', singleRequestWrapper.lolex, async (t, server, clock) => {
+		const timeout = 1000;
+		const agent = new Agent({timeout});
 
 		const firstRequest = await agent.request(server.url);
 		const secondRequest = await agent.request(server.url);
@@ -373,8 +358,12 @@ if (isCompatible) {
 
 		const secondStream = await agent.request(server.url);
 		secondStream.session.destroy();
-		await pEvent(secondStream, 'close');
 
+		const promise = pEvent(secondStream, 'close');
+
+		clock.tick(timeout);
+
+		await promise;
 		t.pass();
 
 		agent.destroy();
@@ -402,6 +391,7 @@ if (isCompatible) {
 		agent.destroy();
 	});
 
+	// TODO: use lolex here
 	test('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
 		t.plan(1);
 
@@ -430,6 +420,7 @@ if (isCompatible) {
 		agent.destroy();
 	});
 
+	// TODO: use lolex here
 	test('appends to freeSessions after the stream has ended #2', singleRequestWrapper, async (t, server) => {
 		server.get('/', (request, response) => {
 			setTimeout(() => {
@@ -793,7 +784,7 @@ if (isCompatible) {
 		agent.destroy();
 	});
 
-	test.serial('respects `.maxFreeSessions` changes', singleRequestWrapperWithLolex, async (t, server, clock) => {
+	test.serial('respects `.maxFreeSessions` changes', singleRequestWrapper.lolex, async (t, server, clock) => {
 		const agent = new Agent({
 			maxFreeSessions: 2
 		});
@@ -804,17 +795,40 @@ if (isCompatible) {
 		agent.maxFreeSessions = 1;
 		stream.close();
 
+		await new Promise(resolve => {
+			stream.prependOnceListener('close', async () => {
+				const session = await agent.getSession(server.url);
+				t.is(session, streamSession);
+
+				const serverSession = await pEvent(server, 'session');
+				await pEvent(serverSession, 'close');
+
+				clock.tick(1);
+				agent.destroy();
+				clock.tick(1);
+
+				resolve();
+			});
+		});
+	});
+
+	test('destroying causes pending sessions to throw', wrapper, async (t, server) => {
+		const agent = new Agent();
 		const sessionPromise = agent.getSession(server.url);
-		const session = await sessionPromise;
 
-		t.is(session, streamSession);
-
-		const serverSession = await pEvent(server, 'session');
-
-		await pEvent(serverSession, 'remoteSettings');
-
-		clock.tick(1);
 		agent.destroy();
-		clock.tick(1);
+
+		await t.throwsAsync(sessionPromise, 'Agent has been destroyed');
+	});
+
+	test('newly queued sessions should not throw after `agent.destroy()`', wrapper, async (t, server) => {
+		const agent = new Agent();
+		const sessionPromise = agent.getSession(server.url);
+		agent.destroy();
+
+		await t.throwsAsync(sessionPromise, 'Agent has been destroyed');
+		await t.notThrowsAsync(agent.getSession(server.url));
+
+		agent.destroy();
 	});
 }

@@ -164,7 +164,7 @@ class Agent extends EventEmitter {
 			if (Array.isArray(listeners)) {
 				listeners = [...listeners];
 
-				// Resolve ASAP, because we're just moving the listeners.
+				// Resolve the current promise ASAP, because we're just moving the listeners.
 				resolve();
 			} else {
 				listeners = [{resolve, reject}];
@@ -332,6 +332,15 @@ class Agent extends EventEmitter {
 					});
 
 					session.once('remoteSettings', () => {
+						if (entry.destroyed) {
+							for (const listener of listeners) {
+								listener.reject(new Error('Agent has been destroyed'));
+							}
+
+							session.destroy();
+							return;
+						}
+
 						if (freeSession()) {
 							checkQueue();
 						} else if (this.maxFreeSessions === 0) {
@@ -400,6 +409,7 @@ class Agent extends EventEmitter {
 
 			entry.listeners = listeners;
 			entry.completed = false;
+			entry.destroyed = false;
 
 			this.queue[normalizedOptions][normalizedAuthority] = entry;
 			this._processQueue(normalizedOptions, normalizedAuthority);
@@ -456,6 +466,15 @@ class Agent extends EventEmitter {
 				session.destroy(reason);
 			}
 		}
+
+		for (const entriesOfAuthority of Object.values(this.queue)) {
+			for (const entry of Object.values(entriesOfAuthority)) {
+				entry.destroyed = true;
+			}
+		}
+
+		// Further requests should queue to closing sessions
+		this.queue = {};
 	}
 }
 
