@@ -274,6 +274,8 @@ class Agent extends EventEmitter {
 					session.setTimeout(this.timeout, () => {
 						// Terminates all streams owend by this session. `session.close()` would gracefully close it instead.
 						session.destroy();
+
+						this.emit('close', session);
 					});
 
 					session.once('close', () => {
@@ -460,6 +462,8 @@ class Agent extends EventEmitter {
 			for (const session of freeSessions) {
 				if (session[kCurrentStreamsCount] === 0) {
 					session.close();
+
+					this.emit('close', session);
 				}
 			}
 		}
