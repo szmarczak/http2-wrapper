@@ -827,6 +827,7 @@ if (isCompatible) {
 	});
 
 	// Fixed for now
+	// eslint-disable-next-line ava/no-skip-test
 	test.skip('does not break `session.destroy()` behavior', wrapper, async (t, server) => {
 		const agent = new Agent();
 		const session = await agent.getSession(server.url);
