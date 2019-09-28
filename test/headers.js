@@ -60,4 +60,17 @@ if (isCompatible) {
 
 		request.abort();
 	});
+
+	test('invalid headers', t => {
+		const request = makeRequest({preconnect: false});
+
+		t.throws(() => request.setHeader(undefined, 'qwerty'), 'Header name must be a valid HTTP token [undefined]');
+		t.throws(() => request.setHeader('qwerty', undefined), 'Invalid value "undefined for header "qwerty"');
+		t.throws(() => request.setHeader('“', 'qwerty'), 'Header name must be a valid HTTP token [“]');
+		t.throws(() => request.setHeader('qwerty', '“'), 'Invalid character in header content [qwerty]');
+
+		t.throws(() => request.getHeader(undefined), 'The "name" argument must be of type string. Received undefined');
+
+		t.throws(() => request.removeHeader(undefined), 'The "name" argument must be of type string. Received undefined');
+	});
 }

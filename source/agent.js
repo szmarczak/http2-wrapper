@@ -234,6 +234,7 @@ class Agent extends EventEmitter {
 						if (freeSessionsLength < this.maxFreeSessions) {
 							addSession(this.freeSessions, normalizedOptions, session);
 
+							this.emit('free', session);
 							return true;
 						}
 
@@ -345,9 +346,15 @@ class Agent extends EventEmitter {
 							processListeners();
 						} else if (this.maxFreeSessions === 0) {
 							processListeners();
-							setImmediate(() => session.close());
+							setImmediate(() => {
+								session.close();
+
+								this.emit('close', session);
+							});
 						} else {
 							session.close();
+
+							this.emit('close', session);
 						}
 
 						if (listeners.length !== 0) {
@@ -372,6 +379,8 @@ class Agent extends EventEmitter {
 
 						if (!isFree() && removeSession(this.freeSessions, normalizedOptions, session)) {
 							addSession(this.busySessions, normalizedOptions, session);
+
+							this.emit('busy', session);
 						}
 
 						stream.once('close', () => {
@@ -389,6 +398,8 @@ class Agent extends EventEmitter {
 										processListeners();
 									} else {
 										session.close();
+
+										this.emit('close', session);
 									}
 								}
 							}

@@ -112,6 +112,8 @@ const createPlainWrapper = options => {
 				options.beforeServerClose();
 			}
 
+			clock.runAll();
+
 			if (options && options.lolex) {
 				clock.uninstall();
 			}

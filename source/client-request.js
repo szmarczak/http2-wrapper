@@ -9,7 +9,10 @@ const proxyEvents = require('./utils/proxy-events');
 const {
 	ERR_INVALID_ARG_TYPE,
 	ERR_INVALID_PROTOCOL,
-	ERR_HTTP_HEADERS_SENT
+	ERR_HTTP_HEADERS_SENT,
+	ERR_INVALID_HTTP_TOKEN,
+	ERR_HTTP_INVALID_HEADER_VALUE,
+	ERR_INVALID_CHAR
 } = require('./utils/errors');
 
 const {
@@ -25,6 +28,9 @@ const kAuthority = Symbol('authority');
 const kSession = Symbol('session');
 const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
+
+const isValidHttpToken = /^[\^_`a-zA-Z\-0-9!#$%&'*+.|~]+$/;
+const isInvalidHeaderValue = /[^\t\u0020-\u007e\u0080-\u00ff]/;
 
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
@@ -288,6 +294,10 @@ class ClientRequest extends Writable {
 	}
 
 	getHeader(name) {
+		if (typeof name !== 'string') {
+			throw new ERR_INVALID_ARG_TYPE('name', 'string', name);
+		}
+
 		return this[kHeaders][name.toLowerCase()];
 	}
 
@@ -296,6 +306,10 @@ class ClientRequest extends Writable {
 	}
 
 	removeHeader(name) {
+		if (typeof name !== 'string') {
+			throw new ERR_INVALID_ARG_TYPE('name', 'string', name);
+		}
+
 		if (this.headersSent) {
 			throw new ERR_HTTP_HEADERS_SENT('remove');
 		}
@@ -306,6 +320,18 @@ class ClientRequest extends Writable {
 	setHeader(name, value) {
 		if (this.headersSent) {
 			throw new ERR_HTTP_HEADERS_SENT('set');
+		}
+
+		if (typeof name !== 'string' || !isValidHttpToken.test(name)) {
+			throw new ERR_INVALID_HTTP_TOKEN('Header name', name);
+		}
+
+		if (typeof value === 'undefined') {
+			throw new ERR_HTTP_INVALID_HEADER_VALUE(value, name);
+		}
+
+		if (isInvalidHeaderValue.test(value)) {
+			throw new ERR_INVALID_CHAR('header content', name);
 		}
 
 		this[kHeaders][name.toLowerCase()] = value;

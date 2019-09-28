@@ -312,7 +312,9 @@ if (isCompatible) {
 		const {key, cert} = await createCert();
 
 		const server = tls.createServer({key, cert, ALPNProtocols: ['h2']}, socket => {
-			socket.destroy();
+			setImmediate(() => {
+				socket.destroy();
+			});
 		});
 
 		server.listen = promisify(server.listen.bind(server));
@@ -795,16 +797,19 @@ if (isCompatible) {
 		agent.maxFreeSessions = 1;
 		stream.close();
 
+		clock.runAll();
+
 		await new Promise(resolve => {
 			stream.prependOnceListener('close', async () => {
 				const session = await agent.getSession(server.url);
 				t.is(session, streamSession);
 
-				const serverSession = await pEvent(server, 'session');
-				await pEvent(serverSession, 'close');
+				await pEvent(agent, 'close');
 
 				clock.tick(1);
+
 				agent.destroy();
+
 				clock.tick(1);
 
 				resolve();

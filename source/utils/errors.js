@@ -31,3 +31,15 @@ makeError(TypeError, 'ERR_INVALID_PROTOCOL', args => {
 makeError(Error, 'ERR_HTTP_HEADERS_SENT', args => {
 	return `Cannot ${args[0]} headers after they are sent to the client`;
 });
+
+makeError(TypeError, 'ERR_INVALID_HTTP_TOKEN', args => {
+	return `${args[0]} must be a valid HTTP token [${args[1]}]`;
+});
+
+makeError(TypeError, 'ERR_HTTP_INVALID_HEADER_VALUE', args => {
+	return `Invalid value "${args[0]} for header "${args[1]}"`;
+});
+
+makeError(TypeError, 'ERR_INVALID_CHAR', args => {
+	return `Invalid character in ${args[0]} [${args[1]}]`;
+});

@@ -323,11 +323,42 @@ Makes an attempt to close free sessions. Only sessions with 0 concurrent streams
 
 Destroys **all** sessions.
 
+#### Event: 'session'
+
+```js
+agent.on('session', session => {
+	// A new session has been created.
+});
+```
+
+#### Event: 'close'
+
+```js
+agent.on('close', session => {
+	// A session has been closed.
+});
+```
+
+#### Event: 'free'
+
+```js
+agent.on('free', session => {
+	// The session became free.
+});
+```
+
+#### Event: 'busy'
+
+```js
+agent.on('busy', session => {
+	// The session became busy.
+});
+```
+
 ## Notes
 
- - [WebSockets over HTTP2 is not supported yet](https://github.com/nodejs/node/issues/15230), although there is [a proposal](https://tools.ietf.org/html/rfc8441) already.
+ - If you're interested in [WebSockets over HTTP2](https://tools.ietf.org/html/rfc8441), then [check out this discussion](https://github.com/websockets/ws/issues/1458).
  - [HTTP2 sockets cannot be malformed](https://github.com/nodejs/node/blob/cc8250fab86486632fdeb63892be735d7628cd13/lib/internal/http2/core.js#L725), therefore modifying the socket will have no effect.
- - HTTP2 is a binary protocol. Headers are sent without any validation.
  - You can make [a custom Agent](examples/push-stream/index.js) to support push streams.
 
 ## Benchmarks
