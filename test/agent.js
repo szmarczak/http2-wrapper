@@ -825,8 +825,6 @@ if (isCompatible) {
 	});
 
 	test('does not break `session.destroy()` behavior', wrapper, async (t, server) => {
-		const message = 'hello';
-
 		const agent = new Agent();
 		const session = await agent.getSession(server.url);
 
