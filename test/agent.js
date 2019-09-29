@@ -438,6 +438,31 @@ if (isCompatible) {
 		await secondServer.close();
 	});
 
+	test.only('prevents session overloading #3', singleRequestWrapper, async (t, server) => {
+		const agent = new Agent({
+			maxSessions: 1
+		});
+
+		const serverSessionAPromise = pEvent(server, 'session');
+		const sessionA = await agent.getSession(server.url);
+		const serverSessionA = await serverSessionAPromise;
+
+		sessionA.request();
+
+		const sessionBPromise = agent.getSession(server.url);
+
+		serverSessionA.settings({
+			maxConcurrentStreams: 2
+		});
+
+		console.log('awaiting');
+		const sessionB = await sessionBPromise;
+
+		t.is(sessionA, sessionB);
+
+		agent.destroy();
+	});
+
 	test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
 		const agent = new Agent();
 
@@ -630,7 +655,6 @@ if (isCompatible) {
 
 	test('uses sessions which are more loaded to use fewer connections', tripleRequestWrapper, async (t, server) => {
 		const SESSIONS_COUNT = 3;
-		const REQUESTS_COUNT = 3;
 
 		const agent = new Agent({maxFreeSessions: SESSIONS_COUNT});
 		const generateRequests = (session, count) => {
@@ -651,7 +675,7 @@ if (isCompatible) {
 
 			sessions.push({
 				session,
-				requests: generateRequests(session, REQUESTS_COUNT),
+				requests: generateRequests(session, session.remoteSettings.maxConcurrentStreams),
 				closeRequests(count) {
 					if (!count) {
 						count = this.requests.length;
@@ -824,6 +848,57 @@ if (isCompatible) {
 
 		await agent.request(server.url);
 		t.true(called);
+
+		agent.destroy();
+	});
+
+	test.failing('sessions can become suddenly covered by shrinking their current streams count', singleRequestWrapper, async (t, server) => {
+		const agent = new Agent({
+			maxFreeSessions: 2
+		});
+
+		const serverSessionAPromise = pEvent(server, 'session');
+		const sessionA = await agent.getSession(server.url);
+		const serverSessionA = await serverSessionAPromise;
+
+		serverSessionA.origin('https://example.com');
+		await pEvent(sessionA, 'origin');
+
+		sessionA.request();
+
+		const sessionB = await agent.getSession(server.url);
+		const requestB = sessionB.request();
+
+		requestB.close();
+
+		t.true(sessionB.closed);
+
+		agent.destroy();
+	});
+
+	test('a session can cover other session by increasing its streams count limit', singleRequestWrapper, async (t, server) => {
+		const agent = new Agent({
+			maxFreeSessions: 2
+		});
+
+		const serverSessionAPromise = pEvent(server, 'session');
+		const sessionA = await agent.getSession(server.url);
+		const serverSessionA = await serverSessionAPromise;
+
+		serverSessionA.origin('https://example.com');
+		await pEvent(sessionA, 'origin');
+
+		sessionA.request();
+
+		const sessionB = await agent.getSession(server.url);
+
+		serverSessionA.settings({
+			maxConcurrentStreams: 2
+		});
+
+		await pEvent(sessionA, 'remoteSettings');
+
+		t.true(sessionB.closed);
 
 		agent.destroy();
 	});

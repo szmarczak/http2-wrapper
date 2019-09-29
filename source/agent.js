@@ -135,6 +135,7 @@ class Agent extends EventEmitter {
 
 		// Max free sessions per origin.
 		// TODO: decreasing `maxFreeSessions` should close some sessions
+		// TODO: should `maxFreeSessions` be related only to sessions with 0 pending streams?
 		this.maxFreeSessions = maxFreeSessions;
 
 		// We don't support push streams by default.
@@ -192,6 +193,11 @@ class Agent extends EventEmitter {
 		}
 	}
 
+	_closeCoveredSessions(normalizedOptions, session) {
+		closeCoveredSessions(this.freeSessions, normalizedOptions, session);
+		closeCoveredSessions(this.busySessions, normalizedOptions, session);
+	}
+
 	getSession(authority, options, listeners) {
 		return new Promise((resolve, reject) => {
 			if (Array.isArray(listeners)) {
@@ -214,7 +220,10 @@ class Agent extends EventEmitter {
 				if (freeSessions.length !== 0) {
 					// Use session which has the biggest stream capacity in order to use the smallest number of sessions possible.
 					const session = freeSessions.reduce((previousSession, nextSession) => {
-						if (nextSession.remoteSettings.maxConcurrentStreams > previousSession.remoteSettings.maxConcurrentStreams) {
+						if (
+							nextSession.remoteSettings.maxConcurrentStreams >= previousSession.remoteSettings.maxConcurrentStreams &&
+							nextSession[kCurrentStreamsCount] > previousSession[kCurrentStreamsCount]
+						) {
 							return nextSession;
 						}
 
@@ -392,10 +401,14 @@ class Agent extends EventEmitter {
 						}
 
 						// Close covered sessions (if possible).
-						closeCoveredSessions(this.freeSessions, normalizedOptions, session);
-						closeCoveredSessions(this.busySessions, normalizedOptions, session);
+						this._closeCoveredSessions(normalizedOptions, session);
 
 						processListeners();
+
+						// `session.remoteSettings.maxConcurrentStreams` might get increased
+						session.on('remoteSettings', () => {
+							this._closeCoveredSessions(normalizedOptions, session);
+						});
 					});
 
 					session.once('remoteSettings', () => {
@@ -440,6 +453,18 @@ class Agent extends EventEmitter {
 						}
 
 						receivedSettings = true;
+
+						// `session.remoteSettings.maxConcurrentStreams` might get increased
+						session.on('remoteSettings', () => {
+							console.log(session.remoteSettings.maxConcurrentStreams);
+							if (isFree() && removeSession(this.busySessions, normalizedOptions, session)) {
+								if (freeSession()) {
+									processListeners();
+								} else {
+									addSession(this.busySessions, normalizedOptions, session);
+								}
+							}
+						});
 					});
 
 					// Shim `session.request()` in order to catch all streams
@@ -474,8 +499,7 @@ class Agent extends EventEmitter {
 								if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed && !session.closed) {
 									// Check the sessions count of this authority and compare it to `maxSessionsCount`.
 									if (freeSession()) {
-										closeCoveredSessions(this.freeSessions, normalizedOptions, session);
-										closeCoveredSessions(this.busySessions, normalizedOptions, session);
+										this._closeCoveredSessions(normalizedOptions, session);
 										processListeners();
 									} else {
 										session.close();
