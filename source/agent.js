@@ -79,18 +79,28 @@ const getSessions = (where, name, normalizedAuthority) => {
 	return [];
 };
 
+// See https://tools.ietf.org/html/rfc8336
 const closeCoveredSessions = (where, name, session) => {
 	if (!Reflect.has(where, name)) {
 		return;
 	}
 
+	// Clients SHOULD NOT emit new requests on any connection whose Origin
+	// Set is a proper subset of another connection's Origin Set, and they
+	// SHOULD close it once all outstanding requests are satisfied.
 	for (const coveredSession of where[name]) {
 		if (
-			coveredSession !== session &&
+			// The set is a proper subset when its length is less than the other set.
 			coveredSession.originSet.length < session.originSet.length &&
+
+			// And the other set includes all elements of the subset.
 			coveredSession.originSet.every(origin => session.originSet.includes(origin)) &&
+
+			// Makes sure that the session can handle all requests from the covered session.
+			// TODO: can the session become uncovered when a stream is closed after checking this condition?
 			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
 		) {
+			// This allows pending requests to finish and prevents making new requests.
 			coveredSession.close();
 		}
 	}
@@ -100,18 +110,39 @@ class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
 		super();
 
+		// A session is considered busy when its current streams count
+		// is equal to or greater than the `maxConcurrentStreams` value.
 		this.busySessions = {};
+
+		// A session is considered free when its current streams count
+		// is less than the `maxConcurrentStreams` value.
 		this.freeSessions = {};
+
+		// The queue for creating new sessions. It looks like this:
+		// QUEUE[NORMALIZED_OPTIONS][NORMALIZED_AUTHORITY] = ENTRY_FUNCTION
+		//
+		// The entry function has `listeners`, `completed` and `destroyed` properties.
+		// `listeners` is an array of objects containing `resolve` and `reject` functions.
+		// `completed` is a boolean. It's set to true after ENTRY_FUNCTION is executed.
+		// `destroyed` is a boolean. If it's set to true, the session will be destroyed if hasn't connected yet.
 		this.queue = {};
 
+		// Each session will use this timeout value.
 		this.timeout = timeout;
-		this.maxSessions = maxSessions;
-		this.maxFreeSessions = maxFreeSessions; // TODO: decreasing `maxFreeSessions` should close some sessions
 
+		// Max sessions per origin.
+		this.maxSessions = maxSessions;
+
+		// Max free sessions per origin.
+		// TODO: decreasing `maxFreeSessions` should close some sessions
+		this.maxFreeSessions = maxFreeSessions;
+
+		// We don't support push streams by default.
 		this.settings = {
 			enablePush: false
 		};
 
+		// Reusing TLS sessions increases performance.
 		this.tlsSessionCache = new QuickLRU({maxSize: maxCachedTlsSessions});
 	}
 
@@ -149,9 +180,11 @@ class Agent extends EventEmitter {
 			return;
 		}
 
+		// We need the busy sessions length to check if a session can be created.
 		const busyLength = getSessions(this.busySessions, normalizedOptions, normalizedAuthority).length;
 		const item = this.queue[normalizedOptions][normalizedAuthority];
 
+		// The entry function can be run only once.
 		if (busyLength < this.maxSessions && !item.completed) {
 			item.completed = true;
 
@@ -164,7 +197,8 @@ class Agent extends EventEmitter {
 			if (Array.isArray(listeners)) {
 				listeners = [...listeners];
 
-				// Resolve the current promise ASAP, because we're just moving the listeners.
+				// Resolve the current promise ASAP, we're just moving the listeners.
+				// They will be executed at a different time.
 				resolve();
 			} else {
 				listeners = [{resolve, reject}];
@@ -174,10 +208,12 @@ class Agent extends EventEmitter {
 			const normalizedAuthority = Agent.normalizeAuthority(authority, options && options.servername);
 
 			if (Reflect.has(this.freeSessions, normalizedOptions)) {
+				// Look for all available free sessions
 				const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
 
 				if (freeSessions.length !== 0) {
 					for (const listener of listeners) {
+						// Use the session which is the most loaded in order to use the smallest number of sessions possible.
 						listener.resolve(freeSessions.reduce((previousSession, nextSession) => {
 							if (nextSession[kCurrentStreamsCount] > previousSession[kCurrentStreamsCount]) {
 								return nextSession;
@@ -193,6 +229,7 @@ class Agent extends EventEmitter {
 
 			if (Reflect.has(this.queue, normalizedOptions)) {
 				if (Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+					// There's already an item in the queue, just attach ourselves to it.
 					this.queue[normalizedOptions][normalizedAuthority].listeners.push(...listeners);
 
 					return;
@@ -201,6 +238,9 @@ class Agent extends EventEmitter {
 				this.queue[normalizedOptions] = {};
 			}
 
+			// The entry must be removed from the queue IMMEDIATELY when:
+			// 1. the session connected successfully,
+			// 2. an error occurs.
 			const removeFromQueue = () => {
 				// Our entry can be replaced. We cannot remove the new one.
 				if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedAuthority] === entry) {
@@ -212,12 +252,13 @@ class Agent extends EventEmitter {
 				}
 			};
 
+			// The main logic is here
 			const entry = () => {
-				try {
-					const name = `${normalizedAuthority}:${normalizedOptions}`;
-					let receivedSettings = false;
-					let servername;
+				const name = `${normalizedAuthority}:${normalizedOptions}`;
+				let receivedSettings = false;
+				let servername;
 
+				try {
 					const tlsSessionCache = this.tlsSessionCache.get(name);
 
 					const session = http2.connect(authority, {
@@ -228,10 +269,17 @@ class Agent extends EventEmitter {
 					});
 					session[kCurrentStreamsCount] = 0;
 
+					// Tries to free the session.
 					const freeSession = () => {
-						const freeSessionsLength = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority).length;
+						// Fetch the smallest amount of free sessions of any origin we have.
+						let minLength = Infinity;
 
-						if (freeSessionsLength < this.maxFreeSessions) {
+						for (const origin of session.originSet) {
+							minLength = Math.min(minLength, getSessions(this.freeSessions, normalizedOptions, origin).length);
+						}
+
+						// Check the limit.
+						if (minLength < this.maxFreeSessions) {
 							addSession(this.freeSessions, normalizedOptions, session);
 
 							this.emit('free', session);
@@ -244,6 +292,7 @@ class Agent extends EventEmitter {
 					const isFree = () => session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams;
 
 					session.socket.once('session', tlsSession => {
+						// We need to cache the servername due to a bug in OpenSSL.
 						setImmediate(() => {
 							this.tlsSessionCache.set(name, {
 								session: tlsSession,
@@ -252,6 +301,7 @@ class Agent extends EventEmitter {
 						});
 					});
 
+					// OpenSSL bug workaround.
 					// See https://github.com/nodejs/node/issues/28985
 					session.socket.once('secureConnect', () => {
 						servername = session.socket.servername;
@@ -261,41 +311,45 @@ class Agent extends EventEmitter {
 						}
 					});
 
-					// See https://github.com/nodejs/node/issues/28966
 					session.once('error', error => {
-						if (receivedSettings) {
-							this.emit('error', error, session);
-						} else {
+						// `receivedSettings` is true when the session has successfully connected.
+						if (!receivedSettings) {
 							for (const listener of listeners) {
 								listener.reject(error);
 							}
 						}
 
+						// The connection got broken, purge the cache.
 						this.tlsSessionCache.delete(name);
 					});
 
 					session.setTimeout(this.timeout, () => {
-						// Terminates all streams owend by this session. `session.close()` would gracefully close it instead.
+						// Terminates all streams owned by this session.
 						session.destroy();
 
 						this.emit('close', session);
 					});
 
+					// Note: in some versions of Node this event is fired before streams close...
 					session.once('close', () => {
 						if (!receivedSettings) {
+							// Broken connection
 							for (const listener of listeners) {
 								listener.reject(new Error('Session closed without receiving a SETTINGS frame'));
 							}
 						}
 
 						removeFromQueue();
+
+						// This cannot be moved to the stream logic,
+						// because there may be a session that hadn't made a single request.
 						removeSession(this.freeSessions, normalizedOptions, session);
 
-						// This is needed. A session can be destroyed,
-						// so `sessionsCount < maxSessions` and there may be callback awaiting already.
+						// There may be another session awaiting.
 						this._tryToCreateNewSession(normalizedOptions, normalizedAuthority);
 					});
 
+					// Iterates over the queue and processes listeners.
 					const processListeners = () => {
 						if (!Reflect.has(this.queue, normalizedOptions)) {
 							return;
@@ -304,13 +358,15 @@ class Agent extends EventEmitter {
 						for (const origin of session.originSet) {
 							if (Reflect.has(this.queue[normalizedOptions], origin)) {
 								const {listeners} = this.queue[normalizedOptions][origin];
+
+								// Prevents session overloading.
 								while (listeners.length !== 0 && isFree()) {
 									// We assume `resolve(...)` calls `request(...)` *directly*,
 									// otherwise the session will get overloaded.
 									listeners.shift().resolve(session);
 								}
 
-								if (this.queue[normalizedOptions][origin].length === 0) {
+								if (this.queue[normalizedOptions][origin].listeners.length === 0) {
 									delete this.queue[normalizedOptions][origin];
 
 									if (Object.keys(this.queue[normalizedOptions]).length === 0) {
@@ -318,26 +374,31 @@ class Agent extends EventEmitter {
 										break;
 									}
 								}
+
+								// We're no longer free, no point in continuing.
+								if (!isFree()) {
+									break;
+								}
 							}
 						}
-
-						// It isn't possible for the queue to exceed the stream limit of two free sessions.
-						// The queue will start immediately if there's at least one free session.
-						// The queue will be cleared. If not, it will wait for another free session.
 					};
 
 					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
 					session.once('origin', () => {
 						if (!isFree()) {
+							// The session is full.
 							return;
 						}
 
+						// Close covered sessions (if possible).
 						closeCoveredSessions(this.freeSessions, normalizedOptions, session);
 						closeCoveredSessions(this.busySessions, normalizedOptions, session);
+
 						processListeners();
 					});
 
 					session.once('remoteSettings', () => {
+						// The Agent could have been destroyed already.
 						if (entry.destroyed) {
 							for (const listener of listeners) {
 								listener.reject(new Error('Agent has been destroyed'));
@@ -348,40 +409,49 @@ class Agent extends EventEmitter {
 						}
 
 						if (freeSession()) {
+							// Process listeners, we're free.
 							processListeners();
 						} else if (this.maxFreeSessions === 0) {
 							processListeners();
+
+							// We're closing ASAP, when all possible requests have been made for this event loop tick.
 							setImmediate(() => {
 								session.close();
 
 								this.emit('close', session);
 							});
 						} else {
+							// Too late, no seats available, close the session.
 							session.close();
 
 							this.emit('close', session);
 						}
 
+						removeFromQueue();
+
+						// Check if we haven't managed to execute all listeners.
 						if (listeners.length !== 0) {
-							// Requests for a new session with predefined listeners
+							// Request for a new session with predefined listeners.
 							this.getSession(normalizedAuthority, options, listeners);
 							listeners.length = 0;
 						}
 
 						receivedSettings = true;
-						removeFromQueue();
 					});
 
+					// Shim `session.request()` in order to catch all streams
 					session[kRequest] = session.request;
 					session.request = headers => {
 						const stream = session[kRequest](headers, {
 							endStream: false
 						});
 
+						// The process won't exit until the session is closed.
 						session.ref();
 
 						++session[kCurrentStreamsCount];
 
+						// Check if we became busy
 						if (!isFree() && removeSession(this.freeSessions, normalizedOptions, session)) {
 							addSession(this.busySessions, normalizedOptions, session);
 
@@ -393,10 +463,13 @@ class Agent extends EventEmitter {
 
 							if (isFree()) {
 								if (session[kCurrentStreamsCount] === 0) {
+									// All requests are finished, the process may exit now.
 									session.unref();
 								}
 
+								// Check if we are no longer busy and the session is not broken.
 								if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed && !session.closed) {
+									// Check the sessions count of this authority and compare it to `maxSessionsCount`.
 									if (freeSession()) {
 										closeCoveredSessions(this.freeSessions, normalizedOptions, session);
 										closeCoveredSessions(this.busySessions, normalizedOptions, session);
@@ -495,7 +568,7 @@ class Agent extends EventEmitter {
 			}
 		}
 
-		// Further requests should queue to closing sessions
+		// New requests should NOT attach themselves to destroyed sessions
 		this.queue = {};
 	}
 }

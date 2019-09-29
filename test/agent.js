@@ -827,29 +827,4 @@ if (isCompatible) {
 
 		agent.destroy();
 	});
-
-	// Fixed for now
-	// eslint-disable-next-line ava/no-skip-test
-	test.skip('does not break `session.destroy()` behavior', wrapper, async (t, server) => {
-		const agent = new Agent();
-		const session = await agent.getSession(server.url);
-
-		t.is(session.listenerCount('error'), 0);
-
-		session.destroy();
-	});
-
-	test('`error` event', wrapper, async (t, server) => {
-		const agent = new Agent();
-		const session = await agent.getSession(server.url);
-
-		const promise = pEvent(agent, 'error', {multiArgs: true});
-
-		session.destroy(new Error(message));
-
-		const [error, erroredSession] = await promise;
-
-		t.is(error.message, message);
-		t.is(erroredSession, session);
-	});
 }
