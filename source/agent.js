@@ -208,19 +208,21 @@ class Agent extends EventEmitter {
 			const normalizedAuthority = Agent.normalizeAuthority(authority, options && options.servername);
 
 			if (Reflect.has(this.freeSessions, normalizedOptions)) {
-				// Look for all available free sessions
+				// Look for all available free sessions.
 				const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
 
 				if (freeSessions.length !== 0) {
-					for (const listener of listeners) {
-						// Use the session which is the most loaded in order to use the smallest number of sessions possible.
-						listener.resolve(freeSessions.reduce((previousSession, nextSession) => {
-							if (nextSession[kCurrentStreamsCount] > previousSession[kCurrentStreamsCount]) {
-								return nextSession;
-							}
+					// Use session which has the biggest stream capacity in order to use the smallest number of sessions possible.
+					const session = freeSessions.reduce((previousSession, nextSession) => {
+						if (nextSession.remoteSettings.maxConcurrentStreams > previousSession.remoteSettings.maxConcurrentStreams) {
+							return nextSession;
+						}
 
-							return previousSession;
-						}));
+						return previousSession;
+					});
+
+					for (const listener of listeners) {
+						listener.resolve(session);
 					}
 
 					return;
@@ -239,7 +241,7 @@ class Agent extends EventEmitter {
 			}
 
 			// The entry must be removed from the queue IMMEDIATELY when:
-			// 1. the session connected successfully,
+			// 1. a session connects successfully,
 			// 2. an error occurs.
 			const removeFromQueue = () => {
 				// Our entry can be replaced. We cannot remove the new one.
@@ -272,14 +274,12 @@ class Agent extends EventEmitter {
 					// Tries to free the session.
 					const freeSession = () => {
 						// Fetch the smallest amount of free sessions of any origin we have.
-						let minLength = Infinity;
-
-						for (const origin of session.originSet) {
-							minLength = Math.min(minLength, getSessions(this.freeSessions, normalizedOptions, origin).length);
-						}
+						const freeSessionsCount = session.originSet.reduce((accumulator, origin) => {
+							return Math.min(accumulator, getSessions(this.freeSessions, normalizedOptions, origin).length);
+						}, Infinity);
 
 						// Check the limit.
-						if (minLength < this.maxFreeSessions) {
+						if (freeSessionsCount < this.maxFreeSessions) {
 							addSession(this.freeSessions, normalizedOptions, session);
 
 							this.emit('free', session);
@@ -330,12 +330,13 @@ class Agent extends EventEmitter {
 						this.emit('close', session);
 					});
 
-					// Note: in some versions of Node this event is fired before streams close...
 					session.once('close', () => {
 						if (!receivedSettings) {
 							// Broken connection
+							const error = new Error('Session closed without receiving a SETTINGS frame');
+
 							for (const listener of listeners) {
-								listener.reject(new Error('Session closed without receiving a SETTINGS frame'));
+								listener.reject(error);
 							}
 						}
 
@@ -400,8 +401,10 @@ class Agent extends EventEmitter {
 					session.once('remoteSettings', () => {
 						// The Agent could have been destroyed already.
 						if (entry.destroyed) {
+							const error = new Error('Agent has been destroyed');
+
 							for (const listener of listeners) {
-								listener.reject(new Error('Agent has been destroyed'));
+								listener.reject(error);
 							}
 
 							session.destroy();
