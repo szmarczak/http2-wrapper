@@ -140,7 +140,7 @@ test.serial('`timeout` option', wrapper.lolex, async (t, server, clock) => {
 	t.is(Object.values(agent.freeSessions)[0].length, 1);
 
 	// Patch global `setImmediate`
-	const setImmediate = global.setImmediate;
+	const {setImmediate} = global;
 	global.setImmediate = (...args) => {
 		setImmediate(...args);
 
