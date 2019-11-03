@@ -437,10 +437,10 @@ test('prevents overloading sessions #2', singleRequestWrapper, async (t, server)
 });
 
 {
-	// There is a bug on Node <= 12 where HTTP2 SETTINGS are not updated.
+	// Node 10 has a bug - HTTP2 SETTINGS are not updated.
 	let testFn = test;
 
-	if (process.versions.node.split('.')[0] <= 12) {
+	if (process.versions.node.split('.')[0] === '10') {
 		testFn = test.failing;
 	}
 
@@ -914,10 +914,10 @@ test('free sessions can become suddenly covered by shrinking their current strea
 });
 
 {
-	// There is a bug on Node <= 12 where HTTP2 SETTINGS are not updated.
+	// Node 10 has a bug - HTTP2 SETTINGS are not updated.
 	let testFn = test;
 
-	if (process.versions.node.split('.')[0] <= 12) {
+	if (process.versions.node.split('.')[0] === '10') {
 		testFn = test.skip;
 	}
 
