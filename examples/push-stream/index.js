@@ -1,4 +1,5 @@
 'use strict';
+const {PassThrough} = require('stream');
 const ManyKeysMap = require('many-keys-map');
 const {extend: gotExtend} = require('got');
 const http2 = require('../../source'); // Note: using the local version
@@ -13,6 +14,22 @@ class PushAgent extends http2.Agent {
 			session.pushCache = pushCache;
 
 			session.on('stream', (stream, requestHeaders) => {
+				const proxy = new PassThrough({highWaterMark: 1024 * 1024}); // 1MB
+
+				proxy.session = {
+					socket: stream.session.socket
+				};
+
+				const end = proxy.end.bind(proxy);
+				proxy.end = (...args) => {
+					end(...args);
+
+					// Node 13 throws when double-ending
+					proxy.end = () => {};
+				};
+
+				stream.pipe(proxy);
+
 				const parsedPushHeaders = PushAgent._parsePushHeaders(undefined, requestHeaders);
 
 				if (pushCache.has(parsedPushHeaders)) {
@@ -21,7 +38,7 @@ class PushAgent extends http2.Agent {
 				}
 
 				stream.once('push', pushHeaders => {
-					pushCache.set(parsedPushHeaders, {stream, pushHeaders});
+					pushCache.set(parsedPushHeaders, {stream: proxy, pushHeaders});
 				});
 			});
 		});
@@ -72,7 +89,7 @@ class PushAgent extends http2.Agent {
 	const agent = new PushAgent();
 
 	const got = gotExtend({
-		baseUrl: 'https://localhost:3000',
+		prefixUrl: 'https://localhost:3000',
 		request: http2.request,
 		rejectUnauthorized: false,
 		agent
