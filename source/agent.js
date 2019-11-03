@@ -1,5 +1,4 @@
 'use strict';
-const {URL} = require('url');
 const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
@@ -101,6 +100,23 @@ const closeCoveredSessions = (where, name, session) => {
 			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
 		) {
 			// This allows pending requests to finish and prevents making new requests.
+			coveredSession.close();
+		}
+	}
+};
+
+// This is basically inverted `closeCoveredSessions(...)`.
+const closeSessionIfCovered = (where, name, coveredSession) => {
+	if (!Reflect.has(where, name)) {
+		return;
+	}
+
+	for (const session of where[name]) {
+		if (
+			coveredSession.originSet.length < session.originSet.length &&
+			coveredSession.originSet.every(origin => session.originSet.includes(origin)) &&
+			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
+		) {
 			coveredSession.close();
 		}
 	}
@@ -456,7 +472,6 @@ class Agent extends EventEmitter {
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
 						session.on('remoteSettings', () => {
-							console.log(session.remoteSettings.maxConcurrentStreams);
 							if (isFree() && removeSession(this.busySessions, normalizedOptions, session)) {
 								if (freeSession()) {
 									processListeners();
@@ -507,6 +522,10 @@ class Agent extends EventEmitter {
 										this.emit('close', session);
 									}
 								}
+							}
+
+							if (!session.destroyed && !session.closed) {
+								closeSessionIfCovered(this.freeSessions, normalizedOptions, session);
 							}
 						});
 
@@ -595,7 +614,7 @@ class Agent extends EventEmitter {
 			}
 		}
 
-		// New requests should NOT attach themselves to destroyed sessions
+		// New requests should NOT attach to destroyed sessions
 		this.queue = {};
 	}
 }

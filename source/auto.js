@@ -1,10 +1,8 @@
 'use strict';
-const {URL} = require('url');
 const http = require('http');
 const https = require('https');
 const QuickLRU = require('quick-lru');
-const isCompatible = require('./utils/is-compatible');
-const Http2ClientRequest = isCompatible ? require('./client-request') : undefined;
+const Http2ClientRequest = require('./client-request');
 const httpResolveALPN = require('./utils/http-resolve-alpn');
 const urlToOptions = require('./utils/url-to-options');
 
@@ -15,29 +13,27 @@ const prepareRequest = async options => {
 		const host = options.hostname || options.host || 'localhost';
 		const port = options.port || 443;
 
-		if (isCompatible) {
-			const ALPNProtocols = options.ALPNProtocols || ['h2', 'http/1.1'];
-			const name = `${host}:${port}:${ALPNProtocols.sort()}`;
+		const ALPNProtocols = options.ALPNProtocols || ['h2', 'http/1.1'];
+		const name = `${host}:${port}:${ALPNProtocols.sort()}`;
 
-			let alpnProtocol = cache.get(name);
+		let alpnProtocol = cache.get(name);
 
-			if (typeof alpnProtocol === 'undefined') {
-				alpnProtocol = (await httpResolveALPN(options)).alpnProtocol;
-				cache.set(name, alpnProtocol);
-			}
+		if (typeof alpnProtocol === 'undefined') {
+			alpnProtocol = (await httpResolveALPN(options)).alpnProtocol;
+			cache.set(name, alpnProtocol);
+		}
 
-			if (alpnProtocol === 'h2') {
-				return (options, callback) => {
-					if (options.agent && options.agent.http2) {
-						options = {
-							...options,
-							agent: options.agent.http2
-						};
-					}
+		if (alpnProtocol === 'h2') {
+			return (options, callback) => {
+				if (options.agent && options.agent.http2) {
+					options = {
+						...options,
+						agent: options.agent.http2
+					};
+				}
 
-					return Http2ClientRequest.request(options, callback);
-				};
-			}
+				return Http2ClientRequest.request(options, callback);
+			};
 		}
 
 		return (options, callback) => {
