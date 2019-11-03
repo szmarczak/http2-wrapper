@@ -1003,3 +1003,19 @@ test('a session can cover other session by increasing its streams count limit', 
 
 	agent.destroy();
 });
+
+test('`session` event', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	let called = false;
+	agent.once('session', session => {
+		called = true;
+
+		t.false(session.closed);
+	});
+
+	await agent.getSession(server.url);
+	t.true(called);
+
+	agent.destroy();
+});
