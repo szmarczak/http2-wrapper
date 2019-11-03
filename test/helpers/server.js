@@ -3,8 +3,7 @@ const net = require('net');
 const http2 = require('http2');
 const util = require('util');
 const createCert = require('create-cert');
-
-const delay = ms => new Promise(resolve => setTimeout(setImmediate, ms, resolve));
+const lolex = require('lolex');
 
 const createPlainServer = async (options, handler) => {
 	if (typeof options === 'function') {
@@ -27,33 +26,6 @@ const createPlainServer = async (options, handler) => {
 		server.options.port = server.address().port;
 		server.url = `${server.options.protocol}//${server.options.hostname}:${server.options.port}`;
 	});
-
-	let sessionsCount = 0;
-	let hasConnected = false;
-
-	server.on('session', session => {
-		hasConnected = true;
-		sessionsCount++;
-
-		session.once('close', () => {
-			sessionsCount--;
-		});
-
-		session.setTimeout(1000);
-	});
-
-	server.gracefulClose = async () => {
-		let elapsed = 0;
-		const tick = 10;
-
-		// eslint-disable-next-line no-unmodified-loop-condition
-		while ((sessionsCount !== 0 || !hasConnected) && elapsed < 1000) {
-			await delay(tick); // eslint-disable-line no-await-in-loop
-			elapsed += tick;
-		}
-
-		return server.close();
-	};
 
 	return server;
 };
@@ -121,9 +93,11 @@ const createServer = async options => {
 	return server;
 };
 
-const createWrapper = options => {
+const createPlainWrapper = options => {
 	return async (t, run) => {
 		const create = (options && options.createServer) || createServer;
+
+		const clock = options && options.lolex ? lolex.install() : lolex.createClock();
 
 		const server = await create(options);
 		await server.listen();
@@ -132,11 +106,28 @@ const createWrapper = options => {
 		// console.log(`${server.options.port} - ${t.title}`);
 
 		try {
-			await run(t, server);
+			await run(t, server, clock);
 		} finally {
-			await server.gracefulClose();
+			if (options && options.beforeServerClose) {
+				options.beforeServerClose();
+			}
+
+			clock.runAll();
+
+			if (options && options.lolex) {
+				clock.uninstall();
+			}
+
+			await server.close();
 		}
 	};
+};
+
+const createWrapper = options => {
+	const wrapper = createPlainWrapper(options);
+	wrapper.lolex = createPlainWrapper({...options, lolex: true});
+
+	return wrapper;
 };
 
 module.exports = {createServer, createProxyServer, createWrapper};

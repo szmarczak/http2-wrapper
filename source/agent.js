@@ -1,5 +1,4 @@
 'use strict';
-const {URL} = require('url');
 const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
@@ -61,194 +60,472 @@ const removeSession = (where, name, session) => {
 	return false;
 };
 
+const addSession = (where, name, session) => {
+	if (Reflect.has(where, name)) {
+		where[name].push(session);
+	} else {
+		where[name] = [session];
+	}
+};
+
+const getSessions = (where, name, normalizedAuthority) => {
+	if (Reflect.has(where, name)) {
+		return where[name].filter(session => {
+			return !session.closed && !session.destroyed && session.originSet.includes(normalizedAuthority);
+		});
+	}
+
+	return [];
+};
+
+// See https://tools.ietf.org/html/rfc8336
+const closeCoveredSessions = (where, name, session) => {
+	if (!Reflect.has(where, name)) {
+		return;
+	}
+
+	// Clients SHOULD NOT emit new requests on any connection whose Origin
+	// Set is a proper subset of another connection's Origin Set, and they
+	// SHOULD close it once all outstanding requests are satisfied.
+	for (const coveredSession of where[name]) {
+		if (
+			// The set is a proper subset when its length is less than the other set.
+			coveredSession.originSet.length < session.originSet.length &&
+
+			// And the other set includes all elements of the subset.
+			coveredSession.originSet.every(origin => session.originSet.includes(origin)) &&
+
+			// Makes sure that the session can handle all requests from the covered session.
+			// TODO: can the session become uncovered when a stream is closed after checking this condition?
+			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
+		) {
+			// This allows pending requests to finish and prevents making new requests.
+			coveredSession.close();
+		}
+	}
+};
+
+// This is basically inverted `closeCoveredSessions(...)`.
+const closeSessionIfCovered = (where, name, coveredSession) => {
+	if (!Reflect.has(where, name)) {
+		return;
+	}
+
+	for (const session of where[name]) {
+		if (
+			coveredSession.originSet.length < session.originSet.length &&
+			coveredSession.originSet.every(origin => session.originSet.includes(origin)) &&
+			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
+		) {
+			coveredSession.close();
+		}
+	}
+};
+
 class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
 		super();
 
+		// A session is considered busy when its current streams count
+		// is equal to or greater than the `maxConcurrentStreams` value.
 		this.busySessions = {};
+
+		// A session is considered free when its current streams count
+		// is less than the `maxConcurrentStreams` value.
 		this.freeSessions = {};
+
+		// The queue for creating new sessions. It looks like this:
+		// QUEUE[NORMALIZED_OPTIONS][NORMALIZED_AUTHORITY] = ENTRY_FUNCTION
+		//
+		// The entry function has `listeners`, `completed` and `destroyed` properties.
+		// `listeners` is an array of objects containing `resolve` and `reject` functions.
+		// `completed` is a boolean. It's set to true after ENTRY_FUNCTION is executed.
+		// `destroyed` is a boolean. If it's set to true, the session will be destroyed if hasn't connected yet.
 		this.queue = {};
 
+		// Each session will use this timeout value.
 		this.timeout = timeout;
+
+		// Max sessions per origin.
 		this.maxSessions = maxSessions;
+
+		// Max free sessions per origin.
+		// TODO: decreasing `maxFreeSessions` should close some sessions
+		// TODO: should `maxFreeSessions` be related only to sessions with 0 pending streams?
 		this.maxFreeSessions = maxFreeSessions;
 
+		// We don't support push streams by default.
 		this.settings = {
 			enablePush: false
 		};
 
+		// Reusing TLS sessions increases performance.
 		this.tlsSessionCache = new QuickLRU({maxSize: maxCachedTlsSessions});
 	}
 
-	getName(authority, options) {
+	static normalizeAuthority(authority, servername) {
 		if (typeof authority === 'string') {
 			authority = new URL(authority);
 		}
 
+		const host = servername || authority.hostname || authority.host || 'localhost';
 		const port = authority.port || 443;
-		const host = authority.hostname || authority.host || 'localhost';
 
-		let name = `${host}:${port}`;
+		if (port === 443) {
+			return `https://${host}`;
+		}
+
+		return `https://${host}:${port}`;
+	}
+
+	static normalizeOptions(options) {
+		let normalized = '';
 
 		if (options) {
 			for (const key of nameKeys) {
-				if (Reflect.has(options, key)) {
-					name += `:${options[key]}`;
+				if (options[key]) {
+					normalized += `:${options[key]}`;
 				}
 			}
 		}
 
-		return name;
+		return normalized;
 	}
 
-	_processQueue(name) {
-		const busyLength = Reflect.has(this.busySessions, name) ? this.busySessions[name].length : 0;
+	_tryToCreateNewSession(normalizedOptions, normalizedAuthority) {
+		if (!Reflect.has(this.queue, normalizedOptions) || !Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+			return;
+		}
 
-		if (busyLength < this.maxSessions && Reflect.has(this.queue, name) && !this.queue[name].completed) {
-			this.queue[name].completed = true;
+		// We need the busy sessions length to check if a session can be created.
+		const busyLength = getSessions(this.busySessions, normalizedOptions, normalizedAuthority).length;
+		const item = this.queue[normalizedOptions][normalizedAuthority];
 
-			this.queue[name]();
+		// The entry function can be run only once.
+		if (busyLength < this.maxSessions && !item.completed) {
+			item.completed = true;
+
+			item();
 		}
 	}
 
-	async getSession(authority, options, name) {
+	_closeCoveredSessions(normalizedOptions, session) {
+		closeCoveredSessions(this.freeSessions, normalizedOptions, session);
+		closeCoveredSessions(this.busySessions, normalizedOptions, session);
+	}
+
+	getSession(authority, options, listeners) {
 		return new Promise((resolve, reject) => {
-			const detached = {resolve, reject};
+			if (Array.isArray(listeners)) {
+				listeners = [...listeners];
 
-			name = name || this.getName(authority, options);
-
-			if (Reflect.has(this.freeSessions, name)) {
-				resolve(this.freeSessions[name][0]);
-
-				return;
+				// Resolve the current promise ASAP, we're just moving the listeners.
+				// They will be executed at a different time.
+				resolve();
+			} else {
+				listeners = [{resolve, reject}];
 			}
 
-			if (Reflect.has(this.queue, name)) {
-				this.queue[name].listeners.push(detached);
+			const normalizedOptions = Agent.normalizeOptions(options);
+			const normalizedAuthority = Agent.normalizeAuthority(authority, options && options.servername);
 
-				return;
+			if (Reflect.has(this.freeSessions, normalizedOptions)) {
+				// Look for all available free sessions.
+				const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
+
+				if (freeSessions.length !== 0) {
+					// Use session which has the biggest stream capacity in order to use the smallest number of sessions possible.
+					const session = freeSessions.reduce((previousSession, nextSession) => {
+						if (
+							nextSession.remoteSettings.maxConcurrentStreams >= previousSession.remoteSettings.maxConcurrentStreams &&
+							nextSession[kCurrentStreamsCount] > previousSession[kCurrentStreamsCount]
+						) {
+							return nextSession;
+						}
+
+						return previousSession;
+					});
+
+					for (const listener of listeners) {
+						listener.resolve(session);
+					}
+
+					return;
+				}
 			}
 
-			const listeners = [detached];
+			if (Reflect.has(this.queue, normalizedOptions)) {
+				if (Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+					// There's already an item in the queue, just attach ourselves to it.
+					this.queue[normalizedOptions][normalizedAuthority].listeners.push(...listeners);
 
+					return;
+				}
+			} else {
+				this.queue[normalizedOptions] = {};
+			}
+
+			// The entry must be removed from the queue IMMEDIATELY when:
+			// 1. a session connects successfully,
+			// 2. an error occurs.
 			const removeFromQueue = () => {
 				// Our entry can be replaced. We cannot remove the new one.
-				if (this.queue[name] === entry) {
-					delete this.queue[name];
+				if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedAuthority] === entry) {
+					delete this.queue[normalizedOptions][normalizedAuthority];
+
+					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+						delete this.queue[normalizedOptions];
+					}
 				}
 			};
 
+			// The main logic is here
 			const entry = () => {
+				const name = `${normalizedAuthority}:${normalizedOptions}`;
+				let receivedSettings = false;
+				let servername;
+
 				try {
-					let receivedSettings = false;
+					const tlsSessionCache = this.tlsSessionCache.get(name);
 
 					const session = http2.connect(authority, {
 						createConnection: this.createConnection,
 						settings: this.settings,
-						session: this.tlsSessionCache.get(name),
+						session: tlsSessionCache ? tlsSessionCache.session : undefined,
 						...options
 					});
 					session[kCurrentStreamsCount] = 0;
 
-					session.socket.once('session', session => {
-						this.tlsSessionCache.set(name, session);
+					// Tries to free the session.
+					const freeSession = () => {
+						// Fetch the smallest amount of free sessions of any origin we have.
+						const freeSessionsCount = session.originSet.reduce((accumulator, origin) => {
+							return Math.min(accumulator, getSessions(this.freeSessions, normalizedOptions, origin).length);
+						}, Infinity);
+
+						// Check the limit.
+						if (freeSessionsCount < this.maxFreeSessions) {
+							addSession(this.freeSessions, normalizedOptions, session);
+
+							this.emit('free', session);
+							return true;
+						}
+
+						return false;
+					};
+
+					const isFree = () => session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams;
+
+					session.socket.once('session', tlsSession => {
+						// We need to cache the servername due to a bug in OpenSSL.
+						setImmediate(() => {
+							this.tlsSessionCache.set(name, {
+								session: tlsSession,
+								servername
+							});
+						});
+					});
+
+					// OpenSSL bug workaround.
+					// See https://github.com/nodejs/node/issues/28985
+					session.socket.once('secureConnect', () => {
+						servername = session.socket.servername;
+
+						if (servername === false && typeof tlsSessionCache !== 'undefined' && typeof tlsSessionCache.servername !== 'undefined') {
+							session.socket.servername = tlsSessionCache.servername;
+						}
 					});
 
 					session.once('error', error => {
-						session.destroy();
-
-						for (const listener of listeners) {
-							listener.reject(error);
+						// `receivedSettings` is true when the session has successfully connected.
+						if (!receivedSettings) {
+							for (const listener of listeners) {
+								listener.reject(error);
+							}
 						}
 
+						// The connection got broken, purge the cache.
 						this.tlsSessionCache.delete(name);
 					});
 
 					session.setTimeout(this.timeout, () => {
-						// `.close()` would wait until all streams all closed
+						// Terminates all streams owned by this session.
 						session.destroy();
+
+						this.emit('close', session);
 					});
 
 					session.once('close', () => {
 						if (!receivedSettings) {
+							// Broken connection
+							const error = new Error('Session closed without receiving a SETTINGS frame');
+
 							for (const listener of listeners) {
-								listener.reject(new Error('Session closed without receiving a SETTINGS frame'));
+								listener.reject(error);
 							}
 						}
 
 						removeFromQueue();
 
-						removeSession(this.freeSessions, name, session);
-						this._processQueue(name);
+						// This cannot be moved to the stream logic,
+						// because there may be a session that hadn't made a single request.
+						removeSession(this.freeSessions, normalizedOptions, session);
+
+						// There may be another session awaiting.
+						this._tryToCreateNewSession(normalizedOptions, normalizedAuthority);
 					});
 
-					session.once('localSettings', () => {
+					// Iterates over the queue and processes listeners.
+					const processListeners = () => {
+						if (!Reflect.has(this.queue, normalizedOptions)) {
+							return;
+						}
+
+						for (const origin of session.originSet) {
+							if (Reflect.has(this.queue[normalizedOptions], origin)) {
+								const {listeners} = this.queue[normalizedOptions][origin];
+
+								// Prevents session overloading.
+								while (listeners.length !== 0 && isFree()) {
+									// We assume `resolve(...)` calls `request(...)` *directly*,
+									// otherwise the session will get overloaded.
+									listeners.shift().resolve(session);
+								}
+
+								if (this.queue[normalizedOptions][origin].listeners.length === 0) {
+									delete this.queue[normalizedOptions][origin];
+
+									if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+										delete this.queue[normalizedOptions];
+										break;
+									}
+								}
+
+								// We're no longer free, no point in continuing.
+								if (!isFree()) {
+									break;
+								}
+							}
+						}
+					};
+
+					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
+					session.once('origin', () => {
+						if (!isFree()) {
+							// The session is full.
+							return;
+						}
+
+						// Close covered sessions (if possible).
+						this._closeCoveredSessions(normalizedOptions, session);
+
+						processListeners();
+
+						// `session.remoteSettings.maxConcurrentStreams` might get increased
+						session.on('remoteSettings', () => {
+							this._closeCoveredSessions(normalizedOptions, session);
+						});
+					});
+
+					session.once('remoteSettings', () => {
+						// The Agent could have been destroyed already.
+						if (entry.destroyed) {
+							const error = new Error('Agent has been destroyed');
+
+							for (const listener of listeners) {
+								listener.reject(error);
+							}
+
+							session.destroy();
+							return;
+						}
+
+						if (freeSession()) {
+							// Process listeners, we're free.
+							processListeners();
+						} else if (this.maxFreeSessions === 0) {
+							processListeners();
+
+							// We're closing ASAP, when all possible requests have been made for this event loop tick.
+							setImmediate(() => {
+								session.close();
+
+								this.emit('close', session);
+							});
+						} else {
+							// Too late, no seats available, close the session.
+							session.close();
+
+							this.emit('close', session);
+						}
+
 						removeFromQueue();
 
-						const movedListeners = listeners.splice(session.remoteSettings.maxConcurrentStreams);
-
-						if (movedListeners.length !== 0) {
-							while (Reflect.has(this.freeSessions, name) && movedListeners.length !== 0) {
-								movedListeners.shift().resolve(this.freeSessions[name][0]);
-							}
-
-							if (movedListeners.length !== 0) {
-								this.getSession(authority, options, name);
-
-								// Replace listeners with the new ones
-								this.queue[name].listeners.length = 0;
-								this.queue[name].listeners.push(...movedListeners);
-							}
-						}
-
-						if (Reflect.has(this.freeSessions, name)) {
-							this.freeSessions[name].push(session);
-						} else {
-							this.freeSessions[name] = [session];
-						}
-
-						for (const listener of listeners) {
-							listener.resolve(session);
+						// Check if we haven't managed to execute all listeners.
+						if (listeners.length !== 0) {
+							// Request for a new session with predefined listeners.
+							this.getSession(normalizedAuthority, options, listeners);
+							listeners.length = 0;
 						}
 
 						receivedSettings = true;
+
+						// `session.remoteSettings.maxConcurrentStreams` might get increased
+						session.on('remoteSettings', () => {
+							if (isFree() && removeSession(this.busySessions, normalizedOptions, session)) {
+								if (freeSession()) {
+									processListeners();
+								} else {
+									addSession(this.busySessions, normalizedOptions, session);
+								}
+							}
+						});
 					});
 
+					// Shim `session.request()` in order to catch all streams
 					session[kRequest] = session.request;
 					session.request = headers => {
 						const stream = session[kRequest](headers, {
 							endStream: false
 						});
 
+						// The process won't exit until the session is closed.
 						session.ref();
 
-						if (++session[kCurrentStreamsCount] >= session.remoteSettings.maxConcurrentStreams) {
-							removeSession(this.freeSessions, name, session);
+						++session[kCurrentStreamsCount];
 
-							if (Reflect.has(this.busySessions, name)) {
-								this.busySessions[name].push(session);
-							} else {
-								this.busySessions[name] = [session];
-							}
+						// Check if we became busy
+						if (!isFree() && removeSession(this.freeSessions, normalizedOptions, session)) {
+							addSession(this.busySessions, normalizedOptions, session);
+
+							this.emit('busy', session);
 						}
 
 						stream.once('close', () => {
-							if (--session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams) {
+							--session[kCurrentStreamsCount];
+
+							if (isFree()) {
 								if (session[kCurrentStreamsCount] === 0) {
+									// All requests are finished, the process may exit now.
 									session.unref();
 								}
 
-								if (removeSession(this.busySessions, name, session) && !session.destroyed) {
-									if ((this.freeSessions[name] || []).length < this.maxFreeSessions) {
-										if (Reflect.has(this.freeSessions, name)) {
-											this.freeSessions[name].push(session);
-										} else {
-											this.freeSessions[name] = [session];
-										}
+								// Check if we are no longer busy and the session is not broken.
+								if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed && !session.closed) {
+									// Check the sessions count of this authority and compare it to `maxSessionsCount`.
+									if (freeSession()) {
+										this._closeCoveredSessions(normalizedOptions, session);
+										processListeners();
 									} else {
 										session.close();
+
+										this.emit('close', session);
 									}
 								}
+							}
+
+							if (!session.destroyed && !session.closed) {
+								closeSessionIfCovered(this.freeSessions, normalizedOptions, session);
 							}
 						});
 
@@ -261,23 +538,28 @@ class Agent extends EventEmitter {
 						listener.reject(error);
 					}
 
-					delete this.queue[name];
+					removeFromQueue();
 				}
 			};
 
 			entry.listeners = listeners;
 			entry.completed = false;
+			entry.destroyed = false;
 
-			this.queue[name] = entry;
-			this._processQueue(name);
+			this.queue[normalizedOptions][normalizedAuthority] = entry;
+			this._tryToCreateNewSession(normalizedOptions, normalizedAuthority);
 		});
 	}
 
-	async request(authority, options, headers) {
-		const session = await this.getSession(authority, options);
-		const stream = session.request(headers);
-
-		return stream;
+	request(authority, options, headers) {
+		return new Promise((resolve, reject) => {
+			this.getSession(authority, options, [{
+				reject,
+				resolve: session => {
+					resolve(session.request(headers));
+				}
+			}]);
+		});
 	}
 
 	createConnection(authority, options) {
@@ -302,6 +584,8 @@ class Agent extends EventEmitter {
 			for (const session of freeSessions) {
 				if (session[kCurrentStreamsCount] === 0) {
 					session.close();
+
+					this.emit('close', session);
 				}
 			}
 		}
@@ -311,14 +595,27 @@ class Agent extends EventEmitter {
 		for (const busySessions of Object.values(this.busySessions)) {
 			for (const session of busySessions) {
 				session.destroy(reason);
+
+				this.emit('close', session);
 			}
 		}
 
 		for (const freeSessions of Object.values(this.freeSessions)) {
 			for (const session of freeSessions) {
 				session.destroy(reason);
+
+				this.emit('close', session);
 			}
 		}
+
+		for (const entriesOfAuthority of Object.values(this.queue)) {
+			for (const entry of Object.values(entriesOfAuthority)) {
+				entry.destroyed = true;
+			}
+		}
+
+		// New requests should NOT attach to destroyed sessions
+		this.queue = {};
 	}
 }
 

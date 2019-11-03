@@ -1,5 +1,4 @@
 'use strict';
-const {URL} = require('url');
 const http2 = require('http2');
 const {Writable} = require('stream');
 const {Agent, globalAgent} = require('./agent');
@@ -9,7 +8,10 @@ const proxyEvents = require('./utils/proxy-events');
 const {
 	ERR_INVALID_ARG_TYPE,
 	ERR_INVALID_PROTOCOL,
-	ERR_HTTP_HEADERS_SENT
+	ERR_HTTP_HEADERS_SENT,
+	ERR_INVALID_HTTP_TOKEN,
+	ERR_HTTP_INVALID_HEADER_VALUE,
+	ERR_INVALID_CHAR
 } = require('./utils/errors');
 
 const {
@@ -26,30 +28,28 @@ const kSession = Symbol('session');
 const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
 
+const isValidHttpToken = /^[\^_`a-zA-Z\-0-9!#$%&'*+.|~]+$/;
+const isInvalidHeaderValue = /[^\t\u0020-\u007e\u0080-\u00ff]/;
+
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
 		super();
 
-		if (typeof input === 'string' || input instanceof URL) {
-			input = urlToOptions(new URL(input));
+		const hasInput = typeof input === 'string' || input instanceof URL;
+		if (hasInput) {
+			input = urlToOptions(input instanceof URL ? input : new URL(input));
 		}
 
 		if (typeof options === 'function') {
 			// (options, callback)
 			callback = options;
-			options = input;
+			options = hasInput ? input : {...input};
 		} else {
 			// (input, options, callback)
 			options = {...input, ...options};
 		}
 
-		if (options.agent) {
-			if (typeof options.agent.request !== 'function') {
-				throw new ERR_INVALID_ARG_TYPE('options.agent', ['Agent-like Object', 'undefined', 'false'], options.agent);
-			}
-
-			this.agent = options.agent;
-		} else if (options.session) {
+		if (options.session) {
 			this[kSession] = options.session;
 		} else if (options.agent === false) {
 			this.agent = new Agent({maxFreeSessions: 0});
@@ -61,6 +61,10 @@ class ClientRequest extends Writable {
 			} else {
 				this.agent = globalAgent;
 			}
+		} else if (typeof options.agent.request === 'function') {
+			this.agent = options.agent;
+		} else {
+			throw new ERR_INVALID_ARG_TYPE('options.agent', ['Agent-like Object', 'undefined', 'false'], options.agent);
 		}
 
 		if (!options.port) {
@@ -101,9 +105,13 @@ class ClientRequest extends Writable {
 		options.path = options.socketPath;
 
 		this[kOptions] = options;
-		this[kAuthority] = options.authority || new URL(`https://${options.hostname || options.host}:${options.port}`);
+		this[kAuthority] = Agent.normalizeAuthority(options, options.servername);
 
-		if (this.agent && (typeof options.preconnect === 'undefined' || options.preconnect)) {
+		if (!Reflect.has(this[kHeaders], ':authority')) {
+			this[kHeaders][':authority'] = this[kAuthority].slice(8);
+		}
+
+		if (this.agent && options.preconnect !== false) {
 			this.agent.getSession(this[kAuthority], options).catch(() => {});
 		}
 
@@ -150,6 +158,10 @@ class ClientRequest extends Writable {
 	}
 
 	_final(callback) {
+		if (this.destroyed || this.aborted) {
+			return;
+		}
+
 		this.flushHeaders();
 
 		const callEnd = () => this._request.end(callback);
@@ -185,7 +197,7 @@ class ClientRequest extends Writable {
 	}
 
 	flushHeaders() {
-		if (this[kFlushedHeaders] && !this.destroyed && !this.aborted) {
+		if (this[kFlushedHeaders] || this.destroyed || this.aborted) {
 			return;
 		}
 
@@ -197,69 +209,70 @@ class ClientRequest extends Writable {
 		const onStream = stream => {
 			this._request = stream;
 
-			if (!this.destroyed && !this.aborted) {
-				// Forwards `timeout`, `continue`, `close` and `error` events to this instance.
-				if (!isConnectMethod) {
-					proxyEvents(this._request, this, ['timeout', 'continue', 'close', 'error']);
-				}
+			if (this.destroyed || this.aborted) {
+				this._request.close(NGHTTP2_CANCEL);
+				return;
+			}
 
-				// This event tells we are ready to listen for the data.
-				this._request.once('response', (headers, flags, rawHeaders) => {
-					this.res = new IncomingMessage(this.socket);
-					this.res.req = this;
-					this.res.statusCode = headers[HTTP2_HEADER_STATUS];
-					this.res.headers = headers;
-					this.res.rawHeaders = rawHeaders;
+			// Forwards `timeout`, `continue`, `close` and `error` events to this instance.
+			if (!isConnectMethod) {
+				proxyEvents(this._request, this, ['timeout', 'continue', 'close', 'error']);
+			}
 
-					this.res.once('end', () => {
-						if (this.aborted) {
-							this.res.aborted = true;
-							this.res.emit('aborted');
-						} else {
-							this.res.complete = true;
-						}
-					});
+			// This event tells we are ready to listen for the data.
+			this._request.once('response', (headers, flags, rawHeaders) => {
+				this.res = new IncomingMessage(this.socket);
+				this.res.req = this;
+				this.res.statusCode = headers[HTTP2_HEADER_STATUS];
+				this.res.headers = headers;
+				this.res.rawHeaders = rawHeaders;
 
-					if (isConnectMethod) {
-						this.res.upgrade = true;
-
-						// The HTTP1 API says the socket is detached here,
-						// but we can't do that so we pass the original HTTP2 request.
-						if (this.emit('connect', this.res, this._request, Buffer.alloc(0))) {
-							this.emit('close');
-						} else {
-							// No listeners attached, destroy the original request.
-							this._request.destroy();
-						}
+				this.res.once('end', () => {
+					if (this.aborted) {
+						this.res.aborted = true;
+						this.res.emit('aborted');
 					} else {
-						// Forwards data
-						this._request.pipe(this.res);
-
-						if (!this.emit('response', this.res)) {
-							// No listeners attached, dump the response.
-							this.res._dump();
-						}
+						this.res.complete = true;
 					}
 				});
 
-				// Emits `information` event
-				this._request.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
+				if (isConnectMethod) {
+					this.res.upgrade = true;
 
-				this._request.once('trailers', (trailers, flags, rawTrailers) => {
-					// Assigns trailers to the response object.
-					this.res.trailers = trailers;
-					this.res.rawTrailers = rawTrailers;
-				});
+					// The HTTP1 API says the socket is detached here,
+					// but we can't do that so we pass the original HTTP2 request.
+					if (this.emit('connect', this.res, this._request, Buffer.alloc(0))) {
+						this.emit('close');
+					} else {
+						// No listeners attached, destroy the original request.
+						this._request.destroy();
+					}
+				} else {
+					// Forwards data
+					this._request.pipe(this.res);
 
-				this.socket = this._request.session.socket;
-				this.connection = this._request.session.socket;
+					if (!this.emit('response', this.res)) {
+						// No listeners attached, dump the response.
+						this.res._dump();
+					}
+				}
+			});
 
-				process.nextTick(() => {
-					this.emit('socket', this._request.session.socket);
-				});
-			} else {
-				this._request.close(NGHTTP2_CANCEL);
-			}
+			// Emits `information` event
+			this._request.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
+
+			this._request.once('trailers', (trailers, flags, rawTrailers) => {
+				// Assigns trailers to the response object.
+				this.res.trailers = trailers;
+				this.res.rawTrailers = rawTrailers;
+			});
+
+			this.socket = this._request.session.socket;
+			this.connection = this._request.session.socket;
+
+			process.nextTick(() => {
+				this.emit('socket', this._request.session.socket);
+			});
 		};
 
 		// Makes a HTTP2 request
@@ -280,6 +293,10 @@ class ClientRequest extends Writable {
 	}
 
 	getHeader(name) {
+		if (typeof name !== 'string') {
+			throw new ERR_INVALID_ARG_TYPE('name', 'string', name);
+		}
+
 		return this[kHeaders][name.toLowerCase()];
 	}
 
@@ -288,6 +305,10 @@ class ClientRequest extends Writable {
 	}
 
 	removeHeader(name) {
+		if (typeof name !== 'string') {
+			throw new ERR_INVALID_ARG_TYPE('name', 'string', name);
+		}
+
 		if (this.headersSent) {
 			throw new ERR_HTTP_HEADERS_SENT('remove');
 		}
@@ -298,6 +319,18 @@ class ClientRequest extends Writable {
 	setHeader(name, value) {
 		if (this.headersSent) {
 			throw new ERR_HTTP_HEADERS_SENT('set');
+		}
+
+		if (typeof name !== 'string' || !isValidHttpToken.test(name)) {
+			throw new ERR_INVALID_HTTP_TOKEN('Header name', name);
+		}
+
+		if (typeof value === 'undefined') {
+			throw new ERR_HTTP_INVALID_HEADER_VALUE(value, name);
+		}
+
+		if (isInvalidHeaderValue.test(value)) {
+			throw new ERR_INVALID_CHAR('header content', name);
 		}
 
 		this[kHeaders][name.toLowerCase()] = value;

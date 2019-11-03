@@ -13,7 +13,7 @@ class PushAgent extends http2.Agent {
 			session.pushCache = pushCache;
 
 			session.on('stream', (stream, requestHeaders) => {
-				const parsedPushHeaders = PushAgent._parsePushHeaders(requestHeaders);
+				const parsedPushHeaders = PushAgent._parsePushHeaders(undefined, requestHeaders);
 
 				if (pushCache.has(parsedPushHeaders)) {
 					stream.close(http2.constants.NGHTTP2_REFUSED_STREAM);
@@ -27,31 +27,41 @@ class PushAgent extends http2.Agent {
 		});
 	}
 
-	async request(authority, options, headers) {
-		const session = await this.getSession(authority, options);
+	request(authority, options, headers) {
+		return new Promise((resolve, reject) => {
+			// The code after `await agent.getSession()` isn't executed immediately after calling `resolve()`,
+			// so we need to use semi-callback style to support the `maxFreeSessions` option mechanism.
 
-		const parsedPushHeaders = PushAgent._parsePushHeaders(headers);
-		const cache = session.pushCache.get(parsedPushHeaders);
-		if (cache) {
-			const {stream, pushHeaders} = cache;
-			delete session.pushCache.delete(parsedPushHeaders);
+			// For further information please see the source code of the `processListeners` function (`source/agent.js` file).
 
-			setImmediate(() => {
-				stream.emit('response', pushHeaders);
-			});
+			this.getSession(authority, options, [{
+				reject,
+				resolve: session => {
+					const normalizedAuthority = http2.Agent.normalizeAuthority(authority, options.servername);
 
-			return stream;
-		}
+					const parsedPushHeaders = PushAgent._parsePushHeaders(normalizedAuthority, headers);
+					const cache = session.pushCache.get(parsedPushHeaders);
+					if (cache) {
+						const {stream, pushHeaders} = cache;
+						delete session.pushCache.delete(parsedPushHeaders);
 
-		const stream = session.request(headers);
+						setImmediate(() => {
+							stream.emit('response', pushHeaders);
+						});
 
-		return stream;
+						resolve(stream);
+						return;
+					}
+
+					resolve(session.request(headers));
+				}
+			}]);
+		});
 	}
 
-	static _parsePushHeaders(headers) {
-		// TODO: headers[':authority'] needs to be verified properly.
-
+	static _parsePushHeaders(authority, headers) {
 		return [
+			headers[':authority'] || authority,
 			headers[':path'] || '/',
 			headers[':method'] || 'GET'
 		];
@@ -59,11 +69,13 @@ class PushAgent extends http2.Agent {
 }
 
 (async () => {
+	const agent = new PushAgent();
+
 	const got = gotExtend({
 		baseUrl: 'https://localhost:3000',
 		request: http2.request,
 		rejectUnauthorized: false,
-		agent: new PushAgent()
+		agent
 	});
 
 	const response = await got('');

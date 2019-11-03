@@ -4,10 +4,10 @@
 	"description": "HTTP2 client, just with the familiar `https` API",
 	"main": "source",
 	"engines": {
-		"node": ">=8.16.0"
+		"node": ">=10"
 	},
 	"scripts": {
-		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc ava",
+		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc --reporter=html --reporter=text ava",
 		"coveralls": "nyc report --reporter=text-lcov | coveralls"
 	},
 	"files": [
@@ -35,17 +35,19 @@
 	},
 	"devDependencies": {
 		"@sindresorhus/is": "^1.0.0",
-		"ava": "^2.2.0",
+		"ava": "^2.4.0",
 		"benchmark": "^2.1.4",
 		"coveralls": "^3.0.5",
 		"create-cert": "^1.0.6",
 		"get-stream": "^5.1.0",
 		"got": "^9.6.0",
+		"lolex": "^4.2.0",
 		"many-keys-map": "^1.0.2",
 		"nyc": "^14.1.1",
 		"p-event": "^4.1.0",
 		"tempy": "^0.3.0",
 		"to-readable-stream": "^2.1.0",
+		"tsd": "^0.8.0",
 		"xo": "^0.24.0"
 	},
 	"ava": {
