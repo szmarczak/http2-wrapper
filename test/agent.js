@@ -131,6 +131,17 @@ test('gives the queued session if exists', wrapper, async (t, server) => {
 });
 
 test.serial('`timeout` option', wrapper.lolex, async (t, server, clock) => {
+	{
+		// Patch global `setImmediate`
+		const fn = global.setImmediate;
+		global.setImmediate = (...args) => {
+			fn(...args);
+
+			global.setImmediate = fn;
+			clock.runAll();
+		};
+	}
+
 	const timeout = 500;
 	const agent = new Agent({timeout});
 
@@ -138,15 +149,6 @@ test.serial('`timeout` option', wrapper.lolex, async (t, server, clock) => {
 	const session = await agent.getSession(server.url);
 
 	t.is(Object.values(agent.freeSessions)[0].length, 1);
-
-	// Patch global `setImmediate`
-	const {setImmediate} = global;
-	global.setImmediate = (...args) => {
-		setImmediate(...args);
-
-		global.setImmediate = setImmediate;
-		clock.runAll();
-	};
 
 	clock.tick(timeout);
 
