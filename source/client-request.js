@@ -221,7 +221,7 @@ class ClientRequest extends Writable {
 
 			// This event tells we are ready to listen for the data.
 			this._request.once('response', (headers, flags, rawHeaders) => {
-				this.res = new IncomingMessage(this.socket);
+				this.res = new IncomingMessage(this.connection);
 				this.res.req = this;
 				this.res.statusCode = headers[HTTP2_HEADER_STATUS];
 				this.res.headers = headers;
@@ -271,7 +271,7 @@ class ClientRequest extends Writable {
 			this.connection = this._request.session.socket;
 
 			process.nextTick(() => {
-				this.emit('socket', this._request.session.socket);
+				this.emit('socket', this.connection);
 			});
 		};
 

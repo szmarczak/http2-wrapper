@@ -1,6 +1,6 @@
 {
 	"name": "http2-wrapper",
-	"version": "1.0.0-beta.0",
+	"version": "1.0.0-beta.1",
 	"description": "HTTP2 client, just with the familiar `https` API",
 	"main": "source",
 	"engines": {
@@ -40,7 +40,7 @@
 		"coveralls": "^3.0.5",
 		"create-cert": "^1.0.6",
 		"get-stream": "^5.1.0",
-		"got": "^9.6.0",
+		"got": "^10.0.0-alpha.3",
 		"lolex": "^4.2.0",
 		"many-keys-map": "^1.0.2",
 		"nyc": "^14.1.1",

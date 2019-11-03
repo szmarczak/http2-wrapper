@@ -1,4 +1,5 @@
 'use strict';
+const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
 const QuickLRU = require('quick-lru');
@@ -117,8 +118,10 @@ const closeSessionIfCovered = (where, name, coveredSession) => {
 	}
 };
 
-class Agent {
+class Agent extends EventEmitter {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
+		super();
+
 		// A session is considered busy when its current streams count
 		// is equal to or greater than the `maxConcurrentStreams` value.
 		this.busySessions = {};
@@ -429,6 +432,8 @@ class Agent {
 							session.destroy();
 							return;
 						}
+
+						this.emit('session', session);
 
 						if (freeSession()) {
 							// Process listeners, we're free.
