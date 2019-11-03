@@ -1,5 +1,4 @@
 'use strict';
-const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
 const QuickLRU = require('quick-lru');
@@ -107,10 +106,6 @@ const closeCoveredSessions = (where, name, session) => {
 
 // This is basically inverted `closeCoveredSessions(...)`.
 const closeSessionIfCovered = (where, name, coveredSession) => {
-	if (!Reflect.has(where, name)) {
-		return;
-	}
-
 	for (const session of where[name]) {
 		if (
 			coveredSession.originSet.length < session.originSet.length &&
@@ -122,10 +117,8 @@ const closeSessionIfCovered = (where, name, coveredSession) => {
 	}
 };
 
-class Agent extends EventEmitter {
+class Agent {
 	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 1, maxCachedTlsSessions = 100} = {}) {
-		super();
-
 		// A session is considered busy when its current streams count
 		// is equal to or greater than the `maxConcurrentStreams` value.
 		this.busySessions = {};
@@ -307,7 +300,6 @@ class Agent extends EventEmitter {
 						if (freeSessionsCount < this.maxFreeSessions) {
 							addSession(this.freeSessions, normalizedOptions, session);
 
-							this.emit('free', session);
 							return true;
 						}
 
@@ -351,8 +343,6 @@ class Agent extends EventEmitter {
 					session.setTimeout(this.timeout, () => {
 						// Terminates all streams owned by this session.
 						session.destroy();
-
-						this.emit('close', session);
 					});
 
 					session.once('close', () => {
@@ -449,14 +439,10 @@ class Agent extends EventEmitter {
 							// We're closing ASAP, when all possible requests have been made for this event loop tick.
 							setImmediate(() => {
 								session.close();
-
-								this.emit('close', session);
 							});
 						} else {
-							// Too late, no seats available, close the session.
+							// Too late, another free session took these listeners.
 							session.close();
-
-							this.emit('close', session);
 						}
 
 						removeFromQueue();
@@ -472,10 +458,13 @@ class Agent extends EventEmitter {
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
 						session.on('remoteSettings', () => {
+							// Check if we're eligible to become a free session
 							if (isFree() && removeSession(this.busySessions, normalizedOptions, session)) {
+								// Check for free seats
 								if (freeSession()) {
 									processListeners();
 								} else {
+									// Assume it's still a busy session
 									addSession(this.busySessions, normalizedOptions, session);
 								}
 							}
@@ -497,8 +486,6 @@ class Agent extends EventEmitter {
 						// Check if we became busy
 						if (!isFree() && removeSession(this.freeSessions, normalizedOptions, session)) {
 							addSession(this.busySessions, normalizedOptions, session);
-
-							this.emit('busy', session);
 						}
 
 						stream.once('close', () => {
@@ -518,8 +505,6 @@ class Agent extends EventEmitter {
 										processListeners();
 									} else {
 										session.close();
-
-										this.emit('close', session);
 									}
 								}
 							}
@@ -531,8 +516,6 @@ class Agent extends EventEmitter {
 
 						return stream;
 					};
-
-					this.emit('session', session);
 				} catch (error) {
 					for (const listener of listeners) {
 						listener.reject(error);
@@ -584,8 +567,6 @@ class Agent extends EventEmitter {
 			for (const session of freeSessions) {
 				if (session[kCurrentStreamsCount] === 0) {
 					session.close();
-
-					this.emit('close', session);
 				}
 			}
 		}
@@ -595,16 +576,12 @@ class Agent extends EventEmitter {
 		for (const busySessions of Object.values(this.busySessions)) {
 			for (const session of busySessions) {
 				session.destroy(reason);
-
-				this.emit('close', session);
 			}
 		}
 
 		for (const freeSessions of Object.values(this.freeSessions)) {
 			for (const session of freeSessions) {
 				session.destroy(reason);
-
-				this.emit('close', session);
 			}
 		}
 

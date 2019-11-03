@@ -323,38 +323,6 @@ Makes an attempt to close free sessions. Only sessions with 0 concurrent streams
 
 Destroys **all** sessions.
 
-#### Event: 'session'
-
-```js
-agent.on('session', session => {
-	// A new session has been created by the Agent.
-});
-```
-
-#### Event: 'close'
-
-```js
-agent.on('close', session => {
-	// A session has been closed by the Agent.
-});
-```
-
-#### Event: 'free'
-
-```js
-agent.on('free', session => {
-	// The session became free.
-});
-```
-
-#### Event: 'busy'
-
-```js
-agent.on('busy', session => {
-	// The session became busy.
-});
-```
-
 ## Notes
 
  - If you're interested in [WebSockets over HTTP2](https://tools.ietf.org/html/rfc8441), then [check out this discussion](https://github.com/websockets/ws/issues/1458).

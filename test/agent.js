@@ -139,7 +139,6 @@ test.serial('`timeout` option', wrapper.lolex, async (t, server, clock) => {
 
 	t.is(Object.values(agent.freeSessions)[0].length, 1);
 
-	agent.once('close', () => clock.tick(0));
 	clock.tick(timeout);
 
 	await pEvent(session, 'close');
@@ -274,7 +273,6 @@ test('can destroy busy sessions', singleRequestWrapper, async (t, server) => {
 	server.get('/infinite', () => {});
 
 	const agent = new Agent();
-	agent.once('error', () => {});
 
 	const request = await agent.request(server.url, server.options, {
 		':path': '/infinite'
@@ -527,7 +525,6 @@ if (supportsTlsSessions) {
 
 	test('purges the TLS session cache on session error', wrapper, async (t, server) => {
 		const agent = new Agent();
-		agent.once('error', () => {});
 
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
@@ -759,6 +756,13 @@ test.serial('respects `.maxFreeSessions` changes', singleRequestWrapper, async (
 		maxFreeSessions: 2
 	});
 
+	let count = 0;
+	agent.createConnection = (...args) => {
+		count++;
+
+		return Agent.connect(...args);
+	};
+
 	const stream = await agent.request(server.url);
 	const streamSession = stream.session;
 
@@ -767,8 +771,10 @@ test.serial('respects `.maxFreeSessions` changes', singleRequestWrapper, async (
 
 	const session = await agent.getSession(server.url);
 	t.is(session, streamSession);
+	t.is(count, 2);
 
-	await pEvent(agent, 'close');
+	const lateSession = await pEvent(server, 'session');
+	await pEvent(lateSession, 'close');
 
 	agent.destroy();
 });
@@ -789,73 +795,6 @@ test('newly queued sessions should not throw after `agent.destroy()`', wrapper, 
 
 	await t.throwsAsync(sessionPromise, 'Agent has been destroyed');
 	await t.notThrowsAsync(agent.getSession(server.url));
-
-	agent.destroy();
-});
-
-test('`session` event', wrapper, async (t, server) => {
-	const agent = new Agent();
-
-	let called = false;
-	agent.once('session', session => {
-		called = true;
-
-		t.false(session.closed);
-	});
-
-	await agent.getSession(server.url);
-	t.true(called);
-
-	agent.destroy();
-});
-
-test('`close` event', wrapper, async (t, server) => {
-	const agent = new Agent({maxFreeSessions: 0});
-
-	let called = false;
-	agent.once('close', session => {
-		called = true;
-
-		t.true(session.closed);
-	});
-
-	(await agent.request(server.url)).close();
-
-	await setImmediateAsync();
-
-	t.true(called);
-
-	agent.destroy();
-});
-
-test('`free` event', singleRequestWrapper, async (t, server) => {
-	const agent = new Agent();
-
-	let called = false;
-	agent.once('free', session => {
-		called = true;
-
-		t.false(session.closed);
-	});
-
-	await agent.request(server.url);
-	t.true(called);
-
-	agent.destroy();
-});
-
-test('`busy` event', singleRequestWrapper, async (t, server) => {
-	const agent = new Agent();
-
-	let called = false;
-	agent.once('busy', session => {
-		called = true;
-
-		t.false(session.closed);
-	});
-
-	await agent.request(server.url);
-	t.true(called);
 
 	agent.destroy();
 });
@@ -978,6 +917,50 @@ test('free sessions can become suddenly covered by shrinking their current strea
 
 		t.not(sessions.a.client, sessions.b.client);
 		t.true(sessions.b.client.closed);
+
+		agent.destroy();
+	});
+
+	testFn('busy session remains busy if can be free but there are no free seats', tripleRequestWrapper, async (t, server) => {
+		const agent = new Agent({
+			maxFreeSessions: 1
+		});
+
+		const sessions = {};
+
+		{
+			const session = await agent.getSession(server.url);
+
+			sessions.a = session;
+			sessions.a.requests = [
+				session.request(),
+				session.request(),
+				session.request()
+			];
+		}
+
+		{
+			const serverSessionPromise = pEvent(server, 'session');
+			const session = await agent.getSession(server.url);
+			const serverSession = await serverSessionPromise;
+
+			sessions.b = session;
+			sessions.b.requests = [
+				session.request(),
+				session.request(),
+				session.request()
+			];
+
+			sessions.a.requests.shift().close();
+
+			serverSession.settings({
+				maxConcurrentStreams: 4
+			});
+
+			await pEvent(session, 'remoteSettings');
+		}
+
+		t.is(agent.busySessions[''][0], sessions.b);
 
 		agent.destroy();
 	});
