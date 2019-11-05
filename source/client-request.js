@@ -90,6 +90,7 @@ class ClientRequest extends Writable {
 
 		this.res = null;
 		this.aborted = false;
+		this.reusedSocket = false;
 
 		if (options.headers) {
 			for (const [header, value] of Object.entries(options.headers)) {
@@ -285,6 +286,8 @@ class ClientRequest extends Writable {
 				this.emit('error', error);
 			}
 		} else {
+			this.reusedSocket = true;
+
 			// eslint-disable-next-line promise/prefer-await-to-then
 			this.agent.request(this[kAuthority], this[kOptions], this[kHeaders]).then(onStream, error => {
 				this.emit('error', error);

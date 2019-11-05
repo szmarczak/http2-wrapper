@@ -193,7 +193,18 @@ test('`session` option', wrapper, async (t, server) => {
 	request.abort();
 	session.close();
 
+	t.false(request.reusedSocket);
 	t.true(called);
+});
+
+test('`.reusedSocket` is `true` if using Agent', wrapper, async (t, server) => {
+	const request = makeRequest(server.url, {agent: false});
+	request.end();
+
+	await pEvent(request, 'response');
+	t.true(request.reusedSocket);
+
+	request.abort();
 });
 
 test('`aborted` property is `false` before aborting', wrapper, (t, server) => {
