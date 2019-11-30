@@ -337,36 +337,36 @@ Server: H2O 2.2.5 [`h2o.conf`](h2o.conf)<br>
 Node: 13.0.1
 
 ```
-http2-wrapper x 10,246 ops/sec ±2.95% (82 runs sampled)
-http2-wrapper - preconfigured session x 12,956 ops/sec ±1.45% (84 runs sampled)
-http2-wrapper - auto x 9,621 ops/sec ±1.97% (80 runs sampled)
-http2 x 14,860 ops/sec ±1.68% (80 runs sampled)
-http2 - using PassThrough proxies x 12,154 ops/sec ±3.08% (81 runs sampled)
-https x 1,490 ops/sec ±4.35% (72 runs sampled)
-http x 5,997 ops/sec ±3.63% (76 runs sampled)
+http2-wrapper x 10,943 ops/sec ±4.19% (80 runs sampled)
+http2-wrapper - preconfigured session x 13,600 ops/sec ±1.78% (85 runs sampled)
+http2-wrapper - auto x 10,080 ops/sec ±4.22% (80 runs sampled)
+http2 x 16,078 ops/sec ±1.67% (85 runs sampled)
+http2 - using PassThrough proxies x 13,090 ops/sec ±6.36% (85 runs sampled)
+https x 1,471 ops/sec ±4.05% (74 runs sampled)
+http x 6,100 ops/sec ±4.89% (72 runs sampled)
 Fastest is http2
 ```
 
 `http2-wrapper`:
 
-- It's `1.4503x` slower than `http2`.
-- It's `1.1862x` slower than `http2` with `2xPassThrough`.
-- It's `6.8765x` faster than `https`.
-- It's `1.7085x` faster than `http`.
+- It's `1.4692x` slower than `http2`.
+- It's `1.1962x` slower than `http2` with `2xPassThrough`.
+- It's `7.4392x` faster than `https`.
+- It's `1.7939x` faster than `http`.
 
 `http2-wrapper - preconfigured session`:
 
-- It's `1.1470x` slower than `http2`.
+- It's `1.1822x` slower than `http2`.
 - It's almost the same as `http2` with `2xPassThrough`.
-- It's `8.6953x` faster than `https`.
-- It's `2.1604x` faster than `http`.
+- It's `9.2454x` faster than `https`.
+- It's `2.2295x` faster than `http`.
 
 `http2-wrapper - auto`:
 
-- It's `1.5445x` slower than `http2`.
-- It's `1.2633x` slower than `http2` with `2xPassThrough`.
-- It's `6.4570x` faster than `https`.
-- It's `1.6043x` faster than `http`.
+- It's `1.5950x` slower than `http2`.
+- It's `1.2986x` slower than `http2` with `2xPassThrough`.
+- It's `6.8525x` faster than `https`.
+- It's `1.6525x` faster than `http`.
 
 ## Related
 

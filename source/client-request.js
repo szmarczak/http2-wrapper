@@ -222,7 +222,7 @@ class ClientRequest extends Writable {
 
 			// This event tells we are ready to listen for the data.
 			this._request.once('response', (headers, flags, rawHeaders) => {
-				this.res = new IncomingMessage(this.socket);
+				this.res = new IncomingMessage(this.socket, this._request.readableHighWaterMark);
 				this.res.req = this;
 				this.res.statusCode = headers[HTTP2_HEADER_STATUS];
 				this.res.headers = headers;

@@ -2,8 +2,8 @@
 const {PassThrough} = require('stream');
 
 class IncomingMessage extends PassThrough {
-	constructor(socket) {
-		super();
+	constructor(socket, highWaterMark) {
+		super({highWaterMark});
 
 		this.statusCode = null;
 		this.statusMessage = '';
