@@ -262,7 +262,7 @@ class Agent extends EventEmitter {
 			}
 
 			// The entry must be removed from the queue IMMEDIATELY when:
-			// 1. a session connects successfully,
+			// 1. the session connects successfully,
 			// 2. an error occurs.
 			const removeFromQueue = () => {
 				// Our entry can be replaced. We cannot remove the new one.

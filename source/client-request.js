@@ -222,6 +222,8 @@ class ClientRequest extends Writable {
 
 			// This event tells we are ready to listen for the data.
 			this._request.once('response', (headers, flags, rawHeaders) => {
+				// If we were to emit raw request stream, it would be as fast as the native approach.
+				// Note that wrapping the raw stream in a Proxy instance won't improve the performance (already tested it).
 				this.res = new IncomingMessage(this.socket, this._request.readableHighWaterMark);
 				this.res.req = this;
 				this.res.statusCode = headers[HTTP2_HEADER_STATUS];
