@@ -84,7 +84,7 @@ request.end('456');
 
 ## API
 
-**Note:** the `session` option accepts an instance of [`Http2Session`](https://nodejs.org/api/http2.html#http2_class_http2session). To pass a TLS session, use `tlsSession` instead.
+**Note:** the `session` option was renamed to `tlsSession` for better readability.
 
 ### http2.auto(url, options, callback)
 
@@ -182,6 +182,12 @@ Type: `boolean`<br>
 Default: `true`
 
 If set to `true`, it will try to connect to the server before sending the request.
+
+##### options.h2session
+
+Type: `Http2Session`<br>
+
+The session used to make the actual request. If none provided, it will use `options.agent`.
 
 ### http2.get(url, options, callback)
 

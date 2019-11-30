@@ -49,8 +49,8 @@ class ClientRequest extends Writable {
 			options = {...input, ...options};
 		}
 
-		if (options.session) {
-			this[kSession] = options.session;
+		if (options.h2session) {
+			this[kSession] = options.h2session;
 		} else if (options.agent === false) {
 			this.agent = new Agent({maxFreeSessions: 0});
 		} else if (typeof options.agent === 'undefined' || options.agent === null) {

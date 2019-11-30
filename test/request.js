@@ -176,22 +176,22 @@ test('`auth` option', wrapper, async (t, server) => {
 	t.is(data.headers.authorization, `Basic ${Buffer.from(auth).toString('base64')}`);
 });
 
-test('`session` option', wrapper, async (t, server) => {
+test('`h2session` option', wrapper, async (t, server) => {
 	let called = false;
 
-	const session = connect(`${server.options.protocol}//${server.options.hostname}:${server.options.port}`);
-	session._request = session.request;
-	session.request = (...args) => {
+	const h2session = connect(`${server.options.protocol}//${server.options.hostname}:${server.options.port}`);
+	h2session._request = h2session.request;
+	h2session.request = (...args) => {
 		called = true;
-		return session._request(...args);
+		return h2session._request(...args);
 	};
 
-	const request = makeRequest({...server.options, session});
+	const request = makeRequest({...server.options, h2session});
 	request.end();
 
 	await pEvent(request, 'finish');
 	request.abort();
-	session.close();
+	h2session.close();
 
 	t.false(request.reusedSocket);
 	t.true(called);
@@ -569,12 +569,12 @@ test('`.maxHeadersCount` - empty setter', wrapper, async (t, server) => {
 });
 
 test('throws if making a request using a closed session', wrapper, async (t, server) => {
-	const session = connect(server.url);
-	session.destroy();
+	const h2session = connect(server.url);
+	h2session.destroy();
 
 	const request = makeRequest({
 		...server.options,
-		session
+		h2session
 	}).end();
 
 	const error = await pEvent(request, 'error');
