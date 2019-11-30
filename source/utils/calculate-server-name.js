@@ -1,10 +1,10 @@
 'use strict';
 const net = require('net');
-/* istanbul ignore file: https://github.com/nodejs/node/blob/v12.10.0/lib/_http_agent.js */
+/* istanbul ignore file: https://github.com/nodejs/node/blob/v13.0.1/lib/_http_agent.js */
 
-module.exports = (options, headers) => {
+module.exports = options => {
 	let servername = options.host;
-	const hostHeader = headers.host;
+	const hostHeader = options.headers && options.headers.host;
 
 	if (hostHeader) {
 		if (hostHeader.startsWith('[')) {
@@ -12,7 +12,7 @@ module.exports = (options, headers) => {
 			if (index === -1) {
 				servername = hostHeader;
 			} else {
-				servername = hostHeader.substr(1, index - 1);
+				servername = hostHeader.slice(1, -1);
 			}
 		} else {
 			servername = hostHeader.split(':', 1)[0];

@@ -5,8 +5,12 @@ const ClientRequest = require('./client-request');
 const IncomingMessage = require('./incoming-message');
 const auto = require('./auto');
 
+const request = (url, options, callback) => {
+	return new ClientRequest(url, options, callback);
+};
+
 const get = (url, options, callback) => {
-	const req = ClientRequest.request(url, options, callback);
+	const req = new ClientRequest(url, options, callback);
 	req.end();
 
 	return req;
@@ -14,10 +18,10 @@ const get = (url, options, callback) => {
 
 module.exports = {
 	...http2,
-	...agent,
-	auto,
-	request: ClientRequest.request,
-	get,
 	ClientRequest,
-	IncomingMessage
+	IncomingMessage,
+	...agent,
+	request,
+	get,
+	auto
 };

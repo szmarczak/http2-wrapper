@@ -19,6 +19,10 @@ const session = http2.connect(destination);
 const wrapperSession = http2.connect(destination);
 
 const destinationOpts = urlToOptions(destination);
+const destinationOptsWithSession = {
+	...destinationOpts,
+	h2session: wrapperSession
+};
 const destinationHTTPOpts = urlToOptions(destinationHTTP);
 
 suite.add('http2-wrapper', {
@@ -34,7 +38,7 @@ suite.add('http2-wrapper', {
 }).add('http2-wrapper - preconfigured session', {
 	defer: true,
 	fn: deferred => {
-		wrapper.get(destinationOpts, {session: wrapperSession}, response => {
+		wrapper.get(destinationOptsWithSession, response => {
 			response.resume();
 			response.once('end', () => {
 				deferred.resolve();
@@ -43,6 +47,16 @@ suite.add('http2-wrapper', {
 	},
 	onComplete: () => {
 		wrapperSession.close();
+	}
+}).add('http2-wrapper - auto', {
+	defer: true,
+	fn: async deferred => {
+		(await wrapper.auto(destinationOpts, response => {
+			response.resume();
+			response.once('end', () => {
+				deferred.resolve();
+			});
+		})).end();
 	}
 }).add('http2', {
 	defer: true,

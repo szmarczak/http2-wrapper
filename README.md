@@ -153,19 +153,6 @@ const options = {
 // }
 ```
 
-### http2.auto.prepareRequest(options)
-
-Performs [ALPN](https://nodejs.org/api/tls.html#tls_alpn_and_sni) negotiation.
-Returns a Promise giving proper request function depending on the ALPN protocol.
-
-**Note:** the request function takes only two arguments: `options` and `callback`.
-
-**Tip:** the `agent` option also accepts an object with `http`, `https` and `http2` properties.
-
-### http2.auto.resolveALPN(options)
-
-Returns a Promise giving the best ALPN protocol possible. It can be either `h2` or `http/1.1`.
-
 ### http2.auto.protocolCache
 
 An instance of [`quick-lru`](https://github.com/sindresorhus/quick-lru) used for ALPN cache.
@@ -347,31 +334,39 @@ agent.on('session', session => {
 
 CPU: Intel i7-7700k<br>
 Server: H2O 2.2.5 [`h2o.conf`](h2o.conf)<br>
-Node: v12.10.0
+Node: 13.0.1
 
 ```
-http2-wrapper x 9,954 ops/sec ±3.72% (81 runs sampled)
-http2-wrapper - preconfigured session x 12,309 ops/sec ±1.48% (87 runs sampled)
-http2 x 14,664 ops/sec ±1.63% (78 runs sampled)
-http2 - using PassThrough proxies x 11,884 ops/sec ±2.43% (82 runs sampled)
-https x 1,586 ops/sec ±4.05% (79 runs sampled)
-http x 5,886 ops/sec ±2.73% (76 runs sampled)
+http2-wrapper x 10,246 ops/sec ±2.95% (82 runs sampled)
+http2-wrapper - preconfigured session x 12,956 ops/sec ±1.45% (84 runs sampled)
+http2-wrapper - auto x 9,621 ops/sec ±1.97% (80 runs sampled)
+http2 x 14,860 ops/sec ±1.68% (80 runs sampled)
+http2 - using PassThrough proxies x 12,154 ops/sec ±3.08% (81 runs sampled)
+https x 1,490 ops/sec ±4.35% (72 runs sampled)
+http x 5,997 ops/sec ±3.63% (76 runs sampled)
 Fastest is http2
 ```
 
 `http2-wrapper`:
 
-- It's `1.473x` slower than `http2`.
-- It's `1.194x` slower than `http2` with `2xPassThrough`.
-- It's `6.276x` faster than `https`.
-- It's `1.691x` faster than `http`.
+- It's `1.4503x` slower than `http2`.
+- It's `1.1862x` slower than `http2` with `2xPassThrough`.
+- It's `6.8765x` faster than `https`.
+- It's `1.7085x` faster than `http`.
 
 `http2-wrapper - preconfigured session`:
 
-- It's `1.191x` slower than `http2`.
-- It's `1.036x` faster than `http2` with `2xPassThrough`.
-- It's `7.761x` faster than `https`.
-- It's `2.091x` faster than `http`.
+- It's `1.1470x` slower than `http2`.
+- It's almost the same as `http2` with `2xPassThrough`.
+- It's `8.6953x` faster than `https`.
+- It's `2.1604x` faster than `http`.
+
+`http2-wrapper - auto`:
+
+- It's `1.5445x` slower than `http2`.
+- It's `1.2633x` slower than `http2` with `2xPassThrough`.
+- It's `6.4570x` faster than `https`.
+- It's `1.6043x` faster than `http`.
 
 ## Related
 

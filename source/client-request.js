@@ -372,9 +372,4 @@ class ClientRequest extends Writable {
 	}
 }
 
-const request = (url, options, callback) => {
-	return new ClientRequest(url, options, callback);
-};
-
 module.exports = ClientRequest;
-module.exports.request = request;

@@ -5,6 +5,7 @@ import util from 'util';
 import {serial as test, afterEach} from 'ava';
 import pEvent from 'p-event';
 import getStream from 'get-stream';
+import createCert from 'create-cert';
 import http2 from '../source';
 import {createServer} from './helpers/server';
 
@@ -276,4 +277,66 @@ test('does not break when using `createConnection` option', async t => {
 	t.true(called);
 
 	request.agent.destroy();
+});
+
+const cb = fn => {
+	return (t, ...args) => new Promise((resolve, reject) => {
+		let calledEnd = false;
+
+		const tProxy = new Proxy(t, {
+			get: (target, property) => {
+				if (property === 'end') {
+					return error => {
+						if (calledEnd) {
+							t.fail('`t.end()` called more than once');
+							return;
+						}
+
+						calledEnd = true;
+
+						if (error) {
+							reject(error);
+						} else {
+							resolve();
+						}
+					};
+				}
+
+				return target[property];
+			}
+		});
+
+		fn(tProxy, ...args);
+	});
+};
+
+test('callback as a second argument', cb(async t => {
+	await t.notThrowsAsync((async () => {
+		const request = await http2.auto(h2s.url, response => {
+			response.req.abort();
+			t.end();
+		});
+
+		request.end();
+	})());
+}));
+
+test('throws if the ALPN protocol does not match', async t => {
+	const keys = await createCert();
+
+	const server = await tls.createServer({
+		ALPNProtocols: ['not.http'],
+		...keys
+	});
+
+	server.listen = util.promisify(server.listen);
+	server.close = util.promisify(server.close);
+
+	await server.listen();
+
+	const url = `https://localhost:${server.address().port}`;
+
+	await t.throwsAsync(http2.auto(url), 'Unknown ALPN protocol');
+
+	await server.close();
 });
