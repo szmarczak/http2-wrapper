@@ -61,17 +61,13 @@ module.exports = async (input, options, callback) => {
 			return new Http2ClientRequest(options, callback);
 		}
 
-		if (protocol === 'http/1.1') {
-			if (options.agent && options.agent.https) {
-				options.agent = options.agent.https;
-			}
-
-			options._defaultAgent = https.globalAgent;
-
-			return http.request(options, callback);
+		if (options.agent && options.agent.https) {
+			options.agent = options.agent.https;
 		}
 
-		throw new Error('Unknown ALPN protocol');
+		options._defaultAgent = https.globalAgent;
+
+		return http.request(options, callback);
 	}
 
 	options.port = options.port || 80;

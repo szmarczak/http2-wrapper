@@ -321,12 +321,11 @@ test('callback as a second argument', cb(async t => {
 	})());
 }));
 
-test('throws if the ALPN protocol does not match', async t => {
+test('defaults to HTTP1 if no ALPN protocol', async t => {
 	const keys = await createCert();
 
-	const server = await tls.createServer({
-		ALPNProtocols: ['not.http'],
-		...keys
+	const server = await tls.createServer(keys, socket => {
+		socket.end('HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhttps');
 	});
 
 	server.listen = util.promisify(server.listen);
@@ -336,7 +335,13 @@ test('throws if the ALPN protocol does not match', async t => {
 
 	const url = `https://localhost:${server.address().port}`;
 
-	await t.throwsAsync(http2.auto(url), 'Unknown ALPN protocol');
+	await t.notThrowsAsync(async () => {
+		const request = await http2.auto(url);
+		const response = await pEvent(request, 'response');
+		const body = await getStream(response);
+
+		t.is(body, 'https');
+	});
 
 	await server.close();
 });
