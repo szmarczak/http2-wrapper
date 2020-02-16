@@ -1,13 +1,14 @@
-import tls from 'tls';
-import https from 'https';
-import http from 'http';
-import util from 'util';
-import {serial as test, afterEach} from 'ava';
-import pEvent from 'p-event';
-import getStream from 'get-stream';
-import createCert from 'create-cert';
-import http2 from '../source';
-import {createServer} from './helpers/server';
+const tls = require('tls');
+const https = require('https');
+const http = require('http');
+const util = require('util');
+// eslint-disable-next-line ava/use-test
+const {serial: test, afterEach} = require('ava');
+const pEvent = require('p-event');
+const getStream = require('get-stream');
+const createCert = require('create-cert');
+const http2 = require('../source');
+const {createServer} = require('./helpers/server');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -199,7 +200,9 @@ test('default port for `https:` protocol is 443', async t => {
 test('passes http/2 errors', async t => {
 	await t.throwsAsync(http2.auto(h2s.url, {
 		auth: 1
-	}), /Received type number/);
+	}), {
+		message: /Received type number/
+	});
 });
 
 // This needs to run first, because the cache is shared between the tests.
@@ -234,7 +237,9 @@ test('passes http/1 errors', async t => {
 		headers: {
 			foo: undefined
 		}
-	}), 'Invalid value "undefined" for header "foo"');
+	}), {
+		message: 'Invalid value "undefined" for header "foo"'
+	});
 });
 
 test('`host` option is an alternative to `hostname` option', async t => {
@@ -257,7 +262,7 @@ test('does not break when using `createConnection` option', async t => {
 		protocol: 'https:',
 		hostname: 'localhost',
 		port: h2s.address().port,
-		createConnection: (authority, options) => {
+		createConnection: (_authority, options) => {
 			called = true;
 
 			return tls.connect(h2s.address().port, 'localhost', {
@@ -344,4 +349,125 @@ test('defaults to HTTP1 if no ALPN protocol', async t => {
 	});
 
 	await server.close();
+});
+
+test('invalid `agent` option', async t => {
+	await t.throwsAsync(http2.auto('https://example.com', {
+		agent: new https.Agent()
+	}));
+});
+
+test.serial('reuses HTTP/1.1 TLS sockets', async t => {
+	http2.auto.protocolCache.clear();
+
+	const agent = new https.Agent({keepAlive: true});
+
+	agent.createSocket = () => {
+		throw new Error('Socket not reused');
+	};
+
+	agent.prependOnceListener('free', socket => {
+		t.true(socket._httpMessage.shouldKeepAlive);
+	});
+
+	const options = {
+		agent: {
+			https: agent
+		},
+		ALPNProtocols: ['http/1.1']
+	};
+
+	const request = await http2.auto(h2s.url, options);
+	request.abort();
+});
+
+test.serial('reuses HTTP/1.1 TLS sockets - agentRemove works', async t => {
+	http2.auto.protocolCache.clear();
+
+	const agent = new https.Agent({keepAlive: true});
+
+	agent.createSocket = () => {
+		throw new Error('Socket not reused');
+	};
+
+	agent.prependOnceListener('free', socket => {
+		t.true(socket._httpMessage.shouldKeepAlive);
+
+		socket.emit('agentRemove');
+
+		t.is(socket.listenerCount('agentRemove'), 0);
+	});
+
+	const options = {
+		agent: {
+			https: agent
+		},
+		ALPNProtocols: ['http/1.1']
+	};
+
+	const request = await http2.auto(h2s.url, options);
+	request.abort();
+
+	agent.destroy();
+});
+
+test.serial('reuses HTTP/1.1 TLS sockets #2', async t => {
+	http2.auto.protocolCache.clear();
+
+	let socketCount = 0;
+
+	const agent = new https.Agent({keepAlive: true});
+	const createSocket = agent.createSocket.bind(agent);
+
+	agent.createSocket = (...args) => {
+		socketCount++;
+
+		return createSocket(...args);
+	};
+
+	agent.prependOnceListener('free', socket => {
+		t.true(socket._httpMessage.shouldKeepAlive);
+
+		agent.prependOnceListener('free', socket => {
+			t.is(socket._httpMessage, null);
+			t.is(socket.alpnProtocol, 'http/1.1');
+		});
+	});
+
+	const options = {
+		agent: {
+			https: agent
+		},
+		ALPNProtocols: ['http/1.1']
+	};
+
+	const [a, b] = await Promise.all([http2.auto(h2s.url, options), http2.auto(h2s.url, options)]);
+
+	a.abort();
+	b.abort();
+
+	t.is(socketCount, 1);
+});
+
+test.serial('does not reuse HTTP/1.1 TLS sockets if custom `createConnection` option is present', async t => {
+	http2.auto.protocolCache.clear();
+
+	const agent = new https.Agent({keepAlive: true});
+
+	agent.prependOnceListener('free', () => {
+		t.fail('free event emitted');
+	});
+
+	const options = {
+		agent: {
+			https: agent
+		},
+		createConnection: tls.connect,
+		ALPNProtocols: ['http/1.1']
+	};
+
+	const request = await http2.auto(h2s.url, options);
+	request.abort();
+
+	t.pass();
 });

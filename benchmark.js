@@ -25,6 +25,17 @@ const destinationOptsWithSession = {
 };
 const destinationHTTPOpts = urlToOptions(destinationHTTP);
 
+const httpsKeepAlive = {
+	agent: new https.Agent({keepAlive: true})
+};
+
+const autoHttpsKeepAlive = {
+	ALPNProtocols: ['http/1.1'],
+	agent: {
+		https: new https.Agent({keepAlive: true})
+	}
+};
+
 suite.add('http2-wrapper', {
 	defer: true,
 	fn: deferred => {
@@ -67,7 +78,7 @@ suite.add('http2-wrapper', {
 			deferred.resolve();
 		});
 	}
-}).add('http2 - using PassThrough proxies', {
+}).add('http2 - 2xPassThrough', {
 	defer: true,
 	fn: deferred => {
 		const inputProxy = new PassThrough();
@@ -88,6 +99,27 @@ suite.add('http2-wrapper', {
 	},
 	onComplete: () => {
 		session.close();
+	}
+}).add('https - auto - keepalive', {
+	defer: true,
+	fn: async deferred => {
+		(await wrapper.auto(destinationOpts, autoHttpsKeepAlive, response => {
+			response.resume();
+			response.once('end', () => {
+				deferred.resolve();
+			});
+		})).end();
+	}
+}).add('https - keepalive', {
+	defer: true,
+	fn: deferred => {
+		// If we use `destinationOpts` here, we get `socket hung up` errors for no reason <!>
+		https.get(destination, httpsKeepAlive, response => {
+			response.resume();
+			response.once('end', () => {
+				deferred.resolve();
+			});
+		});
 	}
 }).add('https', {
 	defer: true,

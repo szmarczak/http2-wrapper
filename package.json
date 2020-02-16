@@ -30,31 +30,27 @@
 	},
 	"homepage": "https://github.com/szmarczak/http2-wrapper#readme",
 	"dependencies": {
-		"quick-lru": "^4.0.1",
+		"quick-lru": "^5.0.0",
 		"resolve-alpn": "^1.0.0"
 	},
 	"devDependencies": {
-		"@sindresorhus/is": "^1.0.0",
-		"ava": "^2.4.0",
+		"@sindresorhus/is": "^2.0.0",
+		"ava": "^3.3.0",
 		"benchmark": "^2.1.4",
-		"coveralls": "^3.0.5",
+		"coveralls": "^3.0.9",
 		"create-cert": "^1.0.6",
 		"get-stream": "^5.1.0",
-		"got": "^10.0.0-alpha.3",
-		"lolex": "^4.2.0",
+		"got": "^10.5.5",
+		"lolex": "^6.0.0",
 		"many-keys-map": "^1.0.2",
-		"nyc": "^14.1.1",
+		"nyc": "^15.0.0",
 		"p-event": "^4.1.0",
-		"tempy": "^0.3.0",
+		"tempy": "^0.4.0",
 		"to-readable-stream": "^2.1.0",
-		"tsd": "^0.8.0",
-		"xo": "^0.24.0"
+		"tsd": "^0.11.0",
+		"xo": "^0.26.1"
 	},
 	"ava": {
-		"timeout": "2m",
-		"concurrency": "4",
-		"helpers": [
-			"test/helpers/*"
-		]
+		"timeout": "2m"
 	}
 }

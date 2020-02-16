@@ -1,12 +1,12 @@
-import {promisify} from 'util';
-import tls from 'tls';
-import test from 'ava';
-import createCert from 'create-cert';
-import pEvent from 'p-event';
-import is from '@sindresorhus/is';
-import {Agent} from '../source';
-import {createWrapper, createServer} from './helpers/server';
-import setImmediateAsync from './helpers/set-immediate-async';
+const {promisify} = require('util');
+const tls = require('tls');
+const test = require('ava');
+const createCert = require('create-cert');
+const pEvent = require('p-event');
+const is = require('@sindresorhus/is');
+const {Agent} = require('../source');
+const {createWrapper, createServer} = require('./helpers/server');
+const setImmediateAsync = require('./helpers/set-immediate-async');
 
 const supportsTlsSessions = process.versions.node.split('.')[0] >= 11;
 
@@ -347,7 +347,9 @@ test('throws if session is closed before receiving a SETTINGS frame', async t =>
 
 	await t.throwsAsync(
 		agent.request(`https://localhost:${server.address().port}`),
-		'Session closed without receiving a SETTINGS frame'
+		{
+			message: 'Session closed without receiving a SETTINGS frame'
+		}
 	);
 
 	await server.close();
@@ -796,7 +798,9 @@ test('destroying causes pending sessions to throw', wrapper, async (t, server) =
 
 	agent.destroy();
 
-	await t.throwsAsync(sessionPromise, 'Agent has been destroyed');
+	await t.throwsAsync(sessionPromise, {
+		message: 'Agent has been destroyed'
+	});
 });
 
 test('newly queued sessions should not throw after `agent.destroy()`', wrapper, async (t, server) => {
@@ -804,7 +808,9 @@ test('newly queued sessions should not throw after `agent.destroy()`', wrapper, 
 	const sessionPromise = agent.getSession(server.url);
 	agent.destroy();
 
-	await t.throwsAsync(sessionPromise, 'Agent has been destroyed');
+	await t.throwsAsync(sessionPromise, {
+		message: 'Agent has been destroyed'
+	});
 	await t.notThrowsAsync(agent.getSession(server.url));
 
 	agent.destroy();

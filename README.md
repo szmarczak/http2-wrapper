@@ -253,7 +253,14 @@ Agent.normalizeAuthority('https://example.com:443');
 // => 'https://example.com'
 ```
 
-#### Agent.normalizeOptions([options](https://github.com/szmarczak/http2-wrapper/blob/master/source/agent.js))
+#### agent.settings
+
+Type: `object`<br>
+Default: `{enablePush: false}`
+
+[Settings](https://nodejs.org/api/http2.html#http2_settings_object) used by the current agent instance.
+
+#### agent.normalizeOptions([options](https://github.com/szmarczak/http2-wrapper/blob/master/source/agent.js))
 
 Returns a string containing normalized options.
 
@@ -261,13 +268,6 @@ Returns a string containing normalized options.
 Agent.normalizeOptions({servername: 'example.com'});
 // => ':example.com'
 ```
-
-#### agent.settings
-
-Type: `object`<br>
-Default: `{enablePush: false}`
-
-[Settings](https://nodejs.org/api/http2.html#http2_settings_object) used by the current agent instance.
 
 #### agent.getSession(authority, options)
 
@@ -333,40 +333,42 @@ agent.on('session', session => {
 ## Benchmarks
 
 CPU: Intel i7-7700k<br>
-Server: H2O 2.2.5 [`h2o.conf`](h2o.conf)<br>
-Node: 13.0.1
+Server: H2O v2.2.5 [`h2o.conf`](h2o.conf)<br>
+Node: v13.8.0
+
+`auto` means `http2wrapper.auto`.
 
 ```
-http2-wrapper x 10,943 ops/sec ±4.19% (80 runs sampled)
-http2-wrapper - preconfigured session x 13,600 ops/sec ±1.78% (85 runs sampled)
-http2-wrapper - auto x 10,080 ops/sec ±4.22% (80 runs sampled)
-http2 x 16,078 ops/sec ±1.67% (85 runs sampled)
-http2 - using PassThrough proxies x 13,090 ops/sec ±6.36% (85 runs sampled)
-https x 1,471 ops/sec ±4.05% (74 runs sampled)
-http x 6,100 ops/sec ±4.89% (72 runs sampled)
+http2-wrapper                         x 10,598 ops/sec ±4.04% (84 runs sampled)
+http2-wrapper - preconfigured session x 13,640 ops/sec ±1.71% (86 runs sampled)
+http2-wrapper - auto                  x 9,629  ops/sec ±1.58% (84 runs sampled)
+http2                                 x 16,540 ops/sec ±1.05% (82 runs sampled)
+http2         - 2xPassThrough         x 13,534 ops/sec ±0.99% (86 runs sampled)
+https         - auto - keepalive      x 13,108 ops/sec ±2.67% (78 runs sampled)
+https                - keepalive      x 13,113 ops/sec ±3.32% (80 runs sampled)
+https                                 x 1,541  ops/sec ±2.72% (79 runs sampled)
+http                                  x 5,957  ops/sec ±2.34% (72 runs sampled)
 Fastest is http2
 ```
 
 `http2-wrapper`:
-
-- It's `1.4692x` slower than `http2`.
-- It's `1.1962x` slower than `http2` with `2xPassThrough`.
-- It's `7.4392x` faster than `https`.
-- It's `1.7939x` faster than `http`.
+- 36% slower than `http2` (22% compared to `http2 - 2xPassThrough`)
+- 19% slower than `https - keepalive`
+- 78% faster than `http`
 
 `http2-wrapper - preconfigured session`:
-
-- It's `1.1822x` slower than `http2`.
-- It's almost the same as `http2` with `2xPassThrough`.
-- It's `9.2454x` faster than `https`.
-- It's `2.2295x` faster than `http`.
+- 18% slower than `http2` (as performant as `http2 - 2xPassThrough`)
+- as performant as `https - keepalive`
+- 129% faster than `http`
 
 `http2-wrapper - auto`:
+- 27% slower than `https - keepalive`
+- 62% faster than `http`
 
-- It's `1.5950x` slower than `http2`.
-- It's `1.2986x` slower than `http2` with `2xPassThrough`.
-- It's `6.8525x` faster than `https`.
-- It's `1.6525x` faster than `http`.
+`https - auto - keepalive`:
+- 21% slower than `http2` (as performant as `http2 - 2xPassThrough`)
+- as performant as `https - keepalive`
+- 120% faster than `http`
 
 ## Related
 

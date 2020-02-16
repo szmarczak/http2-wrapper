@@ -18,7 +18,7 @@ makeError(TypeError, 'ERR_INVALID_ARG_TYPE', args => {
 	const isManyTypes = Array.isArray(valid);
 
 	if (isManyTypes) {
-		valid = `${valid.slice(0, valid.length - 1).join(', ')} or ${valid[valid.length - 1]}`;
+		valid = `${valid.slice(0, -1).join(', ')} or ${valid.slice(-1)}`;
 	}
 
 	return `The "${args[0]}" ${type} must be ${isManyTypes ? 'one of' : 'of'} type ${valid}. Received ${typeof args[2]}`;

@@ -1,13 +1,14 @@
-import EventEmitter from 'events';
-import net from 'net';
-import {serial as test} from 'ava';
-import pEvent from 'p-event';
-import getStream from 'get-stream';
-import tempy from 'tempy';
-import is from '@sindresorhus/is';
-import {request as makeRequest, get, constants, connect, Agent, globalAgent} from '../source';
-import {createWrapper, createServer, createProxyServer} from './helpers/server';
-import setImmediateAsync from './helpers/set-immediate-async';
+const EventEmitter = require('events');
+const net = require('net');
+// eslint-disable-next-line ava/use-test
+const {serial: test} = require('ava');
+const pEvent = require('p-event');
+const getStream = require('get-stream');
+const tempy = require('tempy');
+const is = require('@sindresorhus/is');
+const {request: makeRequest, get, constants, connect, Agent, globalAgent} = require('../source');
+const {createWrapper, createServer, createProxyServer} = require('./helpers/server');
+const setImmediateAsync = require('./helpers/set-immediate-async');
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -29,7 +30,9 @@ const okHandler = (request, response) => {
 };
 
 test('throws an error on invalid protocol', t => {
-	t.throws(() => makeRequest('invalid://'), 'Protocol "invalid:" not supported. Expected "https:"');
+	t.throws(() => makeRequest('invalid://'), {
+		message: 'Protocol "invalid:" not supported. Expected "https:"'
+	});
 });
 
 test('does not modify options', t => {
@@ -337,32 +340,33 @@ test('default port for `https:` protocol is 443', async t => {
 });
 
 test('throws on `http:` protocol', t => {
-	t.throws(() => makeRequest({protocol: 'http:'}), 'Protocol "http:" not supported. Expected "https:"');
-});
-
-test('throws when acesssing `socket` after session destruction', wrapper, async (t, server) => {
-	t.plan(1);
-
-	const session = connect(`${server.options.protocol}//${server.options.hostname}:${server.options.port}`);
-	const request = makeRequest(server.options, {session});
-	request.end();
-
-	const response = await pEvent(request, 'response');
-	request.abort();
-	session.close();
-
-	response.socket.once('close', () => {
-		t.throws(() => response.socket.destroyed);
+	t.throws(() => makeRequest({protocol: 'http:'}), {
+		message: 'Protocol "http:" not supported. Expected "https:"'
 	});
 });
 
+test('throws when acesssing `socket` after session destruction', wrapper, async (t, server) => {
+	const h2session = connect(`${server.options.protocol}//${server.options.hostname}:${server.options.port}`);
+	const request = makeRequest(server.options, {h2session});
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	t.is(response.socket, h2session.socket);
+
+	request.abort();
+	h2session.close();
+
+	await pEvent(response.socket, 'close');
+	t.throws(() => response.socket.destroyed);
+});
+
 test('doesn\'t close custom sessions', wrapper, (t, server) => {
-	const session = connect(`${server.options.protocol}//${server.options.hostname}:${server.options.port}`);
-	const request = makeRequest({...server.options, session});
+	const h2session = connect(`${server.options.protocol}//${server.options.hostname}:${server.options.port}`);
+	const request = makeRequest({...server.options, h2session});
 	request.abort();
 
-	t.false(session.destroyed);
-	session.close();
+	t.false(h2session.destroyed);
+	h2session.close();
 });
 
 test('`connect` event', proxyWrapper, async (t, proxy) => {
@@ -595,7 +599,9 @@ test('`.path` returns the pseudo path header', t => {
 test('throws on invalid `agent` option', t => {
 	t.throws(
 		() => makeRequest({agent: 0}),
-		'The "options.agent" property must be one of type Agent-like Object, undefined or false. Received number'
+		{
+			message: 'The "options.agent" property must be one of type Agent-like Object, undefined or false. Received number'
+		}
 	);
 });
 

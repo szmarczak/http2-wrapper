@@ -1,8 +1,11 @@
-import {serial as test} from 'ava';
-import pEvent from 'p-event';
-import getStream from 'get-stream';
-import http2, {request as makeRequest} from '../source';
-import {createWrapper} from './helpers/server';
+// eslint-disable-next-line ava/use-test
+const {serial: test} = require('ava');
+const pEvent = require('p-event');
+const getStream = require('get-stream');
+const http2 = require('../source');
+const {createWrapper} = require('./helpers/server');
+
+const {request: makeRequest} = http2;
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -53,8 +56,12 @@ test('can\'t change headers after they are sent', wrapper, async (t, server) => 
 	request.end();
 
 	await pEvent(request, 'finish');
-	t.throws(() => request.setHeader('foo', 'bar'), 'Cannot set headers after they are sent to the client');
-	t.throws(() => request.removeHeader('foo'), 'Cannot remove headers after they are sent to the client');
+	t.throws(() => request.setHeader('foo', 'bar'), {
+		message: 'Cannot set headers after they are sent to the client'
+	});
+	t.throws(() => request.removeHeader('foo'), {
+		message: 'Cannot remove headers after they are sent to the client'
+	});
 
 	request.abort();
 });
@@ -62,12 +69,24 @@ test('can\'t change headers after they are sent', wrapper, async (t, server) => 
 test('invalid headers', t => {
 	const request = makeRequest({preconnect: false});
 
-	t.throws(() => request.setHeader(undefined, 'qwerty'), 'Header name must be a valid HTTP token [undefined]');
-	t.throws(() => request.setHeader('qwerty', undefined), 'Invalid value "undefined for header "qwerty"');
-	t.throws(() => request.setHeader('“', 'qwerty'), 'Header name must be a valid HTTP token [“]');
-	t.throws(() => request.setHeader('qwerty', '“'), 'Invalid character in header content [qwerty]');
+	t.throws(() => request.setHeader(undefined, 'qwerty'), {
+		message: 'Header name must be a valid HTTP token [undefined]'
+	});
+	t.throws(() => request.setHeader('qwerty', undefined), {
+		message: 'Invalid value "undefined for header "qwerty"'
+	});
+	t.throws(() => request.setHeader('“', 'qwerty'), {
+		message: 'Header name must be a valid HTTP token [“]'
+	});
+	t.throws(() => request.setHeader('qwerty', '“'), {
+		message: 'Invalid character in header content [qwerty]'
+	});
 
-	t.throws(() => request.getHeader(undefined), 'The "name" argument must be of type string. Received undefined');
+	t.throws(() => request.getHeader(undefined), {
+		message: 'The "name" argument must be of type string. Received undefined'
+	});
 
-	t.throws(() => request.removeHeader(undefined), 'The "name" argument must be of type string. Received undefined');
+	t.throws(() => request.removeHeader(undefined), {
+		message: 'The "name" argument must be of type string. Received undefined'
+	});
 });

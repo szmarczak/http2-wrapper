@@ -8,15 +8,79 @@ const calculateServerName = require('./utils/calculate-server-name');
 const urlToOptions = require('./utils/url-to-options');
 
 const cache = new QuickLRU({maxSize: 100});
+const queue = new Map();
+
+const installSocket = (agent, socket, options) => {
+	socket._httpMessage = {shouldKeepAlive: true};
+
+	const onFree = () => {
+		agent.emit('free', socket, options);
+	};
+
+	socket.on('free', onFree);
+
+	const onClose = () => {
+		agent.removeSocket(socket, options);
+	};
+
+	socket.on('close', onClose);
+
+	const onRemove = () => {
+		agent.removeSocket(socket, options);
+		socket.off('close', onClose);
+		socket.off('free', onFree);
+		socket.off('agentRemove', onRemove);
+	};
+
+	socket.on('agentRemove', onRemove);
+
+	agent.emit('free', socket, options);
+};
 
 const resolveProtocol = async options => {
 	const name = `${options.host}:${options.port}:${options.ALPNProtocols.sort()}`;
 
 	if (!cache.has(name)) {
-		const result = (await resolveALPN(options)).alpnProtocol;
-		cache.set(name, result);
+		if (queue.has(name)) {
+			const result = await queue.get(name);
+			return result.alpnProtocol;
+		}
 
-		return result;
+		const {path} = options;
+		options.path = options.socketPath;
+
+		const resultPromise = resolveALPN(options);
+		queue.set(name, resultPromise);
+
+		try {
+			const {socket, alpnProtocol} = await resultPromise;
+			cache.set(name, alpnProtocol);
+
+			options.path = path;
+
+			if (alpnProtocol === 'h2') {
+				// TODO: Reuse socket
+				socket.end();
+			} else {
+				const agent = options.agent || https.globalAgent;
+
+				if (options.createConnection) {
+					socket.end();
+				} else if (agent.keepAlive) {
+					installSocket(agent, socket, options);
+				} else {
+					options.createConnection = () => socket;
+				}
+			}
+
+			queue.delete(name);
+
+			return alpnProtocol;
+		} catch (error) {
+			queue.delete(name);
+
+			throw error;
+		}
 	}
 
 	return cache.get(name);
@@ -29,6 +93,7 @@ module.exports = async (input, options, callback) => {
 
 	if (typeof options === 'function') {
 		callback = options;
+		options = undefined;
 	}
 
 	options = {
@@ -36,47 +101,37 @@ module.exports = async (input, options, callback) => {
 		protocol: 'https:',
 		...input,
 		...options,
-		resolveSocket: false
+		resolveSocket: true
 	};
+
+	const isHttps = options.protocol === 'https:';
+	const agents = options.agent;
 
 	options.host = options.hostname || options.host || 'localhost';
 	options.session = options.tlsSession;
 	options.servername = options.servername || calculateServerName(options);
+	options.port = options.port || (isHttps ? 443 : 80);
+	options._defaultAgent = isHttps ? https.globalAgent : http.globalAgent;
 
-	if (options.protocol === 'https:') {
-		options.port = options.port || 443;
+	if (agents) {
+		if (agents.addRequest) {
+			throw new Error('The `options.agent` object can contain only `http`, `https` or `http2` properties');
+		}
 
-		const {path} = options;
-		options.path = options.socketPath;
+		options.agent = agents[isHttps ? 'https' : 'http'];
+	}
 
+	if (isHttps) {
 		const protocol = await resolveProtocol(options);
 
-		options.path = path;
-
 		if (protocol === 'h2') {
-			if (options.agent && options.agent.http2) {
-				options.agent = options.agent.http2;
+			if (agents) {
+				options.agent = agents.http2;
 			}
 
 			return new Http2ClientRequest(options, callback);
 		}
-
-		if (options.agent && options.agent.https) {
-			options.agent = options.agent.https;
-		}
-
-		options._defaultAgent = https.globalAgent;
-
-		return http.request(options, callback);
 	}
-
-	options.port = options.port || 80;
-
-	if (options.agent && options.agent.http) {
-		options.agent = options.agent.http;
-	}
-
-	options._defaultAgent = http.globalAgent;
 
 	return http.request(options, callback);
 };

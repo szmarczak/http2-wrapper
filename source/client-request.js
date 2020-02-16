@@ -29,7 +29,7 @@ const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
 
 const isValidHttpToken = /^[\^_`a-zA-Z\-0-9!#$%&'*+.|~]+$/;
-const isInvalidHeaderValue = /[^\t\u0020-\u007e\u0080-\u00ff]/;
+const isInvalidHeaderValue = /[^\t\u0020-\u007E\u0080-\u00FF]/;
 
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
@@ -127,24 +127,24 @@ class ClientRequest extends Writable {
 		this[kFlushedHeaders] = false;
 	}
 
+	get method() {
+		return this[kHeaders][HTTP2_HEADER_METHOD];
+	}
+
 	set method(value) {
 		if (value) {
 			this[kHeaders][HTTP2_HEADER_METHOD] = value.toUpperCase();
 		}
 	}
 
-	get method() {
-		return this[kHeaders][HTTP2_HEADER_METHOD];
+	get path() {
+		return this[kHeaders][HTTP2_HEADER_PATH];
 	}
 
 	set path(value) {
 		if (value) {
 			this[kHeaders][HTTP2_HEADER_PATH] = value;
 		}
-	}
-
-	get path() {
-		return this[kHeaders][HTTP2_HEADER_PATH];
 	}
 
 	_write(chunk, encoding, callback) {
@@ -197,7 +197,7 @@ class ClientRequest extends Writable {
 		}
 	}
 
-	flushHeaders() {
+	async flushHeaders() {
 		if (this[kFlushedHeaders] || this.destroyed || this.aborted) {
 			return;
 		}
@@ -290,10 +290,11 @@ class ClientRequest extends Writable {
 		} else {
 			this.reusedSocket = true;
 
-			// eslint-disable-next-line promise/prefer-await-to-then
-			this.agent.request(this[kAuthority], this[kOptions], this[kHeaders]).then(onStream, error => {
+			try {
+				onStream(await this.agent.request(this[kAuthority], this[kOptions], this[kHeaders]));
+			} catch (error) {
 				this.emit('error', error);
-			});
+			}
 		}
 	}
 

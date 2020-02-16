@@ -174,7 +174,7 @@ class Agent extends EventEmitter {
 		return `https://${host}:${port}`;
 	}
 
-	static normalizeOptions(options) {
+	normalizeOptions(options) {
 		let normalized = '';
 
 		if (options) {
@@ -222,7 +222,7 @@ class Agent extends EventEmitter {
 				listeners = [{resolve, reject}];
 			}
 
-			const normalizedOptions = Agent.normalizeOptions(options);
+			const normalizedOptions = this.normalizeOptions(options);
 			const normalizedAuthority = Agent.normalizeAuthority(authority, options && options.servername);
 
 			if (Reflect.has(this.freeSessions, normalizedOptions)) {

@@ -1,10 +1,11 @@
-import {serial as test} from 'ava';
-import pEvent from 'p-event';
-import getStream from 'get-stream';
-import is from '@sindresorhus/is';
-import {request as makeRequest, globalAgent} from '../source';
-import IncomingMessage from '../source/incoming-message';
-import {createWrapper} from './helpers/server';
+// eslint-disable-next-line ava/use-test
+const {serial: test} = require('ava');
+const pEvent = require('p-event');
+const getStream = require('get-stream');
+const is = require('@sindresorhus/is');
+const {request: makeRequest, globalAgent} = require('../source');
+const IncomingMessage = require('../source/incoming-message');
+const {createWrapper} = require('./helpers/server');
 
 test.serial = test;
 
