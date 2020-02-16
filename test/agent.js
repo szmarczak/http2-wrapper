@@ -447,40 +447,31 @@ test('prevents overloading sessions #2', singleRequestWrapper, async (t, server)
 	await secondServer.close();
 });
 
-{
-	// Node 10 has a bug - HTTP2 SETTINGS are not updated.
-	let testFn = test;
+test('prevents session overloading #3', singleRequestWrapper, async (t, server) => {
+	t.timeout(1000);
 
-	if (process.versions.node.split('.')[0] === '10') {
-		testFn = test.failing;
-	}
-
-	testFn('prevents session overloading #3', singleRequestWrapper, async (t, server) => {
-		t.timeout(1000);
-
-		const agent = new Agent({
-			maxSessions: 1
-		});
-
-		const serverSessionAPromise = pEvent(server, 'session');
-		const sessionA = await agent.getSession(server.url);
-		const serverSessionA = await serverSessionAPromise;
-
-		sessionA.request();
-
-		const sessionBPromise = agent.getSession(server.url);
-
-		serverSessionA.settings({
-			maxConcurrentStreams: 2
-		});
-
-		const sessionB = await sessionBPromise;
-
-		t.is(sessionA, sessionB);
-
-		agent.destroy();
+	const agent = new Agent({
+		maxSessions: 1
 	});
-}
+
+	const serverSessionAPromise = pEvent(server, 'session');
+	const sessionA = await agent.getSession(server.url);
+	const serverSessionA = await serverSessionAPromise;
+
+	sessionA.request();
+
+	const sessionBPromise = agent.getSession(server.url);
+
+	serverSessionA.settings({
+		maxConcurrentStreams: 2
+	});
+
+	const sessionB = await sessionBPromise;
+
+	t.is(sessionA, sessionB);
+
+	agent.destroy();
+});
 
 test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
