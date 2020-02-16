@@ -7,7 +7,7 @@
 [![install size](https://packagephobia.now.sh/badge?p=http2-wrapper)](https://packagephobia.now.sh/result?p=http2-wrapper)
 
 This package was created to support HTTP2 without the need to rewrite your code.<br>
-I recommend adapting to the [`http2`](https://nodejs.org/api/http2.html) module if possible - it's much simpler to use and has many cool features!
+I recommend adapting to the [`http2`](https://nodejs.org/api/http2.html) module if possible - it's much simpler to use and has many cool features! Well, it doesn't have agents yet...
 
 **Tip**: `http2-wrapper` is very useful when you rely on other modules that use the HTTP1 API and you want to support HTTP2.
 
@@ -84,14 +84,14 @@ request.end('456');
 
 ## API
 
-**Note:** the `session` option was renamed to `tlsSession` for better readability.
+**Note:** The `session` option was renamed to `tlsSession` for better readability.
 
 ### http2.auto(url, options, callback)
 
 Performs [ALPN](https://nodejs.org/api/tls.html#tls_alpn_and_sni) negotiation.
 Returns a Promise giving proper `ClientRequest` instance (depending on the ALPN).
 
-**Tip**: the `agent` option also accepts an object with `http`, `https` and `http2` properties.
+**Note**: The `agent` option represents an object with `http`, `https` and `http2` properties.
 
 ```js
 const http2 = require('http2-wrapper');
@@ -262,7 +262,7 @@ Default: `{enablePush: false}`
 
 #### agent.normalizeOptions([options](https://github.com/szmarczak/http2-wrapper/blob/master/source/agent.js))
 
-Returns a string containing normalized options.
+Returns a string representing normalized options.
 
 ```js
 Agent.normalizeOptions({servername: 'example.com'});
@@ -310,7 +310,7 @@ Returns a new `TLSSocket`. It defaults to `Agent.connect(authority, options)`.
 
 #### agent.closeFreeSessions()
 
-Makes an attempt to close free sessions. Only sessions with 0 concurrent streams are closed.
+Makes an attempt to close free sessions. Only sessions with 0 concurrent streams will be closed.
 
 #### agent.destroy(reason)
 
