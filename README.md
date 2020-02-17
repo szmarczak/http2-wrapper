@@ -199,7 +199,7 @@ const http2 = require('http2-wrapper');
 
 class MyAgent extends http2.Agent {
 	createConnection(origin, options) {
-		console.log(`Connecting to ${origin}`);
+		console.log(`Connecting to ${http2.Agent.normalizeOrigin(origin)}`);
 		return http2.Agent.connect(origin, options);
 	}
 }

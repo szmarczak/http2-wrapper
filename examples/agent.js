@@ -2,9 +2,9 @@
 const http2 = require('../source'); // Note: using the local version
 
 class MyAgent extends http2.Agent {
-	createConnection(authority, options) {
-		console.log(`Connecting to ${authority}`);
-		return http2.Agent.connect(authority, options);
+	createConnection(origin, options) {
+		console.log(`Connecting to ${http2.Agent.normalizeOrigin(origin)}`);
+		return http2.Agent.connect(origin, options);
 	}
 }
 

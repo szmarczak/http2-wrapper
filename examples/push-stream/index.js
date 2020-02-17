@@ -44,17 +44,17 @@ class PushAgent extends http2.Agent {
 		});
 	}
 
-	request(authority, options, headers) {
+	request(origin, options, headers) {
 		return new Promise((resolve, reject) => {
 			// The code after `await agent.getSession()` isn't executed immediately after calling `resolve()`,
 			// so we need to use semi-callback style to support the `maxFreeSessions` option mechanism.
 
 			// For further information please see the source code of the `processListeners` function (`source/agent.js` file).
 
-			this.getSession(authority, options, [{
+			this.getSession(origin, options, [{
 				reject,
 				resolve: session => {
-					const normalizedAuthority = http2.Agent.normalizeAuthority(authority, options.servername);
+					const normalizedAuthority = http2.Agent.normalizeOrigin(origin).slice(8);
 
 					const parsedPushHeaders = PushAgent._parsePushHeaders(normalizedAuthority, headers);
 					const cache = session.pushCache.get(parsedPushHeaders);
