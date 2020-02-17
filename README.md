@@ -334,37 +334,36 @@ Node: v13.8.0
 `auto` means `http2wrapper.auto`.
 
 ```
-http2-wrapper                         x 11,961 ops/sec ±1.31% (82 runs sampled)
-http2-wrapper - preconfigured session x 13,507 ops/sec ±1.98% (85 runs sampled)
-http2-wrapper - auto                  x 10,798 ops/sec ±1.73% (86 runs sampled)
-http2                                 x 17,272 ops/sec ±1.22% (85 runs sampled)
-http2         - 2xPassThrough         x 14,262 ops/sec ±1.07% (83 runs sampled)
-https         - auto - keepalive      x 13,066 ops/sec ±3.14% (80 runs sampled)
-https                - keepalive      x 13,639 ops/sec ±0.82% (86 runs sampled)
-https                                 x 1,632  ops/sec ±0.97% (83 runs sampled)
-http                                  x 6,095  ops/sec ±2.09% (80 runs sampled)
+http2-wrapper                         x 12,417 ops/sec ±3.72% (83 runs sampled)
+http2-wrapper - preconfigured session x 14,517 ops/sec ±1.39% (83 runs sampled)
+http2-wrapper - auto                  x 11,373 ops/sec ±3.17% (84 runs sampled)
+http2                                 x 16,172 ops/sec ±1.21% (85 runs sampled)
+https         - auto - keepalive      x 13,251 ops/sec ±3.84% (79 runs sampled)
+https                - keepalive      x 13,158 ops/sec ±2.88% (78 runs sampled)
+https                                 x 1,618 ops/sec  ±2.07%  (82 runs sampled)
+http                                  x 5,922 ops/sec  ±2.87%  (79 runs sampled)
 Fastest is http2
 ```
 
 `http2-wrapper`:
-- 31% less performant than `http2` (16% compared to `http2 - 2xPassThrough`)
-- 12% less performant than `https - keepalive`
-- 96% more performant than `http`
+- 23% less performant than `http2`
+- 6% less performant than `https - keepalive`
+- 110% more performant than `http`
 
 `http2-wrapper - preconfigured session`:
-- 22% less performant than `http2` (5% compared to `http2 - 2xPassThrough`)
-- as performant as `https - keepalive`
-- 122% more performant than `http`
+- 10% less performant than `http2`
+- 10% more performant than `https - keepalive`
+- 145% more performant than `http`
 
 `http2-wrapper - auto`:
-- 37% less performant than `http2` (24% compared to `http2 - 2xPassThrough`)
-- 21% less performant than `https - keepalive`
-- 77% more performant than `http`
+- 30% less performant than `http2`
+- 14% less performant than `https - keepalive`
+- 92% more performant than `http`
 
 `https - auto - keepalive`:
-- 24% less performant than `http2` (8% compared to `http2 - 2xPassThrough`)
-- 4% less performant than `https - keepalive`
-- 114% more performant than `http`
+- 18% less performant than `http2`
+- as performant as `https - keepalive`
+- 124% more performant than `http`
 
 ## Related
 

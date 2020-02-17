@@ -28,39 +28,21 @@ const tripleRequestWrapper = createWrapper({
 
 const message = 'Simple error';
 
-test('passing string as `authority`', wrapper, async (t, server) => {
+test('getSession() - passing string as `origin`', wrapper, async (t, server) => {
 	const agent = new Agent();
 	await t.notThrowsAsync(agent.getSession(server.url));
 
 	agent.destroy();
 });
 
-test('passing options as `authority`', wrapper, async (t, server) => {
+test('getSession() - passing URL as `origin`', wrapper, async (t, server) => {
 	const agent = new Agent();
 
-	await t.notThrowsAsync(agent.getSession({
-		hostname: server.options.hostname,
-		port: server.options.port
-	}));
+	await t.notThrowsAsync(agent.getSession(new URL(server.url)));
 
-	await t.notThrowsAsync(agent.getSession({
-		host: server.options.hostname,
-		port: server.options.port
-	}));
-
-	await t.notThrowsAsync(agent.getSession({
-		host: server.options.hostname,
-		servername: server.options.hostname,
-		port: server.options.port
-	}));
-
-	await t.notThrowsAsync(agent.getSession({
-		port: server.options.port
-	}));
-
-	const error = await t.throwsAsync(agent.getSession({}));
-	t.is(error.port, 443);
-	t.is(error.address, '127.0.0.1');
+	await t.throwsAsync(agent.getSession({}), {
+		message: 'The `origin` argument needs to be a string or an URL object'
+	});
 
 	agent.destroy();
 });
@@ -503,7 +485,7 @@ if (supportsTlsSessions) {
 		await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`).session));
+		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session));
 
 		agent.destroy();
 	});
@@ -513,7 +495,7 @@ if (supportsTlsSessions) {
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		const tlsSession = agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`).session;
+		const tlsSession = agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session;
 
 		session.close();
 		await pEvent(session, 'close');
@@ -533,12 +515,12 @@ if (supportsTlsSessions) {
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`).session));
+		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session));
 
 		session.destroy(new Error(message));
 		await pEvent(session, 'close', {rejectionEvents: []});
 
-		t.true(is.undefined(agent.tlsSessionCache.get(`${Agent.normalizeAuthority(server.url)}:`)));
+		t.true(is.undefined(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`)));
 
 		agent.destroy();
 	});
@@ -1015,4 +997,12 @@ test('`session` event', wrapper, async (t, server) => {
 	t.true(called);
 
 	agent.destroy();
+});
+
+test('errors on failure', async t => {
+	const agent = new Agent();
+	const error = await t.throwsAsync(agent.getSession(new URL('https://localhost')));
+
+	t.is(error.port, 443);
+	t.is(error.address, '127.0.0.1');
 });

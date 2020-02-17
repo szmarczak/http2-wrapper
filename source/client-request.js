@@ -213,67 +213,77 @@ class ClientRequest extends Writable {
 			this._request = stream;
 
 			if (this.destroyed || this.aborted) {
-				this._request.close(NGHTTP2_CANCEL);
+				stream.close(NGHTTP2_CANCEL);
 				return;
 			}
 
 			// Forwards `timeout`, `continue`, `close` and `error` events to this instance.
 			if (!isConnectMethod) {
-				proxyEvents(this._request, this, ['timeout', 'continue', 'close', 'error']);
+				proxyEvents(stream, this, ['timeout', 'continue', 'close', 'error']);
 			}
 
 			// This event tells we are ready to listen for the data.
-			this._request.once('response', (headers, flags, rawHeaders) => {
+			stream.once('response', (headers, flags, rawHeaders) => {
 				// If we were to emit raw request stream, it would be as fast as the native approach.
 				// Note that wrapping the raw stream in a Proxy instance won't improve the performance (already tested it).
-				this.res = new IncomingMessage(this.socket, this._request.readableHighWaterMark);
-				this.res.req = this;
-				this.res.statusCode = headers[HTTP2_HEADER_STATUS];
-				this.res.headers = headers;
-				this.res.rawHeaders = rawHeaders;
+				const response = new IncomingMessage(this.socket, stream.readableHighWaterMark);
+				this.res = response;
 
-				this.res.once('end', () => {
+				response.req = this;
+				response.statusCode = headers[HTTP2_HEADER_STATUS];
+				response.headers = headers;
+				response.rawHeaders = rawHeaders;
+
+				response.once('end', () => {
 					if (this.aborted) {
-						this.res.aborted = true;
-						this.res.emit('aborted');
+						response.aborted = true;
+						response.emit('aborted');
 					} else {
-						this.res.complete = true;
+						response.complete = true;
 					}
 				});
 
 				if (isConnectMethod) {
-					this.res.upgrade = true;
+					response.upgrade = true;
 
 					// The HTTP1 API says the socket is detached here,
 					// but we can't do that so we pass the original HTTP2 request.
-					if (this.emit('connect', this.res, this._request, Buffer.alloc(0))) {
+					if (this.emit('connect', response, stream, Buffer.alloc(0))) {
 						this.emit('close');
 					} else {
 						// No listeners attached, destroy the original request.
-						this._request.destroy();
+						stream.destroy();
 					}
 				} else {
 					// Forwards data
-					this._request.pipe(this.res);
+					stream.on('data', chunk => {
+						if (!response.push(chunk)) {
+							this.pause();
+						}
+					});
 
-					if (!this.emit('response', this.res)) {
+					stream.once('end', () => {
+						response.push(null);
+					});
+
+					if (!this.emit('response', response)) {
 						// No listeners attached, dump the response.
-						this.res._dump();
+						response._dump();
 					}
 				}
 			});
 
 			// Emits `information` event
-			this._request.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
+			stream.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
 
-			this._request.once('trailers', (trailers, flags, rawTrailers) => {
+			stream.once('trailers', (trailers, flags, rawTrailers) => {
 				// Assigns trailers to the response object.
 				this.res.trailers = trailers;
 				this.res.rawTrailers = rawTrailers;
 			});
 
-			this.socket = this._request.session.socket;
-			this.connection = this._request.session.socket;
+			this.socket = stream.session.socket;
+			this.connection = stream.session.socket;
 
 			process.nextTick(() => {
 				this.emit('socket', this.socket);

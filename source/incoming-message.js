@@ -1,7 +1,7 @@
 'use strict';
-const {PassThrough} = require('stream');
+const {Readable} = require('stream');
 
-class IncomingMessage extends PassThrough {
+class IncomingMessage extends Readable {
 	constructor(socket, highWaterMark) {
 		super({highWaterMark});
 
@@ -42,6 +42,12 @@ class IncomingMessage extends PassThrough {
 
 			this.removeAllListeners('data');
 			this.resume();
+		}
+	}
+
+	_read() {
+		if (this.req) {
+			this.req._request.resume();
 		}
 	}
 }

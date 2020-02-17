@@ -159,12 +159,12 @@ class Agent extends EventEmitter {
 		this.tlsSessionCache = new QuickLRU({maxSize: maxCachedTlsSessions});
 	}
 
-	static normalizeOrigin(url) {
+	static normalizeOrigin(url, servername) {
 		if (typeof url === 'string') {
 			url = new URL(url);
 		}
 
-		return url.origin;
+		return servername ? `https://${servername}:${url.port || 443}` : url.origin;
 	}
 
 	normalizeOptions(options) {
@@ -216,7 +216,12 @@ class Agent extends EventEmitter {
 			}
 
 			const normalizedOptions = this.normalizeOptions(options);
-			const normalizedOrigin = Agent.normalizeOrigin(origin);
+			const normalizedOrigin = Agent.normalizeOrigin(origin, options && options.servername);
+
+			if (normalizedOrigin === undefined) {
+				reject(new TypeError('The `origin` argument needs to be a string or an URL object'));
+				return;
+			}
 
 			if (Reflect.has(this.freeSessions, normalizedOptions)) {
 				// Look for all available free sessions.

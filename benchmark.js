@@ -1,5 +1,4 @@
 'use strict';
-const {PassThrough} = require('stream');
 const http2 = require('http2');
 const https = require('https');
 const http = require('http');
@@ -77,28 +76,6 @@ suite.add('http2-wrapper', {
 		stream.once('end', () => {
 			deferred.resolve();
 		});
-	}
-}).add('http2 - 2xPassThrough', {
-	defer: true,
-	fn: deferred => {
-		const inputProxy = new PassThrough();
-		const outputProxy = new PassThrough();
-
-		const stream = session.request({
-			endStream: false
-		});
-		inputProxy.pipe(stream);
-		stream.pipe(outputProxy);
-
-		inputProxy.end();
-
-		outputProxy.resume();
-		outputProxy.once('end', () => {
-			deferred.resolve();
-		});
-	},
-	onComplete: () => {
-		session.close();
 	}
 }).add('https - auto - keepalive', {
 	defer: true,
