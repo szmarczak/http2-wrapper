@@ -541,9 +541,9 @@ class Agent extends EventEmitter {
 		});
 	}
 
-	request(authority, options, headers) {
+	request(origin, options, headers) {
 		return new Promise((resolve, reject) => {
-			this.getSession(authority, options, [{
+			this.getSession(origin, options, [{
 				reject,
 				resolve: session => {
 					resolve(session.request(headers));
