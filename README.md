@@ -198,9 +198,9 @@ Usage example:
 const http2 = require('http2-wrapper');
 
 class MyAgent extends http2.Agent {
-	createConnection(authority, options) {
-		console.log(`Connecting to ${authority}`);
-		return http2.Agent.connect(authority, options);
+	createConnection(origin, options) {
+		console.log(`Connecting to ${origin}`);
+		return http2.Agent.connect(origin, options);
 	}
 }
 
@@ -244,14 +244,9 @@ Default: `100`
 
 The maximum amount of cached TLS sessions.
 
-#### Agent.normalizeAuthority([authority](#authority), servername)
+#### Agent.normalizeOrigin(url)
 
-Normalizes the authority URL.
-
-```js
-Agent.normalizeAuthority('https://example.com:443');
-// => 'https://example.com'
-```
+Returns a string representing the origin of the URL.
 
 #### agent.settings
 
@@ -269,23 +264,23 @@ Agent.normalizeOptions({servername: 'example.com'});
 // => ':example.com'
 ```
 
-#### agent.getSession(authority, options)
+#### agent.getSession(origin, options)
 
-##### [authority](https://nodejs.org/api/http2.html#http2_http2_connect_authority_options_listener)
+##### [origin](https://nodejs.org/api/http2.html#http2_http2_connect_authority_options_listener)
 
 Type: `string` `URL` `object`
 
-Authority used to create a new session.
+An origin used to create new session.
 
 ##### [options](https://nodejs.org/api/http2.html#http2_http2_connect_authority_options_listener)
 
 Type: `object`
 
-Options used to create a new session.
+The options used to create new session.
 
 Returns a Promise giving free `Http2Session`. If no free sessions are found, a new one is created.
 
-#### agent.getSession([authority](#authority), [options](options-1), listener)
+#### agent.getSession([origin](#origin), [options](options-1), listener)
 
 ##### listener
 
@@ -300,13 +295,13 @@ Type: `object`
 
 If the `listener` argument is present, the Promise will resolve immediately. It will use the `resolve` function to pass the session.
 
-#### agent.request([authority](#authority), [options](#options-1), [headers](https://nodejs.org/api/http2.html#http2_headers_object))
+#### agent.request([origin](#origin), [options](#options-1), [headers](https://nodejs.org/api/http2.html#http2_headers_object))
 
 Returns a Promise giving `Http2Stream`.
 
-#### agent.createConnection([authority](#authority), [options](#options-1))
+#### agent.createConnection([origin](#origin), [options](#options-1))
 
-Returns a new `TLSSocket`. It defaults to `Agent.connect(authority, options)`.
+Returns a new `TLSSocket`. It defaults to `Agent.connect(origin, options)`.
 
 #### agent.closeFreeSessions()
 
@@ -332,43 +327,44 @@ agent.on('session', session => {
 
 ## Benchmarks
 
-CPU: Intel i7-7700k<br>
+CPU: Intel i7-7700k (governor: performance)<br>
 Server: H2O v2.2.5 [`h2o.conf`](h2o.conf)<br>
 Node: v13.8.0
 
 `auto` means `http2wrapper.auto`.
 
 ```
-http2-wrapper                         x 10,598 ops/sec ±4.04% (84 runs sampled)
-http2-wrapper - preconfigured session x 13,640 ops/sec ±1.71% (86 runs sampled)
-http2-wrapper - auto                  x 9,629  ops/sec ±1.58% (84 runs sampled)
-http2                                 x 16,540 ops/sec ±1.05% (82 runs sampled)
-http2         - 2xPassThrough         x 13,534 ops/sec ±0.99% (86 runs sampled)
-https         - auto - keepalive      x 13,108 ops/sec ±2.67% (78 runs sampled)
-https                - keepalive      x 13,113 ops/sec ±3.32% (80 runs sampled)
-https                                 x 1,541  ops/sec ±2.72% (79 runs sampled)
-http                                  x 5,957  ops/sec ±2.34% (72 runs sampled)
+http2-wrapper                         x 11,961 ops/sec ±1.31% (82 runs sampled)
+http2-wrapper - preconfigured session x 13,507 ops/sec ±1.98% (85 runs sampled)
+http2-wrapper - auto                  x 10,798 ops/sec ±1.73% (86 runs sampled)
+http2                                 x 17,272 ops/sec ±1.22% (85 runs sampled)
+http2         - 2xPassThrough         x 14,262 ops/sec ±1.07% (83 runs sampled)
+https         - auto - keepalive      x 13,066 ops/sec ±3.14% (80 runs sampled)
+https                - keepalive      x 13,639 ops/sec ±0.82% (86 runs sampled)
+https                                 x 1,632  ops/sec ±0.97% (83 runs sampled)
+http                                  x 6,095  ops/sec ±2.09% (80 runs sampled)
 Fastest is http2
 ```
 
 `http2-wrapper`:
-- 36% slower than `http2` (22% compared to `http2 - 2xPassThrough`)
-- 19% slower than `https - keepalive`
-- 78% faster than `http`
+- 31% less performant than `http2` (16% compared to `http2 - 2xPassThrough`)
+- 12% less performant than `https - keepalive`
+- 96% more performant than `http`
 
 `http2-wrapper - preconfigured session`:
-- 18% slower than `http2` (as performant as `http2 - 2xPassThrough`)
+- 22% less performant than `http2` (5% compared to `http2 - 2xPassThrough`)
 - as performant as `https - keepalive`
-- 129% faster than `http`
+- 122% more performant than `http`
 
 `http2-wrapper - auto`:
-- 27% slower than `https - keepalive`
-- 62% faster than `http`
+- 37% less performant than `http2` (24% compared to `http2 - 2xPassThrough`)
+- 21% less performant than `https - keepalive`
+- 77% more performant than `http`
 
 `https - auto - keepalive`:
-- 21% slower than `http2` (as performant as `http2 - 2xPassThrough`)
-- as performant as `https - keepalive`
-- 120% faster than `http`
+- 24% less performant than `http2` (8% compared to `http2 - 2xPassThrough`)
+- 4% less performant than `https - keepalive`
+- 114% more performant than `http`
 
 ## Related
 

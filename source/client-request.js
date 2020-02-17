@@ -23,7 +23,7 @@ const {
 } = http2.constants;
 
 const kHeaders = Symbol('headers');
-const kAuthority = Symbol('authority');
+const kOrigin = Symbol('origin');
 const kSession = Symbol('session');
 const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
@@ -106,14 +106,16 @@ class ClientRequest extends Writable {
 		options.path = options.socketPath;
 
 		this[kOptions] = options;
-		this[kAuthority] = Agent.normalizeAuthority(options, options.servername);
 
 		if (!Reflect.has(this[kHeaders], ':authority')) {
-			this[kHeaders][':authority'] = this[kAuthority].slice(8);
+			this[kHeaders][':authority'] = `${options.servername || options.host}:${options.port}`;
 		}
 
+		options.origin = `https://${options.host}:${options.port}`;
+		this[kOrigin] = options;
+
 		if (this.agent && options.preconnect !== false) {
-			this.agent.getSession(this[kAuthority], options).catch(() => {});
+			this.agent.getSession(this[kOrigin], options).catch(() => {});
 		}
 
 		if (timeout) {
@@ -291,7 +293,7 @@ class ClientRequest extends Writable {
 			this.reusedSocket = true;
 
 			try {
-				onStream(await this.agent.request(this[kAuthority], this[kOptions], this[kHeaders]));
+				onStream(await this.agent.request(this[kOrigin], this[kOptions], this[kHeaders]));
 			} catch (error) {
 				this.emit('error', error);
 			}

@@ -655,7 +655,7 @@ test('sets proper `:authority` header', wrapper, async (t, server) => {
 	const response = await pEvent(request, 'response');
 	const body = await getStream(response);
 
-	t.is(body, 'example.com');
+	t.is(body, 'example.com:443');
 
 	agent.destroy();
 });

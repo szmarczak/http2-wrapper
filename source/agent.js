@@ -68,10 +68,10 @@ const addSession = (where, name, session) => {
 	}
 };
 
-const getSessions = (where, name, normalizedAuthority) => {
+const getSessions = (where, name, normalizedOrigin) => {
 	if (Reflect.has(where, name)) {
 		return where[name].filter(session => {
-			return !session.closed && !session.destroyed && session.originSet.includes(normalizedAuthority);
+			return !session.closed && !session.destroyed && session.originSet.includes(normalizedOrigin);
 		});
 	}
 
@@ -131,7 +131,7 @@ class Agent extends EventEmitter {
 		this.freeSessions = {};
 
 		// The queue for creating new sessions. It looks like this:
-		// QUEUE[NORMALIZED_OPTIONS][NORMALIZED_AUTHORITY] = ENTRY_FUNCTION
+		// QUEUE[NORMALIZED_OPTIONS][NORMALIZED_ORIGIN] = ENTRY_FUNCTION
 		//
 		// The entry function has `listeners`, `completed` and `destroyed` properties.
 		// `listeners` is an array of objects containing `resolve` and `reject` functions.
@@ -159,19 +159,12 @@ class Agent extends EventEmitter {
 		this.tlsSessionCache = new QuickLRU({maxSize: maxCachedTlsSessions});
 	}
 
-	static normalizeAuthority(authority, servername) {
-		if (typeof authority === 'string') {
-			authority = new URL(authority);
+	static normalizeOrigin(url) {
+		if (typeof url === 'string') {
+			url = new URL(url);
 		}
 
-		const host = servername || authority.hostname || authority.host || 'localhost';
-		const port = authority.port || 443;
-
-		if (port === 443) {
-			return `https://${host}`;
-		}
-
-		return `https://${host}:${port}`;
+		return url.origin;
 	}
 
 	normalizeOptions(options) {
@@ -188,14 +181,14 @@ class Agent extends EventEmitter {
 		return normalized;
 	}
 
-	_tryToCreateNewSession(normalizedOptions, normalizedAuthority) {
-		if (!Reflect.has(this.queue, normalizedOptions) || !Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+	_tryToCreateNewSession(normalizedOptions, normalizedOrigin) {
+		if (!Reflect.has(this.queue, normalizedOptions) || !Reflect.has(this.queue[normalizedOptions], normalizedOrigin)) {
 			return;
 		}
 
 		// We need the busy sessions length to check if a session can be created.
-		const busyLength = getSessions(this.busySessions, normalizedOptions, normalizedAuthority).length;
-		const item = this.queue[normalizedOptions][normalizedAuthority];
+		const busyLength = getSessions(this.busySessions, normalizedOptions, normalizedOrigin).length;
+		const item = this.queue[normalizedOptions][normalizedOrigin];
 
 		// The entry function can be run only once.
 		if (busyLength < this.maxSessions && !item.completed) {
@@ -210,7 +203,7 @@ class Agent extends EventEmitter {
 		closeCoveredSessions(this.busySessions, normalizedOptions, session);
 	}
 
-	getSession(authority, options, listeners) {
+	getSession(origin, options, listeners) {
 		return new Promise((resolve, reject) => {
 			if (Array.isArray(listeners)) {
 				listeners = [...listeners];
@@ -223,11 +216,11 @@ class Agent extends EventEmitter {
 			}
 
 			const normalizedOptions = this.normalizeOptions(options);
-			const normalizedAuthority = Agent.normalizeAuthority(authority, options && options.servername);
+			const normalizedOrigin = Agent.normalizeOrigin(origin);
 
 			if (Reflect.has(this.freeSessions, normalizedOptions)) {
 				// Look for all available free sessions.
-				const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedAuthority);
+				const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedOrigin);
 
 				if (freeSessions.length !== 0) {
 					// Use session which has the biggest stream capacity in order to use the smallest number of sessions possible.
@@ -251,9 +244,9 @@ class Agent extends EventEmitter {
 			}
 
 			if (Reflect.has(this.queue, normalizedOptions)) {
-				if (Reflect.has(this.queue[normalizedOptions], normalizedAuthority)) {
+				if (Reflect.has(this.queue[normalizedOptions], normalizedOrigin)) {
 					// There's already an item in the queue, just attach ourselves to it.
-					this.queue[normalizedOptions][normalizedAuthority].listeners.push(...listeners);
+					this.queue[normalizedOptions][normalizedOrigin].listeners.push(...listeners);
 
 					return;
 				}
@@ -266,8 +259,8 @@ class Agent extends EventEmitter {
 			// 2. an error occurs.
 			const removeFromQueue = () => {
 				// Our entry can be replaced. We cannot remove the new one.
-				if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedAuthority] === entry) {
-					delete this.queue[normalizedOptions][normalizedAuthority];
+				if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedOrigin] === entry) {
+					delete this.queue[normalizedOptions][normalizedOrigin];
 
 					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
 						delete this.queue[normalizedOptions];
@@ -277,14 +270,14 @@ class Agent extends EventEmitter {
 
 			// The main logic is here
 			const entry = () => {
-				const name = `${normalizedAuthority}:${normalizedOptions}`;
+				const name = `${normalizedOrigin}:${normalizedOptions}`;
 				let receivedSettings = false;
 				let servername;
 
 				try {
 					const tlsSessionCache = this.tlsSessionCache.get(name);
 
-					const session = http2.connect(authority, {
+					const session = http2.connect(origin, {
 						createConnection: this.createConnection,
 						settings: this.settings,
 						session: tlsSessionCache ? tlsSessionCache.session : undefined,
@@ -365,7 +358,7 @@ class Agent extends EventEmitter {
 						removeSession(this.freeSessions, normalizedOptions, session);
 
 						// There may be another session awaiting.
-						this._tryToCreateNewSession(normalizedOptions, normalizedAuthority);
+						this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
 					});
 
 					// Iterates over the queue and processes listeners.
@@ -455,7 +448,7 @@ class Agent extends EventEmitter {
 						// Check if we haven't managed to execute all listeners.
 						if (listeners.length !== 0) {
 							// Request for a new session with predefined listeners.
-							this.getSession(normalizedAuthority, options, listeners);
+							this.getSession(normalizedOrigin, options, listeners);
 							listeners.length = 0;
 						}
 
@@ -534,8 +527,8 @@ class Agent extends EventEmitter {
 			entry.completed = false;
 			entry.destroyed = false;
 
-			this.queue[normalizedOptions][normalizedAuthority] = entry;
-			this._tryToCreateNewSession(normalizedOptions, normalizedAuthority);
+			this.queue[normalizedOptions][normalizedOrigin] = entry;
+			this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
 		});
 	}
 
@@ -550,15 +543,15 @@ class Agent extends EventEmitter {
 		});
 	}
 
-	createConnection(authority, options) {
-		return Agent.connect(authority, options);
+	createConnection(origin, options) {
+		return Agent.connect(origin, options);
 	}
 
-	static connect(authority, options) {
+	static connect(origin, options) {
 		options.ALPNProtocols = ['h2'];
 
-		const port = authority.port || 443;
-		const host = authority.hostname || authority.host;
+		const port = origin.port || 443;
+		const host = origin.hostname || origin.host;
 
 		if (typeof options.servername === 'undefined') {
 			options.servername = host;
