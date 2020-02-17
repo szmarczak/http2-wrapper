@@ -40,7 +40,7 @@ class ClientRequest extends Writable {
 			input = urlToOptions(input instanceof URL ? input : new URL(input));
 		}
 
-		if (typeof options === 'function') {
+		if (typeof options === 'function' || options === undefined) {
 			// (options, callback)
 			callback = options;
 			options = hasInput ? input : {...input};
