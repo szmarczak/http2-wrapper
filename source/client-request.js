@@ -78,7 +78,7 @@ class ClientRequest extends Writable {
 		}
 
 		const {timeout} = options;
-		delete options.timeout;
+		options.timeout = undefined;
 
 		this[kHeaders] = Object.create(null);
 

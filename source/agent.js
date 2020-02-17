@@ -6,6 +6,7 @@ const QuickLRU = require('quick-lru');
 
 const kCurrentStreamsCount = Symbol('currentStreamsCount');
 const kRequest = Symbol('request');
+const kOriginSet = Symbol('cachedOriginSet');
 
 const nameKeys = [
 	// `http2.connect()` options
@@ -71,7 +72,7 @@ const addSession = (where, name, session) => {
 const getSessions = (where, name, normalizedOrigin) => {
 	if (Reflect.has(where, name)) {
 		return where[name].filter(session => {
-			return !session.closed && !session.destroyed && session.originSet.includes(normalizedOrigin);
+			return !session.closed && !session.destroyed && session[kOriginSet].includes(normalizedOrigin);
 		});
 	}
 
@@ -90,10 +91,10 @@ const closeCoveredSessions = (where, name, session) => {
 	for (const coveredSession of where[name]) {
 		if (
 			// The set is a proper subset when its length is less than the other set.
-			coveredSession.originSet.length < session.originSet.length &&
+			coveredSession[kOriginSet].length < session[kOriginSet].length &&
 
 			// And the other set includes all elements of the subset.
-			coveredSession.originSet.every(origin => session.originSet.includes(origin)) &&
+			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
 
 			// Makes sure that the session can handle all requests from the covered session.
 			// TODO: can the session become uncovered when a stream is closed after checking this condition?
@@ -109,8 +110,8 @@ const closeCoveredSessions = (where, name, session) => {
 const closeSessionIfCovered = (where, name, coveredSession) => {
 	for (const session of where[name]) {
 		if (
-			coveredSession.originSet.length < session.originSet.length &&
-			coveredSession.originSet.every(origin => session.originSet.includes(origin)) &&
+			coveredSession[kOriginSet].length < session[kOriginSet].length &&
+			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
 			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
 		) {
 			coveredSession.close();
@@ -293,7 +294,7 @@ class Agent extends EventEmitter {
 					// Tries to free the session.
 					const freeSession = () => {
 						// Fetch the smallest amount of free sessions of any origin we have.
-						const freeSessionsCount = session.originSet.reduce((accumulator, origin) => {
+						const freeSessionsCount = session[kOriginSet].reduce((accumulator, origin) => {
 							return Math.min(accumulator, getSessions(this.freeSessions, normalizedOptions, origin).length);
 						}, Infinity);
 
@@ -372,7 +373,7 @@ class Agent extends EventEmitter {
 							return;
 						}
 
-						for (const origin of session.originSet) {
+						for (const origin of session[kOriginSet]) {
 							if (Reflect.has(this.queue[normalizedOptions], origin)) {
 								const {listeners} = this.queue[normalizedOptions][origin];
 
@@ -402,6 +403,8 @@ class Agent extends EventEmitter {
 
 					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
 					session.once('origin', () => {
+						session[kOriginSet] = session.originSet;
+
 						if (!isFree()) {
 							// The session is full.
 							return;
@@ -431,6 +434,7 @@ class Agent extends EventEmitter {
 							return;
 						}
 
+						session[kOriginSet] = session.originSet;
 						this.emit('session', session);
 
 						if (freeSession()) {
