@@ -471,3 +471,13 @@ test.serial('does not reuse HTTP/1.1 TLS sockets if custom `createConnection` op
 
 	t.pass();
 });
+
+test('http2 works (Internet connection)', async t => {
+	const request = await http2.auto('https://httpbin.org/anything');
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	t.is(response.headers[':status'], 200);
+});

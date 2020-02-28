@@ -165,7 +165,11 @@ class Agent extends EventEmitter {
 			url = new URL(url);
 		}
 
-		return servername ? `https://${servername}:${url.port || 443}` : url.origin;
+		if (servername && url.hostname !== servername) {
+			url.hostname = servername;
+		}
+
+		return url.origin;
 	}
 
 	normalizeOptions(options) {

@@ -1006,3 +1006,12 @@ test('errors on failure', async t => {
 	t.is(error.port, 443);
 	t.is(error.address, '127.0.0.1');
 });
+
+test('properly normalizes origin', t => {
+	t.is(Agent.normalizeOrigin('https://google.com'), 'https://google.com');
+	t.is(Agent.normalizeOrigin('https://google.com', 'gmail.com'), 'https://gmail.com');
+	t.is(Agent.normalizeOrigin('https://google.com:443'), 'https://google.com');
+	t.is(Agent.normalizeOrigin('https://google.com:443', 'gmail.com'), 'https://gmail.com');
+	t.is(Agent.normalizeOrigin('https://google.com:4434'), 'https://google.com:4434');
+	t.is(Agent.normalizeOrigin('https://google.com:4434', 'gmail.com'), 'https://gmail.com:4434');
+});

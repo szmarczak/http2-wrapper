@@ -258,7 +258,7 @@ class ClientRequest extends Writable {
 					// Forwards data
 					stream.on('data', chunk => {
 						if (!response.push(chunk)) {
-							this.pause();
+							stream.pause();
 						}
 					});
 
