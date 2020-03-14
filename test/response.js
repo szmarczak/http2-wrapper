@@ -236,3 +236,36 @@ test('`end` event', wrapper, async (t, server) => {
 	await pEvent(response, 'end');
 	t.pass();
 });
+
+test('response exceeds the highWaterMark size', wrapper, async (t, server) => {
+	t.plan(2);
+
+	const bigPayload = Buffer.alloc(1024 * 16 * 3);
+
+	server.get('/', (_request, response) => {
+		response.end(bigPayload);
+	});
+
+	const request = makeRequest(server.url);
+	request.end();
+
+	const response = await pEvent(request, 'response');
+
+	const readableListener = () => {
+		if (response.readableLength === response.readableHighWaterMark) {
+			response.removeListener('readable', readableListener);
+
+			t.true(request._request.isPaused());
+
+			response.read();
+
+			t.false(request._request.isPaused());
+
+			response.resume();
+		}
+	};
+
+	response.on('readable', readableListener);
+
+	await pEvent(response, 'end');
+});

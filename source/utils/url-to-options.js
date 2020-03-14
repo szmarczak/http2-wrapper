@@ -4,20 +4,21 @@
 module.exports = url => {
 	const options = {
 		protocol: url.protocol,
-		hostname: url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname,
+		hostname: typeof url.hostname === 'string' && url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname,
+		host: url.host,
 		hash: url.hash,
 		search: url.search,
 		pathname: url.pathname,
-		path: `${url.pathname}${url.search}`,
-		href: url.href
+		href: url.href,
+		path: `${url.pathname || ''}${url.search || ''}`
 	};
 
-	if (url.port !== '') {
+	if (typeof url.port === 'string' && url.port.length !== 0) {
 		options.port = Number(url.port);
 	}
 
 	if (url.username || url.password) {
-		options.auth = `${url.username}:${url.password}`;
+		options.auth = `${url.username || ''}:${url.password || ''}`;
 	}
 
 	return options;

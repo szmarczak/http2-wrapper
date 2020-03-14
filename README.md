@@ -7,16 +7,18 @@
 [![install size](https://packagephobia.now.sh/badge?p=http2-wrapper)](https://packagephobia.now.sh/result?p=http2-wrapper)
 
 This package was created to support HTTP2 without the need to rewrite your code.<br>
-I recommend adapting to the [`http2`](https://nodejs.org/api/http2.html) module if possible - it's much simpler to use and has many cool features! Well, it doesn't have agents yet...
+I recommend adapting to the [`http2`](https://nodejs.org/api/http2.html) module if possible - it's much simpler to use and has many cool features!
 
 **Tip**: `http2-wrapper` is very useful when you rely on other modules that use the HTTP1 API and you want to support HTTP2.
+
+**Pro Tip**: While the native `http2` doesn't have agents yet, you can use `http2-wrapper` Agents and still operate on the native HTTP2 streams.
 
 ## Installation
 
 > `$ npm install http2-wrapper`<br>
 > `$ yarn add http2-wrapper`
 
-It's best to run `http2-wrapper` under [**the latest**](https://nodejs.org/en/download/current/) version of Node. It provides the best stability.
+The latest recommended Node.js version is [**13.8.0**](https://nodejs.org/download/release/v13.8.0/). Please do not use newer non-LTS versions as they have many bugs which haven't been fixed yet.
 
 ## Usage
 ```js
