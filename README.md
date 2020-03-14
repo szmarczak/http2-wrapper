@@ -18,7 +18,8 @@ I recommend adapting to the [`http2`](https://nodejs.org/api/http2.html) module 
 > `$ npm install http2-wrapper`<br>
 > `$ yarn add http2-wrapper`
 
-The latest recommended Node.js version is [**13.8.0**](https://nodejs.org/download/release/v13.8.0/). Please do not use newer non-LTS versions as they have many bugs which haven't been fixed yet.
+The latest recommended Node.js version is [**13.8.0**](https://nodejs.org/download/release/v13.8.0/).\
+Please do not use newer non-LTS versions as they have many bugs which haven't been fixed yet.
 
 ## Usage
 ```js
