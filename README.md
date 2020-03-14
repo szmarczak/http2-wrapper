@@ -1,7 +1,7 @@
 # http2-wrapper
 > HTTP2 client, just with the familiar `https` API
 
-![Node CI](https://github.com/szmarczak/http2-wrapper/workflows/Node%20CI/badge.svg)
+[![Node CI](https://github.com/szmarczak/http2-wrapper/workflows/Node%20CI/badge.svg)](https://github.com/szmarczak/http2-wrapper/actions)
 [![Coverage Status](https://coveralls.io/repos/github/szmarczak/http2-wrapper/badge.svg?branch=master)](https://coveralls.io/github/szmarczak/http2-wrapper?branch=master)
 [![npm](https://img.shields.io/npm/dm/http2-wrapper.svg)](https://www.npmjs.com/package/http2-wrapper)
 [![install size](https://packagephobia.now.sh/badge?p=http2-wrapper)](https://packagephobia.now.sh/result?p=http2-wrapper)
