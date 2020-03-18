@@ -1,12 +1,12 @@
 const {promisify} = require('util');
 const tls = require('tls');
 const test = require('ava');
-const createCert = require('create-cert');
 const pEvent = require('p-event');
 const is = require('@sindresorhus/is');
 const {Agent} = require('../source');
 const {createWrapper, createServer} = require('./helpers/server');
 const setImmediateAsync = require('./helpers/set-immediate-async');
+const {key, cert} = require('./helpers/certs.js');
 
 const supportsTlsSessions = process.versions.node.split('.')[0] >= 11;
 
@@ -312,8 +312,6 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 });
 
 test('throws if session is closed before receiving a SETTINGS frame', async t => {
-	const {key, cert} = await createCert();
-
 	const server = tls.createServer({key, cert, ALPNProtocols: ['h2']}, socket => {
 		setImmediate(() => {
 			socket.destroy();

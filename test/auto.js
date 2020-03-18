@@ -6,9 +6,9 @@ const util = require('util');
 const {serial: test, afterEach} = require('ava');
 const pEvent = require('p-event');
 const getStream = require('get-stream');
-const createCert = require('create-cert');
 const http2 = require('../source');
 const {createServer} = require('./helpers/server');
+const {key, cert} = require('./helpers/certs.js');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -327,9 +327,7 @@ test('callback as a second argument', cb(async t => {
 }));
 
 test('defaults to HTTP1 if no ALPN protocol', async t => {
-	const keys = await createCert();
-
-	const server = await tls.createServer(keys, socket => {
+	const server = await tls.createServer({key, cert}, socket => {
 		socket.end('HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhttps');
 	});
 
