@@ -37,7 +37,6 @@
 		"ava": "^3.3.0",
 		"benchmark": "^2.1.4",
 		"coveralls": "^3.0.9",
-		"create-cert": "^1.0.6",
 		"get-stream": "^5.1.0",
 		"got": "^10.5.5",
 		"lolex": "^6.0.0",
