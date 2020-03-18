@@ -7,8 +7,7 @@
 		"node": ">=10"
 	},
 	"scripts": {
-		"test": "echo XO $(xo --version) && echo AVA $(ava --version) && xo && nyc --reporter=html --reporter=text ava",
-		"coveralls": "nyc report --reporter=text-lcov | coveralls"
+		"test": "xo && nyc --reporter=lcovonly --reporter=text ava"
 	},
 	"files": [
 		"source"
