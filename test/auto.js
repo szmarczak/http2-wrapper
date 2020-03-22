@@ -186,7 +186,7 @@ test('default port for `http:` protocol is 80', async t => {
 		createConnection: (options, callback) => {
 			t.is(options.port, 80);
 			t.is(options.host, 'localhost');
-			
+
 			callback(new Error(message));
 		}
 	});
