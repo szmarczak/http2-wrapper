@@ -313,9 +313,7 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 
 test('throws if session is closed before receiving a SETTINGS frame', async t => {
 	const server = tls.createServer({key, cert, ALPNProtocols: ['h2']}, socket => {
-		setImmediate(() => {
-			socket.destroy();
-		});
+		socket.end();
 	});
 
 	server.listen = promisify(server.listen.bind(server));
