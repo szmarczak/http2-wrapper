@@ -268,7 +268,6 @@ test('does not break when using `createConnection` option', async t => {
 			return tls.connect(h2s.address().port, 'localhost', {
 				...options,
 				servername: 'localhost',
-				allowHalfOpen: true,
 				ALPNProtocols: ['h2']
 			});
 		},
