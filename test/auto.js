@@ -177,14 +177,23 @@ test('the default protocol is `https:`', async t => {
 });
 
 test('default port for `http:` protocol is 80', async t => {
+	t.plan(3);
+
+	const message = 'Oh, snap!';
 	const request = await http2.auto({
 		protocol: 'http:',
-		hostname: 'localhost'
+		hostname: 'localhost',
+		createConnection: (options, callback) => {
+			t.is(options.port, 80);
+			t.is(options.host, 'localhost');
+			
+			callback(new Error(message));
+		}
 	});
 
-	const error = await pEvent(request, 'error');
-	t.is(error.address, '127.0.0.1');
-	t.is(error.port, 80);
+	await t.throwsAsync(pEvent(request, 'anyOtherEvent'), {
+		message
+	});
 });
 
 test('default port for `https:` protocol is 443', async t => {
