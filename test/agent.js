@@ -890,16 +890,26 @@ test('free sessions can become suddenly covered by shrinking their current strea
 				maxConcurrentStreams: 1
 			});
 
+			const secondRequest = sessions.b.requests[1];
+
 			await pEvent(session, 'remoteSettings');
+
+			const error = await pEvent(secondRequest, 'error');
+			t.is(error.code, 'ERR_HTTP2_STREAM_ERROR');
+			t.is(error.message, 'Stream closed with error code NGHTTP2_REFUSED_STREAM');
 		}
 
-		sessions.a.requests.shift().close();
+		const requestA = sessions.a.requests.shift();
+		const promiseA = pEvent(requestA, 'close');
+		requestA.close();
+
+		await promiseA;
 
 		const requestB = sessions.b.requests.shift();
-		const promise = pEvent(requestB, 'close');
+		const promiseB = pEvent(requestB, 'close');
 		requestB.close();
 
-		await promise;
+		await promiseB;
 
 		t.not(sessions.a.client, sessions.b.client);
 		t.true(sessions.b.client.closed);
