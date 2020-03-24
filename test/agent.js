@@ -838,129 +838,120 @@ test('free sessions can become suddenly covered by shrinking their current strea
 	agent.destroy();
 });
 
-{
-	// Node 10 has a bug - HTTP2 SETTINGS are not updated.
-	let testFn = test;
+test('busy sessions can become suddenly covered by shrinking their current streams count', tripleRequestWrapper, async (t, server) => {
+	const agent = new Agent({
+		maxFreeSessions: 1
+	});
 
-	if (process.versions.node.split('.')[0] === '10') {
-		testFn = test.skip;
+	const sessions = {};
+
+	{
+		const serverSessionPromise = pEvent(server, 'session');
+		const session = await agent.getSession(server.url);
+		const serverSession = await serverSessionPromise;
+
+		serverSession.origin('https://example.com');
+		await pEvent(session, 'origin');
+
+		sessions.a = {
+			client: session,
+			server: serverSession,
+			requests: [
+				session.request(),
+				session.request(),
+				session.request()
+			]
+		};
 	}
 
-	testFn('busy sessions can become suddenly covered by shrinking their current streams count', tripleRequestWrapper, async (t, server) => {
-		const agent = new Agent({
-			maxFreeSessions: 1
-		});
+	{
+		const serverSessionPromise = pEvent(server, 'session');
+		const session = await agent.getSession(server.url);
+		const serverSession = await serverSessionPromise;
 
-		const sessions = {};
-
-		{
-			const serverSessionPromise = pEvent(server, 'session');
-			const session = await agent.getSession(server.url);
-			const serverSession = await serverSessionPromise;
-
-			serverSession.origin('https://example.com');
-			await pEvent(session, 'origin');
-
-			sessions.a = {
-				client: session,
-				server: serverSession,
-				requests: [
-					session.request(),
-					session.request(),
-					session.request()
-				]
-			};
-		}
-
-		{
-			const serverSessionPromise = pEvent(server, 'session');
-			const session = await agent.getSession(server.url);
-			const serverSession = await serverSessionPromise;
-
-			sessions.b = {
-				client: session,
-				server: serverSession,
-				requests: [
-					session.request(),
-					session.request()
-				]
-			};
-
-			serverSession.settings({
-				maxConcurrentStreams: 1
-			});
-
-			const secondRequest = sessions.b.requests[1];
-
-			await pEvent(session, 'remoteSettings');
-
-			const error = await pEvent(secondRequest, 'error');
-			t.is(error.code, 'ERR_HTTP2_STREAM_ERROR');
-			t.is(error.message, 'Stream closed with error code NGHTTP2_REFUSED_STREAM');
-		}
-
-		const requestA = sessions.a.requests.shift();
-		const promiseA = pEvent(requestA, 'close');
-		requestA.close();
-
-		await promiseA;
-
-		const requestB = sessions.b.requests.shift();
-		const promiseB = pEvent(requestB, 'close');
-		requestB.close();
-
-		await promiseB;
-
-		t.not(sessions.a.client, sessions.b.client);
-		t.true(sessions.b.client.closed);
-
-		agent.destroy();
-	});
-
-	testFn('busy session remains busy if can be free but there are no free seats', tripleRequestWrapper, async (t, server) => {
-		const agent = new Agent({
-			maxFreeSessions: 1
-		});
-
-		const sessions = {};
-
-		{
-			const session = await agent.getSession(server.url);
-
-			sessions.a = session;
-			sessions.a.requests = [
-				session.request(),
+		sessions.b = {
+			client: session,
+			server: serverSession,
+			requests: [
 				session.request(),
 				session.request()
-			];
-		}
+			]
+		};
 
-		{
-			const serverSessionPromise = pEvent(server, 'session');
-			const session = await agent.getSession(server.url);
-			const serverSession = await serverSessionPromise;
+		serverSession.settings({
+			maxConcurrentStreams: 1
+		});
 
-			sessions.b = session;
-			sessions.b.requests = [
-				session.request(),
-				session.request(),
-				session.request()
-			];
+		const secondRequest = sessions.b.requests[1];
 
-			sessions.a.requests.shift().close();
+		await pEvent(session, 'remoteSettings');
 
-			serverSession.settings({
-				maxConcurrentStreams: 4
-			});
+		const error = await pEvent(secondRequest, 'error');
+		t.is(error.code, 'ERR_HTTP2_STREAM_ERROR');
+		t.is(error.message, 'Stream closed with error code NGHTTP2_REFUSED_STREAM');
+	}
 
-			await pEvent(session, 'remoteSettings');
-		}
+	const requestA = sessions.a.requests.shift();
+	const promiseA = pEvent(requestA, 'close');
+	requestA.close();
 
-		t.is(agent.busySessions[''][0], sessions.b);
+	await promiseA;
 
-		agent.destroy();
+	const requestB = sessions.b.requests.shift();
+	const promiseB = pEvent(requestB, 'close');
+	requestB.close();
+
+	await promiseB;
+
+	t.not(sessions.a.client, sessions.b.client);
+	t.true(sessions.b.client.closed);
+
+	agent.destroy();
+});
+
+test('busy session remains busy if can be free but there are no free seats', tripleRequestWrapper, async (t, server) => {
+	const agent = new Agent({
+		maxFreeSessions: 1
 	});
-}
+
+	const sessions = {};
+
+	{
+		const session = await agent.getSession(server.url);
+
+		sessions.a = session;
+		sessions.a.requests = [
+			session.request(),
+			session.request(),
+			session.request()
+		];
+	}
+
+	{
+		const serverSessionPromise = pEvent(server, 'session');
+		const session = await agent.getSession(server.url);
+		const serverSession = await serverSessionPromise;
+
+		sessions.b = session;
+		sessions.b.requests = [
+			session.request(),
+			session.request(),
+			session.request()
+		];
+
+		sessions.a.requests.shift().close();
+
+		serverSession.settings({
+			maxConcurrentStreams: 4
+		});
+
+		await pEvent(session, 'remoteSettings');
+	}
+
+	t.is(agent.busySessions[''][0], sessions.b);
+
+	agent.destroy();
+});
 
 test('a session can cover other session by increasing its streams count limit', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent({
