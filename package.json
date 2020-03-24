@@ -4,7 +4,7 @@
 	"description": "HTTP2 client, just with the familiar `https` API",
 	"main": "source",
 	"engines": {
-		"node": ">=10"
+		"node": ">=10.19.0"
 	},
 	"scripts": {
 		"test": "xo && nyc --reporter=lcovonly --reporter=text ava"
