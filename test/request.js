@@ -655,7 +655,36 @@ test('sets proper `:authority` header', wrapper, async (t, server) => {
 	const response = await pEvent(request, 'response');
 	const body = await getStream(response);
 
-	t.is(body, 'example.com:443');
+	t.is(body, 'example.com');
+
+	agent.destroy();
+});
+
+test('the request origin is properly calculated', wrapper, async (t, server) => {
+	server.on('session', session => {
+		session.origin('https://example.com');
+	});
+
+	server.get('/', (request, response) => {
+		response.end(request.headers[':authority']);
+	});
+
+	const agent = new Agent();
+	agent._request = agent.request;
+	agent.request = (origin, options, headers) => {
+		t.is(options.origin, 'https://example.com');
+
+		return agent._request(origin, options, headers);
+	};
+
+	await agent.getSession(server.url);
+	await setImmediateAsync();
+
+	const request = makeRequest('https://example.com', {agent}).end();
+	const response = await pEvent(request, 'response');
+	const body = await getStream(response);
+
+	t.is(body, 'example.com');
 
 	agent.destroy();
 });

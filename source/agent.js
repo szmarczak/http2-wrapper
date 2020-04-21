@@ -246,6 +246,7 @@ class Agent extends EventEmitter {
 					});
 
 					for (const listener of listeners) {
+						// TODO: The session can get busy here
 						listener.resolve(session);
 					}
 

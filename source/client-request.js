@@ -107,11 +107,21 @@ class ClientRequest extends Writable {
 
 		this[kOptions] = options;
 
-		if (!Reflect.has(this[kHeaders], ':authority')) {
-			this[kHeaders][':authority'] = `${options.servername || options.host}:${options.port}`;
+		// Clients that generate HTTP/2 requests directly SHOULD use the :authority pseudo-header field instead of the Host header field.
+		if (options.port === 443) {
+			options.origin = `https://${options.host}`;
+
+			if (!(':authority' in this[kHeaders])) {
+				this[kHeaders][':authority'] = options.host;
+			}
+		} else {
+			options.origin = `https://${options.host}:${options.port}`;
+
+			if (!(':authority' in this[kHeaders])) {
+				this[kHeaders][':authority'] = `${options.host}:${options.port}`;
+			}
 		}
 
-		options.origin = `https://${options.host}:${options.port}`;
 		this[kOrigin] = options;
 
 		if (this.agent && options.preconnect !== false) {
