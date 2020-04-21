@@ -163,13 +163,6 @@ There is a maximum of 100 entries. You can modify the limit through `protocolCac
 
 Same as [`https.request`](https://nodejs.org/api/https.html#https_https_request_options_callback).
 
-##### options.preconnect
-
-Type: `boolean`<br>
-Default: `true`
-
-If set to `true`, it will try to connect to the server before sending the request.
-
 ##### options.h2session
 
 Type: `Http2Session`<br>

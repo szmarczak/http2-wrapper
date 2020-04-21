@@ -124,10 +124,6 @@ class ClientRequest extends Writable {
 
 		this[kOrigin] = options;
 
-		if (this.agent && options.preconnect !== false) {
-			this.agent.getSession(this[kOrigin], options).catch(() => {});
-		}
-
 		if (timeout) {
 			this.setTimeout(timeout);
 		}
