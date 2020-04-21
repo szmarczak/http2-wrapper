@@ -67,7 +67,7 @@ test('can\'t change headers after they are sent', wrapper, async (t, server) => 
 });
 
 test('invalid headers', t => {
-	const request = makeRequest({preconnect: false});
+	const request = makeRequest({});
 
 	t.throws(() => request.setHeader(undefined, 'qwerty'), {
 		message: 'Header name must be a valid HTTP token [undefined]'

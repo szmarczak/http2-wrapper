@@ -46,7 +46,7 @@ test('does not modify options', t => {
 
 	for (const input of inputs) {
 		const originalOptions = {
-			preconnect: false
+			foo: 'bar'
 		};
 
 		const options = {
