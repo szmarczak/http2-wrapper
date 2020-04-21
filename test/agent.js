@@ -462,6 +462,25 @@ test('sessions can be manually overloaded', singleRequestWrapper, async (t, serv
 	agent.destroy();
 });
 
+test('sessions can be manually overloaded #2', singleRequestWrapper, async (t, server) => {
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	const agent = new Agent();
+
+	const session = await agent.getSession(server.url);
+	const requests = [session.request(), session.request()];
+
+	requests[0].end();
+
+	await pEvent(requests[0], 'close');
+
+	t.pass();
+
+	agent.destroy();
+});
+
 test('`.settings` property', wrapper, async (t, server) => {
 	const agent = new Agent();
 	agent.settings.maxHeaderListSize = 100;

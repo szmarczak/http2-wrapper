@@ -70,13 +70,13 @@ const addSession = (where, name, session) => {
 };
 
 const getSessions = (where, name, normalizedOrigin) => {
-	if (Reflect.has(where, name)) {
-		return where[name].filter(session => {
-			return !session.closed && !session.destroyed && session[kOriginSet].includes(normalizedOrigin);
-		});
+	if (!Reflect.has(where, name)) {
+		return [];
 	}
 
-	return [];
+	return where[name].filter(session => {
+		return !session.closed && !session.destroyed && session[kOriginSet].includes(normalizedOrigin);
+	});
 };
 
 // See https://tools.ietf.org/html/rfc8336
@@ -108,6 +108,10 @@ const closeCoveredSessions = (where, name, session) => {
 
 // This is basically inverted `closeCoveredSessions(...)`.
 const closeSessionIfCovered = (where, name, coveredSession) => {
+	if (!Reflect.has(where, name)) {
+		return;
+	}
+
 	for (const session of where[name]) {
 		if (
 			coveredSession[kOriginSet].length < session[kOriginSet].length &&
