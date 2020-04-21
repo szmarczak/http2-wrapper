@@ -44,7 +44,7 @@ const nameKeys = [
 ];
 
 const removeSession = (where, name, session) => {
-	if (Reflect.has(where, name)) {
+	if (name in where) {
 		const index = where[name].indexOf(session);
 
 		if (index !== -1) {
@@ -62,7 +62,7 @@ const removeSession = (where, name, session) => {
 };
 
 const addSession = (where, name, session) => {
-	if (Reflect.has(where, name)) {
+	if (name in where) {
 		where[name].push(session);
 	} else {
 		where[name] = [session];
@@ -70,7 +70,7 @@ const addSession = (where, name, session) => {
 };
 
 const getSessions = (where, name, normalizedOrigin) => {
-	if (!Reflect.has(where, name)) {
+	if (!(name in where)) {
 		return [];
 	}
 
@@ -81,7 +81,7 @@ const getSessions = (where, name, normalizedOrigin) => {
 
 // See https://tools.ietf.org/html/rfc8336
 const closeCoveredSessions = (where, name, session) => {
-	if (!Reflect.has(where, name)) {
+	if (!(name in where)) {
 		return;
 	}
 
@@ -108,7 +108,7 @@ const closeCoveredSessions = (where, name, session) => {
 
 // This is basically inverted `closeCoveredSessions(...)`.
 const closeSessionIfCovered = (where, name, coveredSession) => {
-	if (!Reflect.has(where, name)) {
+	if (!(name in where)) {
 		return;
 	}
 
@@ -191,7 +191,7 @@ class Agent extends EventEmitter {
 	}
 
 	_tryToCreateNewSession(normalizedOptions, normalizedOrigin) {
-		if (!Reflect.has(this.queue, normalizedOptions) || !Reflect.has(this.queue[normalizedOptions], normalizedOrigin)) {
+		if (!(normalizedOptions in this.queue) || !(normalizedOrigin in this.queue[normalizedOptions])) {
 			return;
 		}
 
@@ -228,11 +228,14 @@ class Agent extends EventEmitter {
 			const normalizedOrigin = Agent.normalizeOrigin(origin, options && options.servername);
 
 			if (normalizedOrigin === undefined) {
-				reject(new TypeError('The `origin` argument needs to be a string or an URL object'));
+				for (const {reject} of listeners) {
+					reject(new TypeError('The `origin` argument needs to be a string or an URL object'));
+				}
+
 				return;
 			}
 
-			if (Reflect.has(this.freeSessions, normalizedOptions)) {
+			if (normalizedOptions in this.freeSessions) {
 				// Look for all available free sessions.
 				const freeSessions = getSessions(this.freeSessions, normalizedOptions, normalizedOrigin);
 
@@ -249,17 +252,17 @@ class Agent extends EventEmitter {
 						return previousSession;
 					});
 
-					for (const listener of listeners) {
+					for (const {resolve} of listeners) {
 						// TODO: The session can get busy here
-						listener.resolve(session);
+						resolve(session);
 					}
 
 					return;
 				}
 			}
 
-			if (Reflect.has(this.queue, normalizedOptions)) {
-				if (Reflect.has(this.queue[normalizedOptions], normalizedOrigin)) {
+			if (normalizedOptions in this.queue) {
+				if (normalizedOrigin in this.queue[normalizedOptions]) {
 					// There's already an item in the queue, just attach ourselves to it.
 					this.queue[normalizedOptions][normalizedOrigin].listeners.push(...listeners);
 
@@ -274,7 +277,7 @@ class Agent extends EventEmitter {
 			// 2. an error occurs.
 			const removeFromQueue = () => {
 				// Our entry can be replaced. We cannot remove the new one.
-				if (Reflect.has(this.queue, normalizedOptions) && this.queue[normalizedOptions][normalizedOrigin] === entry) {
+				if (normalizedOptions in this.queue && this.queue[normalizedOptions][normalizedOrigin] === entry) {
 					delete this.queue[normalizedOptions][normalizedOrigin];
 
 					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
@@ -342,8 +345,8 @@ class Agent extends EventEmitter {
 					session.once('error', error => {
 						// `receivedSettings` is true when the session has successfully connected.
 						if (!receivedSettings) {
-							for (const listener of listeners) {
-								listener.reject(error);
+							for (const {reject} of listeners) {
+								reject(error);
 							}
 						}
 
@@ -361,8 +364,8 @@ class Agent extends EventEmitter {
 							// Broken connection
 							const error = new Error('Session closed without receiving a SETTINGS frame');
 
-							for (const listener of listeners) {
-								listener.reject(error);
+							for (const {reject} of listeners) {
+								reject(error);
 							}
 						}
 
@@ -378,12 +381,12 @@ class Agent extends EventEmitter {
 
 					// Iterates over the queue and processes listeners.
 					const processListeners = () => {
-						if (!Reflect.has(this.queue, normalizedOptions)) {
+						if (!(normalizedOptions in this.queue)) {
 							return;
 						}
 
 						for (const origin of session[kOriginSet]) {
-							if (Reflect.has(this.queue[normalizedOptions], origin)) {
+							if (origin in this.queue[normalizedOptions]) {
 								const {listeners} = this.queue[normalizedOptions][origin];
 
 								// Prevents session overloading.

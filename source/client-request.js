@@ -98,7 +98,7 @@ class ClientRequest extends Writable {
 			}
 		}
 
-		if (options.auth && !Reflect.has(this[kHeaders], 'authorization')) {
+		if (options.auth && !('authorization' in this[kHeaders])) {
 			this[kHeaders].authorization = 'Basic ' + Buffer.from(options.auth).toString('base64');
 		}
 
