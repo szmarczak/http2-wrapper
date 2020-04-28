@@ -1,4 +1,6 @@
+const {promisify} = require('util');
 const EventEmitter = require('events');
+const {pipeline, PassThrough} = require('stream');
 const net = require('net');
 // eslint-disable-next-line ava/use-test
 const {serial: test} = require('ava');
@@ -691,6 +693,20 @@ test('the request origin is properly calculated', wrapper, async (t, server) => 
 	t.is(body, 'example.com');
 
 	agent.destroy();
+});
+
+test('pipeline works', wrapper, async (t, server) => {
+	const body = new PassThrough();
+	body.end();
+
+	const request = makeRequest(server.url);
+
+	await promisify(pipeline)(body, request);
+
+	t.false(request.aborted);
+	t.false(request.destroyed);
+
+	request.abort();
 });
 
 if (process.platform !== 'win32') {

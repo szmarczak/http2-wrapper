@@ -187,6 +187,10 @@ class ClientRequest extends Writable {
 	}
 
 	abort() {
+		if (this.res && this.res.complete) {
+			return;
+		}
+
 		if (!this.aborted) {
 			process.nextTick(() => this.emit('abort'));
 		}
@@ -249,6 +253,10 @@ class ClientRequest extends Writable {
 						response.emit('aborted');
 					} else {
 						response.complete = true;
+
+						// Has no effect, just be consistent with the Node.js behavior
+						response.socket = null;
+						response.connection = null;
 					}
 				});
 

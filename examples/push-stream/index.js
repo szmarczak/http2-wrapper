@@ -90,9 +90,12 @@ class PushAgent extends http2.Agent {
 
 	const got = gotExtend({
 		prefixUrl: 'https://localhost:3000',
-		request: http2.request,
+		request: http2.auto,
+		http2: true,
 		rejectUnauthorized: false,
-		agent
+		agent: {
+			http2: agent
+		}
 	});
 
 	const response = await got('');

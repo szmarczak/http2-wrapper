@@ -1,3 +1,5 @@
+const {promisify} = require('util');
+const {pipeline, PassThrough} = require('stream');
 // eslint-disable-next-line ava/use-test
 const {serial: test} = require('ava');
 const pEvent = require('p-event');
@@ -217,7 +219,7 @@ test('trailers', wrapper, async (t, server) => {
 	t.deepEqual(response.rawTrailers, ['foo', 'bar']);
 });
 
-test('dumps only once', wrapper, t => {
+test('dumps only once', t => {
 	const incoming = new IncomingMessage();
 	incoming._dump();
 	incoming.on('data', () => {});
@@ -269,4 +271,31 @@ test('response exceeds the highWaterMark size', wrapper, async (t, server) => {
 	response.on('readable', readableListener);
 
 	await pEvent(response, 'end');
+});
+
+test('`request.abort()` does not affect completed responses', wrapper, async (t, server) => {
+	const request = makeRequest(server.url);
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	await pEvent(response, 'end');
+
+	request.abort();
+
+	t.false(request.aborted);
+	t.false(request.destroyed);
+});
+
+test('pipeline works', wrapper, async (t, server) => {
+	const responseCopy = new PassThrough();
+
+	const request = makeRequest(server.url).end();
+	const response = await pEvent(request, 'response');
+
+	await promisify(pipeline)(response, responseCopy);
+
+	t.false(request.aborted);
+	t.false(request.destroyed);
 });

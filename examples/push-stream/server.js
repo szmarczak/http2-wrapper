@@ -1,12 +1,12 @@
 'use strict';
 const util = require('util');
 const http2 = require('http2');
-const createCert = require('create-cert');
+const keys = require('../../test/helpers/certs');
 
 const PORT = 3000;
 
 (async () => {
-	const {cert, key} = await createCert();
+	const {cert, key} = keys;
 
 	const server = http2.createSecureServer({cert, key});
 
