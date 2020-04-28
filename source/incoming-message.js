@@ -3,7 +3,10 @@ const {Readable} = require('stream');
 
 class IncomingMessage extends Readable {
 	constructor(socket, highWaterMark) {
-		super({highWaterMark});
+		super({
+			highWaterMark,
+			autoDestroy: false
+		});
 
 		this.statusCode = null;
 		this.statusMessage = '';

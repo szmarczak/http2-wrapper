@@ -5,6 +5,7 @@ const {Agent, globalAgent} = require('./agent');
 const IncomingMessage = require('./incoming-message');
 const urlToOptions = require('./utils/url-to-options');
 const proxyEvents = require('./utils/proxy-events');
+const isRequestPseudoHeader = require('./utils/is-request-pseudo-header');
 const {
 	ERR_INVALID_ARG_TYPE,
 	ERR_INVALID_PROTOCOL,
@@ -15,7 +16,6 @@ const {
 } = require('./utils/errors');
 
 const {
-	NGHTTP2_CANCEL,
 	HTTP2_HEADER_STATUS,
 	HTTP2_HEADER_METHOD,
 	HTTP2_HEADER_PATH,
@@ -27,13 +27,16 @@ const kOrigin = Symbol('origin');
 const kSession = Symbol('session');
 const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
+const kJobs = Symbol('jobs');
 
 const isValidHttpToken = /^[\^_`a-zA-Z\-0-9!#$%&'*+.|~]+$/;
 const isInvalidHeaderValue = /[^\t\u0020-\u007E\u0080-\u00FF]/;
 
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
-		super();
+		super({
+			autoDestroy: false
+		});
 
 		const hasInput = typeof input === 'string' || input instanceof URL;
 		if (hasInput) {
@@ -81,6 +84,7 @@ class ClientRequest extends Writable {
 		options.timeout = undefined;
 
 		this[kHeaders] = Object.create(null);
+		this[kJobs] = [];
 
 		this.socket = null;
 		this.connection = null;
@@ -94,7 +98,7 @@ class ClientRequest extends Writable {
 
 		if (options.headers) {
 			for (const [header, value] of Object.entries(options.headers)) {
-				this[kHeaders][header.toLowerCase()] = value;
+				this.setHeader(header, value);
 			}
 		}
 
@@ -108,6 +112,7 @@ class ClientRequest extends Writable {
 		this[kOptions] = options;
 
 		// Clients that generate HTTP/2 requests directly SHOULD use the :authority pseudo-header field instead of the Host header field.
+		// What about IPv6? Square brackets?
 		if (options.port === 443) {
 			options.origin = `https://${options.host}`;
 
@@ -162,12 +167,12 @@ class ClientRequest extends Writable {
 		if (this._request) {
 			callWrite();
 		} else {
-			this.once('socket', callWrite);
+			this[kJobs].push(callWrite);
 		}
 	}
 
 	_final(callback) {
-		if (this.destroyed || this.aborted) {
+		if (this.destroyed) {
 			return;
 		}
 
@@ -177,7 +182,7 @@ class ClientRequest extends Writable {
 		if (this._request) {
 			callEnd();
 		} else {
-			this.once('socket', callEnd);
+			this[kJobs].push(callEnd);
 		}
 	}
 
@@ -188,25 +193,23 @@ class ClientRequest extends Writable {
 
 		this.aborted = true;
 
+		this.destroy();
+	}
+
+	_destroy(error, callback) {
 		if (this.res) {
 			this.res._dump();
 		}
 
 		if (this._request) {
-			this._request.close(NGHTTP2_CANCEL);
+			this._request.destroy();
 		}
-	}
 
-	_destroy(error) {
-		if (this._request) {
-			this._request.destroy(error);
-		} else if (error) {
-			process.nextTick(() => this.emit('error', error));
-		}
+		callback(error);
 	}
 
 	async flushHeaders() {
-		if (this[kFlushedHeaders] || this.destroyed || this.aborted) {
+		if (this[kFlushedHeaders] || this.destroyed) {
 			return;
 		}
 
@@ -218,8 +221,8 @@ class ClientRequest extends Writable {
 		const onStream = stream => {
 			this._request = stream;
 
-			if (this.destroyed || this.aborted) {
-				stream.close(NGHTTP2_CANCEL);
+			if (this.destroyed) {
+				stream.destroy();
 				return;
 			}
 
@@ -283,17 +286,22 @@ class ClientRequest extends Writable {
 			stream.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
 
 			stream.once('trailers', (trailers, flags, rawTrailers) => {
+				const {res} = this;
+
 				// Assigns trailers to the response object.
-				this.res.trailers = trailers;
-				this.res.rawTrailers = rawTrailers;
+				res.trailers = trailers;
+				res.rawTrailers = rawTrailers;
 			});
 
-			this.socket = stream.session.socket;
-			this.connection = stream.session.socket;
+			const {socket} = stream.session;
+			this.socket = socket;
+			this.connection = socket;
 
-			process.nextTick(() => {
-				this.emit('socket', this.socket);
-			});
+			for (const job of this[kJobs]) {
+				job();
+			}
+
+			this.emit('socket', this.socket);
 		};
 
 		// Makes a HTTP2 request
@@ -345,7 +353,7 @@ class ClientRequest extends Writable {
 			throw new ERR_HTTP_HEADERS_SENT('set');
 		}
 
-		if (typeof name !== 'string' || !isValidHttpToken.test(name)) {
+		if (typeof name !== 'string' || (!isValidHttpToken.test(name) && !isRequestPseudoHeader(name))) {
 			throw new ERR_INVALID_HTTP_TOKEN('Header name', name);
 		}
 
@@ -369,19 +377,19 @@ class ClientRequest extends Writable {
 	}
 
 	setTimeout(ms, callback) {
+		const applyTimeout = () => this._request.setTimeout(ms, callback);
+
 		if (this._request) {
-			this._request.setTimeout(ms, callback);
+			applyTimeout();
 		} else {
-			this.once('socket', () => {
-				this._request.setTimeout(ms, callback);
-			});
+			this[kJobs].push(applyTimeout);
 		}
 
 		return this;
 	}
 
 	get maxHeadersCount() {
-		if (this._request) {
+		if (!this.destroyed && this._request) {
 			return this._request.session.localSettings.maxHeaderListSize;
 		}
 

@@ -234,7 +234,8 @@ test('`end` event', wrapper, async (t, server) => {
 	response.resume();
 
 	await pEvent(response, 'end');
-	t.pass();
+
+	t.false(response.destroyed);
 });
 
 test('response exceeds the highWaterMark size', wrapper, async (t, server) => {

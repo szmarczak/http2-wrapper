@@ -556,8 +556,10 @@ test('`.maxHeadersCount` - getter', wrapper, async (t, server) => {
 	request.end();
 
 	await pEvent(request, 'response');
-	request.abort();
+
 	t.true(is.number(request.maxHeadersCount));
+
+	request.abort();
 });
 
 test('`.maxHeadersCount` - empty setter', wrapper, async (t, server) => {
@@ -567,9 +569,11 @@ test('`.maxHeadersCount` - empty setter', wrapper, async (t, server) => {
 	request.end();
 
 	await pEvent(request, 'response');
-	request.abort();
+
 	request.maxHeadersCount = undefined;
 	t.true(is.number(request.maxHeadersCount));
+
+	request.abort();
 });
 
 test('throws if making a request using a closed session', wrapper, async (t, server) => {
