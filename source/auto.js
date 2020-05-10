@@ -46,7 +46,7 @@ const resolveProtocol = async options => {
 			return result.alpnProtocol;
 		}
 
-		const {path} = options;
+		const {path, agent} = options;
 		options.path = options.socketPath;
 
 		const resultPromise = resolveALPN(options);
@@ -59,17 +59,22 @@ const resolveProtocol = async options => {
 			options.path = path;
 
 			if (alpnProtocol === 'h2') {
-				// TODO: Reuse socket
-				socket.end();
+				// https://github.com/nodejs/node/issues/33343
+				socket.destroy();
 			} else {
-				const agent = options.agent || https.globalAgent;
+				const {globalAgent} = https;
+				const defaultCreateConnection = https.Agent.prototype.createConnection;
 
-				if (options.createConnection) {
-					socket.end();
-				} else if (agent.keepAlive) {
-					installSocket(agent, socket, options);
+				if (agent) {
+					if (agent.createConnection === defaultCreateConnection) {
+						installSocket(agent, socket, options);
+					} else {
+						socket.destroy();
+					}
+				} else if (globalAgent.createConnection === defaultCreateConnection) {
+					installSocket(globalAgent, socket, options);
 				} else {
-					options.createConnection = () => socket;
+					socket.destroy();
 				}
 			}
 
