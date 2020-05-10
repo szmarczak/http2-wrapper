@@ -234,7 +234,7 @@ test.serial('cache hostname defaults to `localhost`', async t => {
 	request.end();
 
 	await pEvent(request, 'response');
-	request.abort();
+	request.destroy();
 
 	const key = `localhost:${h2s.options.port}:h2,http/1.1`;
 
@@ -326,7 +326,7 @@ const cb = fn => {
 test('callback as a second argument', cb(async t => {
 	await t.notThrowsAsync((async () => {
 		const request = await http2.auto(h2s.url, response => {
-			response.req.abort();
+			response.req.destroy();
 			t.end();
 		});
 
@@ -384,7 +384,10 @@ test.serial('reuses HTTP/1.1 TLS sockets', async t => {
 	};
 
 	const request = await http2.auto(h2s.url, options);
-	request.abort();
+	request.destroy();
+
+	// Who has invented `socket hang up` on client destroy? Useless.
+	request.once('error', () => {});
 });
 
 test.serial('reuses HTTP/1.1 TLS sockets - agentRemove works', async t => {
@@ -412,7 +415,10 @@ test.serial('reuses HTTP/1.1 TLS sockets - agentRemove works', async t => {
 	};
 
 	const request = await http2.auto(h2s.url, options);
-	request.abort();
+	request.destroy();
+
+	// Who has invented `socket hang up` on client destroy? Useless.
+	request.once('error', () => {});
 
 	agent.destroy();
 });
@@ -449,19 +455,23 @@ test.serial('reuses HTTP/1.1 TLS sockets #2', async t => {
 
 	const [a, b] = await Promise.all([http2.auto(h2s.url, options), http2.auto(h2s.url, options)]);
 
-	a.abort();
-	b.abort();
+	a.destroy();
+	b.destroy();
+
+	// Who has invented `socket hang up` on client destroy? Useless.
+	a.once('error', () => {});
+	b.once('error', () => {});
 
 	t.is(socketCount, 1);
 });
 
-test.serial('does not reuse HTTP/1.1 TLS sockets if custom `createConnection` option is present', async t => {
+test.serial('reuses HTTP/1.1 TLS sockets even if custom `createConnection` option is present', async t => {
 	http2.auto.protocolCache.clear();
 
 	const agent = new https.Agent({keepAlive: true});
 
 	agent.prependOnceListener('free', () => {
-		t.fail('free event emitted');
+		t.pass();
 	});
 
 	const options = {
@@ -473,9 +483,10 @@ test.serial('does not reuse HTTP/1.1 TLS sockets if custom `createConnection` op
 	};
 
 	const request = await http2.auto(h2s.url, options);
-	request.abort();
+	request.destroy();
 
-	t.pass();
+	// Who has invented `socket hang up` on client destroy? Useless.
+	request.once('error', () => {});
 });
 
 test('http2 works (Internet connection)', async t => {

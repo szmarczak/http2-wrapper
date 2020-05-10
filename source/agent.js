@@ -212,6 +212,17 @@ class Agent extends EventEmitter {
 		closeCoveredSessions(this.busySessions, normalizedOptions, session);
 	}
 
+	_pushSocket(origin, options, socket) {
+		const normalizedOptions = this.normalizeOptions(options);
+		const normalizedOrigin = Agent.normalizeOrigin(origin, options && options.servername);
+
+		if (!(normalizedOptions in this.queue)) {
+			this.queue[normalizedOptions] = {};
+		}
+
+		this._createSession(origin, options, normalizedOrigin, normalizedOptions, [], socket);
+	}
+
 	getSession(origin, options, listeners) {
 		return new Promise((resolve, reject) => {
 			if (Array.isArray(listeners)) {
@@ -272,285 +283,289 @@ class Agent extends EventEmitter {
 				this.queue[normalizedOptions] = {};
 			}
 
-			// The entry must be removed from the queue IMMEDIATELY when:
-			// 1. the session connects successfully,
-			// 2. an error occurs.
-			const removeFromQueue = () => {
-				// Our entry can be replaced. We cannot remove the new one.
-				if (normalizedOptions in this.queue && this.queue[normalizedOptions][normalizedOrigin] === entry) {
-					delete this.queue[normalizedOptions][normalizedOrigin];
+			this._createSession(origin, options, normalizedOrigin, normalizedOptions, listeners);
+		});
+	}
 
-					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
-						delete this.queue[normalizedOptions];
-					}
+	_createSession(origin, options, normalizedOrigin, normalizedOptions, listeners, socket) {
+		// The entry must be removed from the queue IMMEDIATELY when:
+		// 1. the session connects successfully,
+		// 2. an error occurs.
+		const removeFromQueue = () => {
+			// Our entry can be replaced. We cannot remove the new one.
+			if (normalizedOptions in this.queue && this.queue[normalizedOptions][normalizedOrigin] === entry) {
+				delete this.queue[normalizedOptions][normalizedOrigin];
+
+				if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+					delete this.queue[normalizedOptions];
 				}
-			};
+			}
+		};
 
-			// The main logic is here
-			const entry = () => {
-				const name = `${normalizedOrigin}:${normalizedOptions}`;
-				let receivedSettings = false;
-				let servername;
+		// The main logic is here
+		const entry = () => {
+			const name = `${normalizedOrigin}:${normalizedOptions}`;
+			let receivedSettings = false;
+			let servername;
 
-				try {
-					const tlsSessionCache = this.tlsSessionCache.get(name);
+			try {
+				const tlsSessionCache = this.tlsSessionCache.get(name);
 
-					const session = http2.connect(origin, {
-						createConnection: this.createConnection,
-						settings: this.settings,
-						session: tlsSessionCache ? tlsSessionCache.session : undefined,
-						...options
-					});
-					session[kCurrentStreamsCount] = 0;
+				const session = http2.connect(origin, {
+					createConnection: socket ? () => socket : this.createConnection,
+					settings: this.settings,
+					session: tlsSessionCache ? tlsSessionCache.session : undefined,
+					...options
+				});
+				session[kCurrentStreamsCount] = 0;
 
-					// Tries to free the session.
-					const freeSession = () => {
-						// Fetch the smallest amount of free sessions of any origin we have.
-						const freeSessionsCount = session[kOriginSet].reduce((accumulator, origin) => {
-							return Math.min(accumulator, getSessions(this.freeSessions, normalizedOptions, origin).length);
-						}, Infinity);
+				// Tries to free the session.
+				const freeSession = () => {
+					// Fetch the smallest amount of free sessions of any origin we have.
+					const freeSessionsCount = session[kOriginSet].reduce((accumulator, origin) => {
+						return Math.min(accumulator, getSessions(this.freeSessions, normalizedOptions, origin).length);
+					}, Infinity);
 
-						// Check the limit.
-						if (freeSessionsCount < this.maxFreeSessions) {
-							addSession(this.freeSessions, normalizedOptions, session);
+					// Check the limit.
+					if (freeSessionsCount < this.maxFreeSessions) {
+						addSession(this.freeSessions, normalizedOptions, session);
 
-							return true;
-						}
+						return true;
+					}
 
-						return false;
-					};
+					return false;
+				};
 
-					const isFree = () => session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams;
+				const isFree = () => session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams;
 
-					session.socket.once('session', tlsSession => {
-						// We need to cache the servername due to a bug in OpenSSL.
-						setImmediate(() => {
-							this.tlsSessionCache.set(name, {
-								session: tlsSession,
-								servername
-							});
+				session.socket.once('session', tlsSession => {
+					// We need to cache the servername due to a bug in OpenSSL.
+					setImmediate(() => {
+						this.tlsSessionCache.set(name, {
+							session: tlsSession,
+							servername
 						});
 					});
+				});
 
-					// OpenSSL bug workaround.
-					// See https://github.com/nodejs/node/issues/28985
-					session.socket.once('secureConnect', () => {
-						servername = session.socket.servername;
+				// OpenSSL bug workaround.
+				// See https://github.com/nodejs/node/issues/28985
+				session.socket.once('secureConnect', () => {
+					servername = session.socket.servername;
 
-						if (servername === false && typeof tlsSessionCache !== 'undefined' && typeof tlsSessionCache.servername !== 'undefined') {
-							session.socket.servername = tlsSessionCache.servername;
+					if (servername === false && typeof tlsSessionCache !== 'undefined' && typeof tlsSessionCache.servername !== 'undefined') {
+						session.socket.servername = tlsSessionCache.servername;
+					}
+				});
+
+				session.once('error', error => {
+					// `receivedSettings` is true when the session has successfully connected.
+					if (!receivedSettings) {
+						for (const {reject} of listeners) {
+							reject(error);
 						}
-					});
+					}
 
-					session.once('error', error => {
-						// `receivedSettings` is true when the session has successfully connected.
-						if (!receivedSettings) {
-							for (const {reject} of listeners) {
-								reject(error);
-							}
+					// The connection got broken, purge the cache.
+					this.tlsSessionCache.delete(name);
+				});
+
+				session.setTimeout(this.timeout, () => {
+					// Terminates all streams owned by this session.
+					session.destroy();
+				});
+
+				session.once('close', () => {
+					if (!receivedSettings) {
+						// Broken connection
+						const error = new Error('Session closed without receiving a SETTINGS frame');
+
+						for (const {reject} of listeners) {
+							reject(error);
 						}
-
-						// The connection got broken, purge the cache.
-						this.tlsSessionCache.delete(name);
-					});
-
-					session.setTimeout(this.timeout, () => {
-						// Terminates all streams owned by this session.
-						session.destroy();
-					});
-
-					session.once('close', () => {
-						if (!receivedSettings) {
-							// Broken connection
-							const error = new Error('Session closed without receiving a SETTINGS frame');
-
-							for (const {reject} of listeners) {
-								reject(error);
-							}
-						}
-
-						removeFromQueue();
-
-						// This cannot be moved to the stream logic,
-						// because there may be a session that hadn't made a single request.
-						removeSession(this.freeSessions, normalizedOptions, session);
-
-						// There may be another session awaiting.
-						this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
-					});
-
-					// Iterates over the queue and processes listeners.
-					const processListeners = () => {
-						if (!(normalizedOptions in this.queue)) {
-							return;
-						}
-
-						for (const origin of session[kOriginSet]) {
-							if (origin in this.queue[normalizedOptions]) {
-								const {listeners} = this.queue[normalizedOptions][origin];
-
-								// Prevents session overloading.
-								while (listeners.length !== 0 && isFree()) {
-									// We assume `resolve(...)` calls `request(...)` *directly*,
-									// otherwise the session will get overloaded.
-									listeners.shift().resolve(session);
-								}
-
-								if (this.queue[normalizedOptions][origin].listeners.length === 0) {
-									delete this.queue[normalizedOptions][origin];
-
-									if (Object.keys(this.queue[normalizedOptions]).length === 0) {
-										delete this.queue[normalizedOptions];
-										break;
-									}
-								}
-
-								// We're no longer free, no point in continuing.
-								if (!isFree()) {
-									break;
-								}
-							}
-						}
-					};
-
-					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
-					session.once('origin', () => {
-						session[kOriginSet] = session.originSet;
-
-						if (!isFree()) {
-							// The session is full.
-							return;
-						}
-
-						// Close covered sessions (if possible).
-						this._closeCoveredSessions(normalizedOptions, session);
-
-						processListeners();
-
-						// `session.remoteSettings.maxConcurrentStreams` might get increased
-						session.on('remoteSettings', () => {
-							this._closeCoveredSessions(normalizedOptions, session);
-						});
-					});
-
-					session.once('remoteSettings', () => {
-						// The Agent could have been destroyed already.
-						if (entry.destroyed) {
-							const error = new Error('Agent has been destroyed');
-
-							for (const listener of listeners) {
-								listener.reject(error);
-							}
-
-							session.destroy();
-							return;
-						}
-
-						session[kOriginSet] = session.originSet;
-						this.emit('session', session);
-
-						if (freeSession()) {
-							// Process listeners, we're free.
-							processListeners();
-						} else if (this.maxFreeSessions === 0) {
-							processListeners();
-
-							// We're closing ASAP, when all possible requests have been made for this event loop tick.
-							setImmediate(() => {
-								session.close();
-							});
-						} else {
-							// Too late, another free session took these listeners.
-							session.close();
-						}
-
-						removeFromQueue();
-
-						// Check if we haven't managed to execute all listeners.
-						if (listeners.length !== 0) {
-							// Request for a new session with predefined listeners.
-							this.getSession(normalizedOrigin, options, listeners);
-							listeners.length = 0;
-						}
-
-						receivedSettings = true;
-
-						// `session.remoteSettings.maxConcurrentStreams` might get increased
-						session.on('remoteSettings', () => {
-							// Check if we're eligible to become a free session
-							if (isFree() && removeSession(this.busySessions, normalizedOptions, session)) {
-								// Check for free seats
-								if (freeSession()) {
-									processListeners();
-								} else {
-									// Assume it's still a busy session
-									addSession(this.busySessions, normalizedOptions, session);
-								}
-							}
-						});
-					});
-
-					// Shim `session.request()` in order to catch all streams
-					session[kRequest] = session.request;
-					session.request = headers => {
-						const stream = session[kRequest](headers, {
-							endStream: false
-						});
-
-						// The process won't exit until the session is closed.
-						session.ref();
-
-						++session[kCurrentStreamsCount];
-
-						// Check if we became busy
-						if (!isFree() && removeSession(this.freeSessions, normalizedOptions, session)) {
-							addSession(this.busySessions, normalizedOptions, session);
-						}
-
-						stream.once('close', () => {
-							--session[kCurrentStreamsCount];
-
-							if (isFree()) {
-								if (session[kCurrentStreamsCount] === 0) {
-									// All requests are finished, the process may exit now.
-									session.unref();
-								}
-
-								// Check if we are no longer busy and the session is not broken.
-								if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed && !session.closed) {
-									// Check the sessions count of this authority and compare it to `maxSessionsCount`.
-									if (freeSession()) {
-										this._closeCoveredSessions(normalizedOptions, session);
-										processListeners();
-									} else {
-										session.close();
-									}
-								}
-							}
-
-							if (!session.destroyed && !session.closed) {
-								closeSessionIfCovered(this.freeSessions, normalizedOptions, session);
-							}
-						});
-
-						return stream;
-					};
-				} catch (error) {
-					for (const listener of listeners) {
-						listener.reject(error);
 					}
 
 					removeFromQueue();
+
+					// This cannot be moved to the stream logic,
+					// because there may be a session that hadn't made a single request.
+					removeSession(this.freeSessions, normalizedOptions, session);
+
+					// There may be another session awaiting.
+					this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
+				});
+
+				// Iterates over the queue and processes listeners.
+				const processListeners = () => {
+					if (!(normalizedOptions in this.queue)) {
+						return;
+					}
+
+					for (const origin of session[kOriginSet]) {
+						if (origin in this.queue[normalizedOptions]) {
+							const {listeners} = this.queue[normalizedOptions][origin];
+
+							// Prevents session overloading.
+							while (listeners.length !== 0 && isFree()) {
+								// We assume `resolve(...)` calls `request(...)` *directly*,
+								// otherwise the session will get overloaded.
+								listeners.shift().resolve(session);
+							}
+
+							if (this.queue[normalizedOptions][origin].listeners.length === 0) {
+								delete this.queue[normalizedOptions][origin];
+
+								if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+									delete this.queue[normalizedOptions];
+									break;
+								}
+							}
+
+							// We're no longer free, no point in continuing.
+							if (!isFree()) {
+								break;
+							}
+						}
+					}
+				};
+
+				// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
+				session.once('origin', () => {
+					session[kOriginSet] = session.originSet;
+
+					if (!isFree()) {
+						// The session is full.
+						return;
+					}
+
+					// Close covered sessions (if possible).
+					this._closeCoveredSessions(normalizedOptions, session);
+
+					processListeners();
+
+					// `session.remoteSettings.maxConcurrentStreams` might get increased
+					session.on('remoteSettings', () => {
+						this._closeCoveredSessions(normalizedOptions, session);
+					});
+				});
+
+				session.once('remoteSettings', () => {
+					// The Agent could have been destroyed already.
+					if (entry.destroyed) {
+						const error = new Error('Agent has been destroyed');
+
+						for (const listener of listeners) {
+							listener.reject(error);
+						}
+
+						session.destroy();
+						return;
+					}
+
+					session[kOriginSet] = session.originSet;
+					this.emit('session', session);
+
+					if (freeSession()) {
+						// Process listeners, we're free.
+						processListeners();
+					} else if (this.maxFreeSessions === 0) {
+						processListeners();
+
+						// We're closing ASAP, when all possible requests have been made for this event loop tick.
+						setImmediate(() => {
+							session.close();
+						});
+					} else {
+						// Too late, another free session took these listeners.
+						session.close();
+					}
+
+					removeFromQueue();
+
+					// Check if we haven't managed to execute all listeners.
+					if (listeners.length !== 0) {
+						// Request for a new session with predefined listeners.
+						this.getSession(normalizedOrigin, options, listeners);
+						listeners.length = 0;
+					}
+
+					receivedSettings = true;
+
+					// `session.remoteSettings.maxConcurrentStreams` might get increased
+					session.on('remoteSettings', () => {
+						// Check if we're eligible to become a free session
+						if (isFree() && removeSession(this.busySessions, normalizedOptions, session)) {
+							// Check for free seats
+							if (freeSession()) {
+								processListeners();
+							} else {
+								// Assume it's still a busy session
+								addSession(this.busySessions, normalizedOptions, session);
+							}
+						}
+					});
+				});
+
+				// Shim `session.request()` in order to catch all streams
+				session[kRequest] = session.request;
+				session.request = headers => {
+					const stream = session[kRequest](headers, {
+						endStream: false
+					});
+
+					// The process won't exit until the session is closed.
+					session.ref();
+
+					++session[kCurrentStreamsCount];
+
+					// Check if we became busy
+					if (!isFree() && removeSession(this.freeSessions, normalizedOptions, session)) {
+						addSession(this.busySessions, normalizedOptions, session);
+					}
+
+					stream.once('close', () => {
+						--session[kCurrentStreamsCount];
+
+						if (isFree()) {
+							if (session[kCurrentStreamsCount] === 0) {
+								// All requests are finished, the process may exit now.
+								session.unref();
+							}
+
+							// Check if we are no longer busy and the session is not broken.
+							if (removeSession(this.busySessions, normalizedOptions, session) && !session.destroyed && !session.closed) {
+								// Check the sessions count of this authority and compare it to `maxSessionsCount`.
+								if (freeSession()) {
+									this._closeCoveredSessions(normalizedOptions, session);
+									processListeners();
+								} else {
+									session.close();
+								}
+							}
+						}
+
+						if (!session.destroyed && !session.closed) {
+							closeSessionIfCovered(this.freeSessions, normalizedOptions, session);
+						}
+					});
+
+					return stream;
+				};
+			} catch (error) {
+				for (const listener of listeners) {
+					listener.reject(error);
 				}
-			};
 
-			entry.listeners = listeners;
-			entry.completed = false;
-			entry.destroyed = false;
+				removeFromQueue();
+			}
+		};
 
-			this.queue[normalizedOptions][normalizedOrigin] = entry;
-			this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
-		});
+		entry.listeners = listeners;
+		entry.completed = false;
+		entry.destroyed = false;
+
+		this.queue[normalizedOptions][normalizedOrigin] = entry;
+		this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
 	}
 
 	request(origin, options, headers) {
