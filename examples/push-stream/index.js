@@ -60,7 +60,7 @@ class PushAgent extends http2.Agent {
 					const cache = session.pushCache.get(parsedPushHeaders);
 					if (cache) {
 						const {stream, pushHeaders} = cache;
-						delete session.pushCache.delete(parsedPushHeaders);
+						session.pushCache.delete(parsedPushHeaders);
 
 						setImmediate(() => {
 							stream.emit('response', pushHeaders);
