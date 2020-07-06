@@ -762,6 +762,7 @@ test('finish event for POST', wrapper, async (t, server) => {
 
 test('throws when writing using GET, HEAD or DELETE', wrapper, async (t, server) => {
 	const methods = ['GET', 'HEAD', 'DELETE'];
+	const message = 'The GET, HEAD and DELETE methods must NOT have a body';
 
 	for (const method of methods) {
 		const request = makeRequest({
@@ -769,11 +770,16 @@ test('throws when writing using GET, HEAD or DELETE', wrapper, async (t, server)
 			method
 		});
 
-		request.write('asdf');
+		try {
+			request.write('asdf');
 
-		// eslint-disable-next-line no-await-in-loop
-		const error = await pEvent(request, 'error');
-		t.is(error.message, 'The GET, HEAD and DELETE methods must NOT have a body');
+			// eslint-disable-next-line no-await-in-loop
+			const error = await pEvent(request, 'error');
+			t.is(error.message, message);
+		} catch (error) {
+			// Node.js 12
+			t.is(error.message, message);
+		}
 
 		request.abort();
 	}
