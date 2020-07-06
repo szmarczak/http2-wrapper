@@ -1,10 +1,10 @@
 {
 	"name": "http2-wrapper",
-	"version": "1.0.0-beta.4.6",
+	"version": "1.0.0-beta.4.7",
 	"description": "HTTP2 client, just with the familiar `https` API",
 	"main": "source",
 	"engines": {
-		"node": ">=10.19.0"
+		"node": ">=10.21.0"
 	},
 	"scripts": {
 		"test": "xo && nyc --reporter=lcovonly --reporter=text ava"
@@ -29,7 +29,7 @@
 	},
 	"homepage": "https://github.com/szmarczak/http2-wrapper#readme",
 	"dependencies": {
-		"quick-lru": "^5.0.0",
+		"quick-lru": "^5.1.1",
 		"resolve-alpn": "^1.0.0"
 	},
 	"devDependencies": {
