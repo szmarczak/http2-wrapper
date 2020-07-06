@@ -89,7 +89,7 @@ class ClientRequest extends Writable {
 		this.socket = null;
 		this.connection = null;
 
-		this.method = options.method;
+		this.method = options.method || 'GET';
 		this.path = options.path;
 
 		this.res = null;
@@ -160,9 +160,13 @@ class ClientRequest extends Writable {
 		}
 	}
 
+	get _mustNotHaveABody() {
+		return this.method === 'GET' || this.method === 'HEAD' || this.method === 'DELETE';
+	}
+
 	_write(chunk, encoding, callback) {
 		// https://github.com/nodejs/node/blob/654df09ae0c5e17d1b52a900a545f0664d8c7627/lib/internal/http2/util.js#L148-L156
-		if (this.method === 'GET' || this.method === 'HEAD' || this.method === 'DELETE') {
+		if (this._mustNotHaveABody) {
 			callback(new Error('The GET, HEAD and DELETE methods must NOT have a body'));
 			return;
 		}
@@ -186,7 +190,7 @@ class ClientRequest extends Writable {
 
 		const callEnd = () => {
 			// For GET, HEAD and DELETE
-			if (this._request.writableEnded) {
+			if (this._mustNotHaveABody) {
 				callback();
 				return;
 			}
