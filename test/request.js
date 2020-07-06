@@ -84,6 +84,19 @@ test('accepts `string` as the input parameter', wrapper, async (t, server) => {
 	t.is(data, 'ok');
 });
 
+test('`method` property', wrapper, async (t, server) => {
+	const request = makeRequest(server.url);
+	t.is(request.method, 'GET');
+
+	request.method = 'post';
+	t.is(request.method, 'POST');
+
+	request.method = 0;
+	t.is(request.method, 'POST');
+
+	request.abort();
+});
+
 test('accepts `options` as the input parameter', wrapper, async (t, server) => {
 	server.get('/200', okHandler);
 
