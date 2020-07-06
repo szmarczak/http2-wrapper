@@ -709,6 +709,76 @@ test('pipeline works', wrapper, async (t, server) => {
 	request.abort();
 });
 
+test('endStream is true', wrapper, async (t, server) => {
+	server.once('session', session => {
+		session.once('stream', (stream, headers, flags) => {
+			if (flags & constants.STREAM_OPTION_EMPTY_PAYLOAD) {
+				stream.respond({
+					[constants.HTTP2_HEADER_STATUS]: 200,
+					[constants.HTTP2_HEADER_CONTENT_TYPE]: 'text/plain'
+				});
+				stream.end();
+			} else {
+				stream.respond({
+					[constants.HTTP2_HEADER_STATUS]: 403,
+					[constants.HTTP2_HEADER_CONTENT_TYPE]: 'text/plain'
+				});
+				stream.end();
+			}
+		});
+	});
+
+	const request = makeRequest(server.url).end();
+	const response = await pEvent(request, 'response');
+	t.is(response.statusCode, 200);
+
+	response.resume();
+	await pEvent(response, 'end');
+});
+
+test('finish event for GET', wrapper, async (t, server) => {
+	const request = makeRequest(server.options);
+	request.end();
+
+	await pEvent(request, 'finish');
+	request.abort();
+
+	t.pass();
+});
+
+test('finish event for POST', wrapper, async (t, server) => {
+	const request = makeRequest({
+		...server.options,
+		method: 'POST'
+	});
+
+	request.end();
+
+	await pEvent(request, 'finish');
+	request.abort();
+
+	t.pass();
+});
+
+test('throws when writing using GET, HEAD or DELETE', wrapper, async (t, server) => {
+	const methods = ['GET', 'HEAD', 'DELETE'];
+
+	for (const method of methods) {
+		const request = makeRequest({
+			...server.options,
+			method
+		});
+
+		request.write('asdf');
+
+		// eslint-disable-next-line no-await-in-loop
+		const error = await pEvent(request, 'error');
+		t.is(error.message, 'The GET, HEAD and DELETE methods must NOT have a body');
+
+		request.abort();
+	}
+});
+
 if (process.platform !== 'win32') {
 	const socketPath = tempy.file({extension: 'socket'});
 

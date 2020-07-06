@@ -288,7 +288,7 @@ Type: `object`
 
 If the `listener` argument is present, the Promise will resolve immediately. It will use the `resolve` function to pass the session.
 
-#### agent.request([origin](#origin), [options](#options-1), [headers](https://nodejs.org/api/http2.html#http2_headers_object))
+#### agent.request([origin](#origin), [options](#options-1), [headers](https://nodejs.org/api/http2.html#http2_headers_object), [streamOptions](https://nodejs.org/api/http2.html#http2_clienthttp2session_request_headers_options))
 
 Returns a Promise giving `Http2Stream`.
 

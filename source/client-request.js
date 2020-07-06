@@ -161,6 +161,12 @@ class ClientRequest extends Writable {
 	}
 
 	_write(chunk, encoding, callback) {
+		// https://github.com/nodejs/node/blob/654df09ae0c5e17d1b52a900a545f0664d8c7627/lib/internal/http2/util.js#L148-L156
+		if (this.method === 'GET' || this.method === 'HEAD' || this.method === 'DELETE') {
+			callback(new Error('The GET, HEAD and DELETE methods must NOT have a body'));
+			return;
+		}
+
 		this.flushHeaders();
 
 		const callWrite = () => this._request.write(chunk, encoding, callback);
@@ -178,7 +184,16 @@ class ClientRequest extends Writable {
 
 		this.flushHeaders();
 
-		const callEnd = () => this._request.end(callback);
+		const callEnd = () => {
+			// For GET, HEAD and DELETE
+			if (this._request.writableEnded) {
+				callback();
+				return;
+			}
+
+			this._request.end(callback);
+		};
+
 		if (this._request) {
 			callEnd();
 		} else {
@@ -315,9 +330,7 @@ class ClientRequest extends Writable {
 		// Makes a HTTP2 request
 		if (this[kSession]) {
 			try {
-				onStream(this[kSession].request(this[kHeaders], {
-					endStream: false
-				}));
+				onStream(this[kSession].request(this[kHeaders]));
 			} catch (error) {
 				this.emit('error', error);
 			}

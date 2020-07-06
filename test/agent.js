@@ -148,7 +148,7 @@ test.serial('`timeout` option - endless response', singleRequestWrapper.lolex, a
 	const timeout = 1000;
 	const agent = new Agent({timeout});
 
-	const secondStream = await agent.request(server.url);
+	const secondStream = await agent.request(server.url, {}, {}, {endStream: false});
 
 	const promise = pEvent(secondStream, 'close');
 
@@ -171,8 +171,8 @@ test('respects the `maxSessions` option', singleRequestWrapper, async (t, server
 		maxSessions: 1
 	});
 
-	const {session} = (await agent.request(server.url, server.options)).end();
-	const requestPromise = agent.request(server.url, server.options);
+	const {session} = (await agent.request(server.url, server.options, {}, {endStream: false})).end();
+	const requestPromise = agent.request(server.url, server.options, {}, {endStream: false});
 
 	t.is(typeof Object.values(agent.queue[''])[0], 'function');
 	t.is(Object.values(agent.freeSessions).length, 0);
@@ -190,10 +190,10 @@ test('doesn\'t break on session `close` event', singleRequestWrapper, async (t, 
 	server.get('/', () => {});
 
 	const agent = new Agent();
-	const request = (await agent.request(server.url)).end();
+	const request = await agent.request(server.url);
 	const {session} = request;
 
-	const requestPromise = agent.request(server.url);
+	const requestPromise = agent.request(server.url, {}, {}, {endStream: false});
 
 	const emit = request.emit.bind(request);
 	request.emit = (event, ...args) => {
@@ -238,16 +238,16 @@ test('creates new session if there are no free sessions', singleRequestWrapper, 
 	t.is(Object.values(agent.freeSessions).length, 0);
 	t.is(Object.values(agent.busySessions).length, 0);
 
-	const first = (await agent.request(server.url, server.options, {
+	const first = await agent.request(server.url, server.options, {
 		':path': '/infinite'
-	})).end();
+	});
 
 	t.is(Object.values(agent.freeSessions).length, 0);
 	t.is(Object.values(agent.busySessions)[0].length, 1);
 
-	const second = (await agent.request(server.url, server.options, {
+	const second = await agent.request(server.url, server.options, {
 		':path': '/infinite'
-	})).end();
+	});
 
 	const closeEvents = [pEvent(first.session, 'close'), pEvent(second.session, 'close')];
 
@@ -270,7 +270,6 @@ test('can destroy busy sessions', singleRequestWrapper, async (t, server) => {
 	const request = await agent.request(server.url, server.options, {
 		':path': '/infinite'
 	});
-	request.end();
 
 	t.is(Object.values(agent.busySessions)[0].length, 1);
 
@@ -300,7 +299,7 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 	{
 		const agent = new Agent();
 		const session = await agent.getSession(server.url);
-		(await agent.request(server.url)).end();
+		await agent.request(server.url);
 
 		agent.closeFreeSessions();
 
@@ -324,7 +323,7 @@ test('throws if session is closed before receiving a SETTINGS frame', async t =>
 	const agent = new Agent();
 
 	await t.throwsAsync(
-		agent.request(`https://localhost:${server.address().port}`),
+		agent.request(`https://localhost:${server.address().port}`, {}, {}, {endStream: false}),
 		{
 			message: 'Session closed without receiving a SETTINGS frame'
 		}
@@ -360,9 +359,9 @@ test('appends to freeSessions after the stream has ended', singleRequestWrapper,
 
 	const agent = new Agent({maxFreeSessions: 2});
 
-	const firstRequest = await agent.request(server.url);
-	const secondRequest = await agent.request(server.url);
-	const thirdRequest = await agent.request(server.url);
+	const firstRequest = await agent.request(server.url, {}, {}, {endStream: false});
+	const secondRequest = await agent.request(server.url, {}, {}, {endStream: false});
+	const thirdRequest = await agent.request(server.url, {}, {}, {endStream: false});
 
 	firstRequest.close();
 	secondRequest.close();
@@ -384,7 +383,10 @@ test('appends to freeSessions after the stream has ended', singleRequestWrapper,
 test('prevents overloading sessions', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
 
-	const requestPromises = Promise.all([agent.request(server.url), agent.request(server.url)]);
+	const requestPromises = Promise.all([
+		agent.request(server.url, {}, {}, {endStream: false}),
+		agent.request(server.url, {}, {}, {endStream: false})
+	]);
 
 	const requests = await requestPromises;
 	t.not(requests[0].session, requests[1].session);
@@ -404,7 +406,7 @@ test('prevents overloading sessions #2', singleRequestWrapper, async (t, server)
 	await secondServer.listen();
 
 	const session = await agent.getSession(server.url);
-	const request = session.request();
+	const request = session.request({}, {endStream: false});
 
 	const secondSessionPromise = agent.getSession(server.url);
 
@@ -436,7 +438,7 @@ test('prevents session overloading #3', singleRequestWrapper, async (t, server) 
 	const sessionA = await agent.getSession(server.url);
 	const serverSessionA = await serverSessionAPromise;
 
-	sessionA.request();
+	sessionA.request({}, {endStream: false});
 
 	const sessionBPromise = agent.getSession(server.url);
 
@@ -455,7 +457,10 @@ test('sessions can be manually overloaded', singleRequestWrapper, async (t, serv
 	const agent = new Agent();
 
 	const session = await agent.getSession(server.url);
-	const requests = [session.request(), session.request()];
+	const requests = [
+		session.request({}, {endStream: false}),
+		session.request({}, {endStream: false})
+	];
 
 	t.is(requests[0].session, requests[1].session);
 
@@ -470,7 +475,10 @@ test('sessions can be manually overloaded #2', singleRequestWrapper, async (t, s
 	const agent = new Agent();
 
 	const session = await agent.getSession(server.url);
-	const requests = [session.request(), session.request()];
+	const requests = [
+		session.request({}, {endStream: false}),
+		session.request({}, {endStream: false})
+	];
 
 	requests[0].end();
 
@@ -600,7 +608,7 @@ test('closes covered sessions - session no longer busy', singleRequestWrapper, a
 	await secondServer.listen();
 
 	const firstSession = await agent.getSession(server.url);
-	const request = await agent.request(server.url);
+	const request = await agent.request(server.url, {}, {}, {endStream: false});
 
 	const secondSession = await agent.getSession(secondServer.url);
 	await pEvent(secondSession, 'origin');
@@ -632,8 +640,8 @@ test('doesn\'t close covered sessions if the current one is full', singleRequest
 		session.origin(secondServer.url);
 	});
 
-	const request = await agent.request(server.url);
-	const secondRequest = await agent.request(secondServer.url);
+	const request = await agent.request(server.url, {}, {}, {endStream: false});
+	const secondRequest = await agent.request(secondServer.url, {}, {}, {endStream: false});
 	const {session} = request;
 	const secondSession = secondRequest.session;
 
@@ -667,7 +675,7 @@ test('uses sessions which are more loaded to use fewer connections', tripleReque
 		const requests = [];
 
 		for (let i = 0; i < count; i++) {
-			requests.push(session.request());
+			requests.push(session.request({}, {endStream: false}));
 		}
 
 		return requests;
@@ -705,7 +713,7 @@ test('uses sessions which are more loaded to use fewer connections', tripleReque
 
 	await setImmediateAsync();
 
-	const request = await agent.request(server.url);
+	const request = await agent.request(server.url, {}, {}, {endStream: false});
 	t.is(request.session, sessions[0].session);
 
 	// Cleanup
@@ -764,7 +772,7 @@ test.serial('respects `.maxFreeSessions` changes', singleRequestWrapper, async (
 		return Agent.connect(...args);
 	};
 
-	const stream = await agent.request(server.url);
+	const stream = await agent.request(server.url, {}, {}, {endStream: false});
 	const streamSession = stream.session;
 
 	agent.maxFreeSessions = 1;
@@ -823,9 +831,9 @@ test('free sessions can become suddenly covered by shrinking their current strea
 			client: session,
 			server: serverSession,
 			requests: [
-				session.request(),
-				session.request(),
-				session.request()
+				session.request({}, {endStream: false}),
+				session.request({}, {endStream: false}),
+				session.request({}, {endStream: false})
 			]
 		};
 	}
@@ -837,8 +845,8 @@ test('free sessions can become suddenly covered by shrinking their current strea
 			client: session,
 			server: undefined,
 			requests: [
-				session.request(),
-				session.request()
+				session.request({}, {endStream: false}),
+				session.request({}, {endStream: false})
 			]
 		};
 	}
@@ -876,9 +884,9 @@ test('busy sessions can become suddenly covered by shrinking their current strea
 			client: session,
 			server: serverSession,
 			requests: [
-				session.request(),
-				session.request(),
-				session.request()
+				session.request({}, {endStream: false}),
+				session.request({}, {endStream: false}),
+				session.request({}, {endStream: false})
 			]
 		};
 	}
@@ -892,8 +900,8 @@ test('busy sessions can become suddenly covered by shrinking their current strea
 			client: session,
 			server: serverSession,
 			requests: [
-				session.request(),
-				session.request()
+				session.request({}, {endStream: false}),
+				session.request({}, {endStream: false})
 			]
 		};
 
@@ -940,9 +948,9 @@ test('busy session remains busy if can be free but there are no free seats', tri
 
 		sessions.a = session;
 		sessions.a.requests = [
-			session.request(),
-			session.request(),
-			session.request()
+			session.request({}, {endStream: false}),
+			session.request({}, {endStream: false}),
+			session.request({}, {endStream: false})
 		];
 	}
 
@@ -953,9 +961,9 @@ test('busy session remains busy if can be free but there are no free seats', tri
 
 		sessions.b = session;
 		sessions.b.requests = [
-			session.request(),
-			session.request(),
-			session.request()
+			session.request({}, {endStream: false}),
+			session.request({}, {endStream: false}),
+			session.request({}, {endStream: false})
 		];
 
 		sessions.a.requests.shift().close();
@@ -984,7 +992,7 @@ test('a session can cover other session by increasing its streams count limit', 
 	serverSessionA.origin('https://example.com');
 	await pEvent(sessionA, 'origin');
 
-	sessionA.request();
+	sessionA.request({}, {endStream: false});
 
 	const sessionB = await agent.getSession(server.url);
 

@@ -492,10 +492,8 @@ class Agent extends EventEmitter {
 
 					// Shim `session.request()` in order to catch all streams
 					session[kRequest] = session.request;
-					session.request = headers => {
-						const stream = session[kRequest](headers, {
-							endStream: false
-						});
+					session.request = (headers, streamOptions) => {
+						const stream = session[kRequest](headers, streamOptions);
 
 						// The process won't exit until the session is closed.
 						session.ref();
@@ -553,12 +551,12 @@ class Agent extends EventEmitter {
 		});
 	}
 
-	request(origin, options, headers) {
+	request(origin, options, headers, streamOptions) {
 		return new Promise((resolve, reject) => {
 			this.getSession(origin, options, [{
 				reject,
 				resolve: session => {
-					resolve(session.request(headers));
+					resolve(session.request(headers, streamOptions));
 				}
 			}]);
 		});
