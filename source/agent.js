@@ -253,16 +253,17 @@ class Agent extends EventEmitter {
 					if (session[kOriginSet].includes(normalizedOrigin)) {
 						const sessionMaxConcurrentStreams = session.remoteSettings.maxConcurrentStreams;
 
+						if (sessionMaxConcurrentStreams < maxConcurrentStreams) {
+							break;
+						}
+
 						if (
-							sessionMaxConcurrentStreams < maxConcurrentStreams ||
+							session[kCurrentStreamsCount] >= sessionMaxConcurrentStreams ||
+							session[kGracefullyClosing] ||
 							// Unfortunately the `close` event isn't called immediately,
 							// so `session.destroyed` is `true`, but `session.closed` is `false`.
 							session.destroyed
 						) {
-							break;
-						}
-
-						if (session[kCurrentStreamsCount] >= sessionMaxConcurrentStreams) {
 							continue;
 						}
 
@@ -513,7 +514,7 @@ class Agent extends EventEmitter {
 
 						// TODO: Close last recently used (or least used?) session
 						if (session[kCurrentStreamsCount] === 0 && this._freeSessionsCount > this.maxFreeSessions) {
-							gracefullyClose(session);
+							session.close();
 						}
 
 						removeFromQueue();
@@ -545,9 +546,6 @@ class Agent extends EventEmitter {
 						session.ref();
 
 						++session[kCurrentStreamsCount];
-
-						// Abort closing, this session can be reused.
-						session[kGracefullyClosing] = false;
 
 						if (session[kCurrentStreamsCount] === session.remoteSettings.maxConcurrentStreams) {
 							this._freeSessionsCount--;
