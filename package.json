@@ -38,7 +38,7 @@
 		"benchmark": "^2.1.4",
 		"coveralls": "^3.0.9",
 		"get-stream": "^5.1.0",
-		"got": "^11.0.2",
+		"got": "^11.4.0",
 		"lolex": "^6.0.0",
 		"many-keys-map": "^1.0.2",
 		"nyc": "^15.0.0",

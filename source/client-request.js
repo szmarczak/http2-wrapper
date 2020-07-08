@@ -191,7 +191,7 @@ class ClientRequest extends Writable {
 		const callEnd = () => {
 			// For GET, HEAD and DELETE
 			if (this._mustNotHaveABody) {
-				callback();
+				process.nextTick(callback);
 				return;
 			}
 

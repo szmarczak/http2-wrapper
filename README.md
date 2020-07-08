@@ -221,14 +221,16 @@ If there's no activity after `timeout` milliseconds, the session will be closed.
 Type: `number`<br>
 Default: `Infinity`
 
-The maximum amount of sessions per origin.
+The maximum amount of sessions in total.
 
 ##### maxFreeSessions
 
 Type: `number`<br>
 Default: `1`
 
-The maximum amount of free sessions per origin.
+The maximum amount of free sessions in total. This only applies to sessions with no pending requests.
+
+**Note:** It is possible that the amount will be exceeded when sessions have at least 1 pending request.
 
 ##### maxCachedTlsSessions
 

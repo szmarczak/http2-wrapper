@@ -394,39 +394,6 @@ test('prevents overloading sessions', singleRequestWrapper, async (t, server) =>
 	agent.destroy();
 });
 
-test('prevents overloading sessions #2', singleRequestWrapper, async (t, server) => {
-	const secondServer = await createServer();
-	const agent = new Agent({
-		maxSessions: 1
-	});
-
-	secondServer.on('session', session => {
-		session.origin(server.url);
-	});
-	await secondServer.listen();
-
-	const session = await agent.getSession(server.url);
-	const request = session.request({}, {endStream: false});
-
-	const secondSessionPromise = agent.getSession(server.url);
-
-	const thirdSession = await agent.getSession(secondServer.url);
-
-	const secondSession = await secondSessionPromise;
-	t.is(secondSession, thirdSession);
-
-	t.true(session.closed);
-	t.false(session.destroyed);
-
-	t.false(thirdSession.closed);
-	t.false(thirdSession.destroyed);
-
-	request.close();
-	agent.closeFreeSessions();
-
-	await secondServer.close();
-});
-
 test('prevents session overloading #3', singleRequestWrapper, async (t, server) => {
 	t.timeout(1000);
 
@@ -524,7 +491,6 @@ if (supportsTlsSessions) {
 		await pEvent(session, 'close');
 
 		const secondSession = await agent.getSession(server.url);
-		await setImmediateAsync();
 
 		t.deepEqual(secondSession.socket.getSession(), tlsSession);
 		t.true(is.buffer(tlsSession));
@@ -936,7 +902,7 @@ test('busy sessions can become suddenly covered by shrinking their current strea
 	agent.destroy();
 });
 
-test('busy session remains busy if can be free but there are no free seats', tripleRequestWrapper, async (t, server) => {
+test('prevents overloading sessions #4', tripleRequestWrapper, async (t, server) => {
 	const agent = new Agent({
 		maxFreeSessions: 1
 	});
@@ -975,7 +941,7 @@ test('busy session remains busy if can be free but there are no free seats', tri
 		await pEvent(session, 'remoteSettings');
 	}
 
-	t.is(agent.busySessions[''][0], sessions.b);
+	t.is(agent.freeSessions[''].length, 2);
 
 	agent.destroy();
 });
