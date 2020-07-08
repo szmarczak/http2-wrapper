@@ -555,6 +555,7 @@ test('closes covered sessions - `origin` event', wrapper, async (t, server) => {
 
 	t.true(firstSession.closed);
 	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
 
 	t.true(firstSession.destroyed);
 	t.false(secondSession.destroyed);
@@ -579,8 +580,10 @@ test('closes covered sessions - session no longer busy', singleRequestWrapper, a
 	const secondSession = await agent.getSession(secondServer.url);
 	await pEvent(secondSession, 'origin');
 
-	t.true(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
+	t.false(firstSession.closed);
 	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
 
 	t.false(firstSession.destroyed);
 	t.false(firstSession.destroyed);
@@ -613,8 +616,10 @@ test('doesn\'t close covered sessions if the current one is full', singleRequest
 
 	t.not(session, secondSession);
 	t.false(session.closed);
+	t.false(session[Agent.kGracefullyClosing]);
 	t.false(session.destroyed);
 	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.destroyed);
 
 	request.close();
@@ -622,8 +627,10 @@ test('doesn\'t close covered sessions if the current one is full', singleRequest
 	await setImmediateAsync();
 
 	t.false(session.closed);
+	t.false(session[Agent.kGracefullyClosing]);
 	t.false(session.destroyed);
-	t.true(secondSession.closed);
+	t.true(secondSession[kGracefullyClosing]);
+	t.false(secondSession.closed);
 	t.false(secondSession.destroyed);
 
 	secondRequest.close();
@@ -826,7 +833,8 @@ test('free sessions can become suddenly covered by shrinking their current strea
 	await promise;
 
 	t.not(sessions.a.client, sessions.b.client);
-	t.true(sessions.b.client.closed);
+	t.true(sessions.b.client[Agent.kGracefullyClosing]);
+	t.false(sessions.b.client.closed);
 
 	agent.destroy();
 });
@@ -981,6 +989,7 @@ test('`session` event', wrapper, async (t, server) => {
 		called = true;
 
 		t.false(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
 	});
 
 	await agent.getSession(server.url);

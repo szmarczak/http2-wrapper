@@ -1,19 +1,6 @@
 const http2 = require('.');
 
 (async () => {
-	const session = http2.connect('https://google.com');
-	session.ref();
-	session.unref();
-
-	session.ref();
-
-	const request = session.request();
-	request.resume();
-	request.once('end', () => {
-		session.unref();
-		console.log('got read');
-	});
-	return;
     const url = 'https://www.facebook.com/video/autoplay/nux/';
 
     const headers = {
@@ -48,32 +35,11 @@ const http2 = require('.');
 
 	const body = (new URLSearchParams(form)).toString();
 
-	// const session = http2.connect('https://facebook.com');
-
-	// session.once('remoteSetings', () => {
-	// 	const request = session.request({
-	// 		':method': 'POST',
-	// 		...headers
-	// 	});
-
-	// 	request.once('error', console.error);
-
-	// 	session.close();
-	// });
-
-	// return;
-
 	const sendRequest = () => new Promise((resolve, reject) => {
-		const request = http2.request(url, {
-			method: 'POST',
-			headers
-		});
+		const request = http2.request(url, { method: 'POST', headers});
 		request.end(body);
 
-		request.once('error', error => {
-			error.request = request;
-			reject(error);
-		});
+		request.once('error', reject);
 
 		const data = [];
 		request.once('response', response => {
@@ -97,23 +63,11 @@ const http2 = require('.');
 
         await Promise.all(new Array(n).fill(0).map(async () => {
             try {
-                await func();
+                const data = await func();
+                JSON.parse(data.slice(9));
                 success++;
             } catch (e) {
-				const free = http2.globalAgent.freeSessions[''];
-				const busy = http2.globalAgent.busySessions[''];
-				// console.log(
-				// 	free && free[0][http2.kCurrentStreamsCount],
-				// 	busy && busy.length,
-				// 	e.request._request._session.cannotFree,
-				// 	e.request._request._session[http2.kCurrentStreamsCount],
-				// 	e.request._request.state.localClose,
-				// 	e.request._request.state.remoteClose,
-				// 	JSON.stringify(e.request._request.state),
-				// 	e.stack
-				// );
-				const request = e.request._request;
-				console.error(e.message, request.aborted, request.ended, request.success);
+				console.log(e);
                 errors.add(e.message);
                 fail++;
             };
@@ -133,5 +87,5 @@ const http2 = require('.');
 		await test('HTTP2', n, sendRequest);
     }
 
-	console.table(result);
+    console.table(result)
 })();

@@ -7,6 +7,7 @@ const QuickLRU = require('quick-lru');
 const kCurrentStreamsCount = Symbol('currentStreamsCount');
 const kRequest = Symbol('request');
 const kOriginSet = Symbol('cachedOriginSet');
+const kGracefullyClosing = Symbol('gracefullyClosing');
 
 const nameKeys = [
 	// `http2.connect()` options
@@ -80,8 +81,9 @@ const closeCoveredSessions = (where, session) => {
 			// Makes sure that the session can handle all requests from the covered session.
 			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
 		) {
-			// This allows pending requests to finish and prevents making new requests.
-			coveredSession.close();
+			// This allows pending requests to finish and does not prevent making new requests.
+			// TODO: Should it prevent new requests?
+			gracefullyClose(coveredSession);
 		}
 	}
 };
@@ -94,7 +96,7 @@ const closeSessionIfCovered = (where, coveredSession) => {
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
 			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
 		) {
-			coveredSession.close();
+			gracefullyClose(coveredSession);
 		}
 	}
 };
@@ -119,8 +121,16 @@ const getSessions = ({agent, isFree}) => {
 	return result;
 };
 
+const gracefullyClose = session => {
+	session[kGracefullyClosing] = true;
+
+	if (session[kCurrentStreamsCount] === 0) {
+		session.close();
+	}
+};
+
 class Agent extends EventEmitter {
-	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 10, maxCachedTlsSessions = 100} = {}) {
+	constructor({timeout = 60000, maxSessions = 2, maxFreeSessions = 2, maxCachedTlsSessions = 100} = {}) {
 		super();
 
 		// A session is considered busy when its current streams count
@@ -325,6 +335,7 @@ class Agent extends EventEmitter {
 						...options
 					});
 					session[kCurrentStreamsCount] = 0;
+					session[kGracefullyClosing] = false;
 
 					const isFree = () => session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams;
 
@@ -502,7 +513,7 @@ class Agent extends EventEmitter {
 
 						// TODO: Close last recently used (or least used?) session
 						if (session[kCurrentStreamsCount] === 0 && this._freeSessionsCount > this.maxFreeSessions) {
-							session.close();
+							gracefullyClose(session);
 						}
 
 						removeFromQueue();
@@ -535,6 +546,9 @@ class Agent extends EventEmitter {
 
 						++session[kCurrentStreamsCount];
 
+						// Abort closing, this session can be reused.
+						session[kGracefullyClosing] = false;
+
 						if (session[kCurrentStreamsCount] === session.remoteSettings.maxConcurrentStreams) {
 							this._freeSessionsCount--;
 						}
@@ -560,7 +574,10 @@ class Agent extends EventEmitter {
 
 									if (
 										isEmpty &&
-										this._freeSessionsCount > this.maxFreeSessions
+										(
+											this._freeSessionsCount > this.maxFreeSessions ||
+											session[kGracefullyClosing]
+										)
 									) {
 										session.close();
 									} else {
@@ -660,6 +677,7 @@ class Agent extends EventEmitter {
 }
 
 Agent.kCurrentStreamsCount = kCurrentStreamsCount;
+Agent.kGracefullyClosing = kGracefullyClosing;
 
 module.exports = {
 	Agent,
