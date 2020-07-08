@@ -242,7 +242,13 @@ class Agent extends EventEmitter {
 				for (const session of sessions) {
 					if (session[kOriginSet].includes(normalizedOrigin)) {
 						const sessionMaxConcurrentStreams = session.remoteSettings.maxConcurrentStreams;
-						if (sessionMaxConcurrentStreams < maxConcurrentStreams) {
+
+						if (
+							sessionMaxConcurrentStreams < maxConcurrentStreams ||
+							// Unfortunately the `close` event isn't called immediately,
+							// so `session.destroyed` is `true`, but `session.closed` is `false`.
+							session.destroyed
+						) {
 							break;
 						}
 
@@ -264,11 +270,10 @@ class Agent extends EventEmitter {
 
 					while (listeners.length !== 0) {
 						const {resolve} = listeners.shift();
-
 						resolve(optimalSession);
 
 						// TODO: Instead of calling getSessions, redo [1].
-						if (optimalSession[kCurrentStreamsCount] === maxConcurrentStreams) {
+						if (optimalSession[kCurrentStreamsCount] === maxConcurrentStreams && listeners.length !== 0) {
 							getSessions(normalizedOptions, normalizedOrigin, listeners);
 							return;
 						}
@@ -591,7 +596,11 @@ class Agent extends EventEmitter {
 			this.getSession(origin, options, [{
 				reject,
 				resolve: session => {
-					resolve(session.request(headers, streamOptions));
+					try {
+						resolve(session.request(headers, streamOptions));
+					} catch (error) {
+						reject(error);
+					}
 				}
 			}]);
 		});
