@@ -288,7 +288,8 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 
 		agent.closeFreeSessions();
 
-		t.is(session.closed, true);
+		t.true(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
 		await pEvent(session, 'close');
 
 		t.is(Object.values(agent.freeSessions).length, 0);
@@ -303,7 +304,8 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 
 		agent.closeFreeSessions();
 
-		t.is(session.closed, false);
+		t.false(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
 		t.is(Object.values(agent.freeSessions).length, 1);
 
 		agent.destroy();
@@ -554,6 +556,7 @@ test('closes covered sessions - `origin` event', wrapper, async (t, server) => {
 	await pEvent(secondSession, 'origin');
 
 	t.true(firstSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.closed);
 	t.false(secondSession[Agent.kGracefullyClosing]);
 
@@ -580,8 +583,8 @@ test('closes covered sessions - session no longer busy', singleRequestWrapper, a
 	const secondSession = await agent.getSession(secondServer.url);
 	await pEvent(secondSession, 'origin');
 
-	t.true(firstSession[Agent.kGracefullyClosing]);
 	t.false(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.closed);
 	t.false(secondSession[Agent.kGracefullyClosing]);
 
@@ -629,8 +632,8 @@ test('doesn\'t close covered sessions if the current one is full', singleRequest
 	t.false(session.closed);
 	t.false(session[Agent.kGracefullyClosing]);
 	t.false(session.destroyed);
-	t.true(secondSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.closed);
+	t.true(secondSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.destroyed);
 
 	secondRequest.close();
@@ -717,7 +720,10 @@ test('`.freeSessions` may contain closed sessions', wrapper, async (t, server) =
 	const session = await agent.getSession(server.url);
 	session.close();
 
-	t.true(agent.freeSessions[''][0].closed);
+	const that = agent.freeSessions[''][0];
+
+	t.true(that.closed);
+	t.false(that[Agent.kGracefullyClosing]);
 
 	agent.destroy();
 });
@@ -838,6 +844,7 @@ test('free sessions can become suddenly covered by shrinking their current strea
 	t.not(sessions.a.client, sessions.b.client);
 	t.true(sessions.b.client[Agent.kGracefullyClosing]);
 	t.false(sessions.b.client.closed);
+	t.true(sessions.b.client[Agent.kGracefullyClosing]);
 
 	agent.destroy();
 });
@@ -909,6 +916,7 @@ test('busy sessions can become suddenly covered by shrinking their current strea
 
 	t.not(sessions.a.client, sessions.b.client);
 	t.true(sessions.b.client.closed);
+	t.true(sessions.b.client[Agent.kGracefullyClosing]);
 
 	agent.destroy();
 });
@@ -980,6 +988,7 @@ test('a session can cover other session by increasing its streams count limit', 
 	await pEvent(sessionA, 'remoteSettings');
 
 	t.true(sessionB.closed);
+	t.true(sessionB[Agent.kGracefullyClosing]);
 
 	agent.destroy();
 });
