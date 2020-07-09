@@ -424,6 +424,8 @@ test.serial('reuses HTTP/1.1 TLS sockets - agentRemove works', async t => {
 });
 
 test.serial('reuses HTTP/1.1 TLS sockets #2', async t => {
+	t.plan(4);
+
 	http2.auto.protocolCache.clear();
 
 	let socketCount = 0;
@@ -440,7 +442,7 @@ test.serial('reuses HTTP/1.1 TLS sockets #2', async t => {
 	agent.prependOnceListener('free', socket => {
 		t.true(socket._httpMessage.shouldKeepAlive);
 
-		agent.prependOnceListener('free', socket => {
+		agent.once('free', socket => {
 			t.is(socket._httpMessage, null);
 			t.is(socket.alpnProtocol, 'http/1.1');
 		});
@@ -453,16 +455,30 @@ test.serial('reuses HTTP/1.1 TLS sockets #2', async t => {
 		ALPNProtocols: ['http/1.1']
 	};
 
-	const [a, b] = await Promise.all([http2.auto(h2s.url, options), http2.auto(h2s.url, options)]);
+	const [a, b] = await Promise.all([
+		http2.auto(h2s.url, options),
+		http2.auto(h2s.url, options)
+	]);
 
-	a.destroy();
-	b.destroy();
+	a.end();
+	b.end();
 
-	// Who has invented `socket hang up` on client destroy? Useless.
-	a.once('error', () => {});
-	b.once('error', () => {});
+	const [resA, resB] = await Promise.all([
+		pEvent(a, 'response'),
+		pEvent(b, 'response')
+	]);
+
+	resA.resume();
+	resB.resume();
+
+	await Promise.all([
+		pEvent(resA, 'end'),
+		pEvent(resB, 'end')
+	]);
 
 	t.is(socketCount, 1);
+
+	agent.destroy();
 });
 
 test.serial('does not reuse if agent has custom createConnection()', async t => {

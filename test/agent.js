@@ -3,7 +3,7 @@ const tls = require('tls');
 const test = require('ava');
 const pEvent = require('p-event');
 const is = require('@sindresorhus/is');
-const {Agent} = require('../source');
+const {Agent, constants} = require('../source');
 const {createWrapper, createServer} = require('./helpers/server');
 const setImmediateAsync = require('./helpers/set-immediate-async');
 const {key, cert} = require('./helpers/certs.js');
@@ -288,7 +288,8 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 
 		agent.closeFreeSessions();
 
-		t.is(session.closed, true);
+		t.true(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
 		await pEvent(session, 'close');
 
 		t.is(Object.values(agent.freeSessions).length, 0);
@@ -303,7 +304,8 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 
 		agent.closeFreeSessions();
 
-		t.is(session.closed, false);
+		t.false(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
 		t.is(Object.values(agent.freeSessions).length, 1);
 
 		agent.destroy();
@@ -394,39 +396,6 @@ test('prevents overloading sessions', singleRequestWrapper, async (t, server) =>
 	agent.destroy();
 });
 
-test('prevents overloading sessions #2', singleRequestWrapper, async (t, server) => {
-	const secondServer = await createServer();
-	const agent = new Agent({
-		maxSessions: 1
-	});
-
-	secondServer.on('session', session => {
-		session.origin(server.url);
-	});
-	await secondServer.listen();
-
-	const session = await agent.getSession(server.url);
-	const request = session.request({}, {endStream: false});
-
-	const secondSessionPromise = agent.getSession(server.url);
-
-	const thirdSession = await agent.getSession(secondServer.url);
-
-	const secondSession = await secondSessionPromise;
-	t.is(secondSession, thirdSession);
-
-	t.true(session.closed);
-	t.false(session.destroyed);
-
-	t.false(thirdSession.closed);
-	t.false(thirdSession.destroyed);
-
-	request.close();
-	agent.closeFreeSessions();
-
-	await secondServer.close();
-});
-
 test('prevents session overloading #3', singleRequestWrapper, async (t, server) => {
 	t.timeout(1000);
 
@@ -508,7 +477,7 @@ if (supportsTlsSessions) {
 		await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session));
+		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`)));
 
 		agent.destroy();
 	});
@@ -518,13 +487,12 @@ if (supportsTlsSessions) {
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		const tlsSession = agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session;
+		const tlsSession = agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`);
 
 		session.close();
 		await pEvent(session, 'close');
 
 		const secondSession = await agent.getSession(server.url);
-		await setImmediateAsync();
 
 		t.deepEqual(secondSession.socket.getSession(), tlsSession);
 		t.true(is.buffer(tlsSession));
@@ -538,7 +506,7 @@ if (supportsTlsSessions) {
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session));
+		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`)));
 
 		session.destroy(new Error(message));
 		await pEvent(session, 'close', {rejectionEvents: []});
@@ -588,7 +556,9 @@ test('closes covered sessions - `origin` event', wrapper, async (t, server) => {
 	await pEvent(secondSession, 'origin');
 
 	t.true(firstSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
 
 	t.true(firstSession.destroyed);
 	t.false(secondSession.destroyed);
@@ -613,8 +583,10 @@ test('closes covered sessions - session no longer busy', singleRequestWrapper, a
 	const secondSession = await agent.getSession(secondServer.url);
 	await pEvent(secondSession, 'origin');
 
-	t.true(firstSession.closed);
+	t.false(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
 
 	t.false(firstSession.destroyed);
 	t.false(firstSession.destroyed);
@@ -647,8 +619,10 @@ test('doesn\'t close covered sessions if the current one is full', singleRequest
 
 	t.not(session, secondSession);
 	t.false(session.closed);
+	t.false(session[Agent.kGracefullyClosing]);
 	t.false(session.destroyed);
 	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.destroyed);
 
 	request.close();
@@ -656,8 +630,10 @@ test('doesn\'t close covered sessions if the current one is full', singleRequest
 	await setImmediateAsync();
 
 	t.false(session.closed);
+	t.false(session[Agent.kGracefullyClosing]);
 	t.false(session.destroyed);
-	t.true(secondSession.closed);
+	t.false(secondSession.closed);
+	t.true(secondSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.destroyed);
 
 	secondRequest.close();
@@ -713,6 +689,9 @@ test('uses sessions which are more loaded to use fewer connections', tripleReque
 
 	await setImmediateAsync();
 
+	// Node.js 10 fails without this
+	await setImmediateAsync();
+
 	const request = await agent.request(server.url, {}, {}, {endStream: false});
 	t.is(request.session, sessions[0].session);
 
@@ -741,7 +720,10 @@ test('`.freeSessions` may contain closed sessions', wrapper, async (t, server) =
 	const session = await agent.getSession(server.url);
 	session.close();
 
-	t.true(agent.freeSessions[''][0].closed);
+	const that = agent.freeSessions[''][0];
+
+	t.true(that.closed);
+	t.false(that[Agent.kGracefullyClosing]);
 
 	agent.destroy();
 });
@@ -860,7 +842,9 @@ test('free sessions can become suddenly covered by shrinking their current strea
 	await promise;
 
 	t.not(sessions.a.client, sessions.b.client);
-	t.true(sessions.b.client.closed);
+	t.true(sessions.b.client[Agent.kGracefullyClosing]);
+	t.false(sessions.b.client.closed);
+	t.true(sessions.b.client[Agent.kGracefullyClosing]);
 
 	agent.destroy();
 });
@@ -932,11 +916,12 @@ test('busy sessions can become suddenly covered by shrinking their current strea
 
 	t.not(sessions.a.client, sessions.b.client);
 	t.true(sessions.b.client.closed);
+	t.true(sessions.b.client[Agent.kGracefullyClosing]);
 
 	agent.destroy();
 });
 
-test('busy session remains busy if can be free but there are no free seats', tripleRequestWrapper, async (t, server) => {
+test('prevents overloading sessions #4', tripleRequestWrapper, async (t, server) => {
 	const agent = new Agent({
 		maxFreeSessions: 1
 	});
@@ -975,7 +960,7 @@ test('busy session remains busy if can be free but there are no free seats', tri
 		await pEvent(session, 'remoteSettings');
 	}
 
-	t.is(agent.busySessions[''][0], sessions.b);
+	t.is(agent.freeSessions[''].length, 2);
 
 	agent.destroy();
 });
@@ -1003,6 +988,7 @@ test('a session can cover other session by increasing its streams count limit', 
 	await pEvent(sessionA, 'remoteSettings');
 
 	t.true(sessionB.closed);
+	t.true(sessionB[Agent.kGracefullyClosing]);
 
 	agent.destroy();
 });
@@ -1015,6 +1001,7 @@ test('`session` event', wrapper, async (t, server) => {
 		called = true;
 
 		t.false(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
 	});
 
 	await agent.getSession(server.url);
@@ -1038,4 +1025,201 @@ test('properly normalizes origin', t => {
 	t.is(Agent.normalizeOrigin('https://google.com:443', 'gmail.com'), 'https://gmail.com');
 	t.is(Agent.normalizeOrigin('https://google.com:4434'), 'https://google.com:4434');
 	t.is(Agent.normalizeOrigin('https://google.com:4434', 'gmail.com'), 'https://gmail.com:4434');
+});
+
+test('no negative session count', async t => {
+	const agent = new Agent();
+	await t.throwsAsync(agent.getSession('https://localhost'));
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('properly calculates session count #1', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+
+	const session = await agent.getSession(server.url);
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 1);
+
+	agent.destroy();
+
+	await pEvent(session, 'close');
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('properly calculates session count #2', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+
+	const {session} = await agent.request(server.url);
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 1);
+
+	agent.destroy();
+
+	await pEvent(session, 'close');
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('properly calculates session count #3', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent();
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+
+	const request = await agent.request(server.url);
+	const {session} = request;
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 0);
+
+	request.close();
+
+	await pEvent(request, 'close');
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 1);
+
+	session.close();
+
+	await pEvent(session, 'close');
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('properly calculates session count #4', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent();
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+
+	const request = await agent.request(server.url);
+	const {session} = request;
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 0);
+
+	session.destroy();
+
+	await pEvent(request, 'close');
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 0);
+
+	await pEvent(session, 'close');
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('catches session.request() errors', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	await t.throwsAsync(agent.request(server.url, {}, {}, false), {
+		code: 'ERR_INVALID_ARG_TYPE',
+		message: /^The "options" argument must be of type/
+	});
+
+	agent.destroy();
+});
+
+test('makes requests on a session with biggest stream capacity', async t => {
+	const server = await createServer({
+		settings: {
+			maxConcurrentStreams: 10
+		},
+		origins: [
+			'https://b.com'
+		]
+	});
+
+	await server.listen();
+
+	const secondServer = await createServer({
+		settings: {
+			maxConcurrentStreams: 100
+		},
+		origins: [
+			server.url,
+			// This is needed so this Origin Set is not a subset of the above
+			'https://a.com'
+		]
+	});
+
+	await secondServer.listen();
+
+	const agent = new Agent();
+
+	const firstSession = await agent.getSession(server.url);
+
+	const secondSession = await agent.getSession(secondServer.url);
+	await pEvent(secondSession, 'origin');
+
+	const thirdSession = await agent.getSession(server.url);
+
+	t.not(firstSession, secondSession);
+	t.is(thirdSession, secondSession);
+
+	agent.destroy();
+
+	await Promise.all([server, secondServer].map(server => server.close()));
+});
+
+test('graceful close works', wrapper, async (t, server) => {
+	server.on('session', session => {
+		session.once('goaway', () => {
+			session.destroy('', constants.NGHTTP2_ENHANCE_YOUR_CALM);
+		});
+	});
+
+	const secondServer = await createServer({
+		origins: [
+			server.url
+		]
+	});
+
+	await secondServer.listen();
+
+	const agent = new Agent();
+
+	const firstSession = await agent.getSession(server.url);
+	const firstRequest = firstSession.request({}, {endStream: false});
+
+	const secondSession = await agent.getSession(secondServer.url);
+	await pEvent(secondSession, 'origin');
+
+	t.throws(() => firstSession.request(), {
+		message: 'The session is gracefully closing. No new streams are allowed.'
+	});
+
+	t.false(firstRequest.destroyed);
+	t.false(firstRequest.closed);
+
+	t.false(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
+
+	t.not(firstSession, secondSession);
+
+	const newRequest = await agent.request(server.url);
+	t.is(newRequest.session, secondSession);
+
+	newRequest.close();
+	firstRequest.close();
+
+	agent.destroy();
+
+	await secondServer.close();
 });

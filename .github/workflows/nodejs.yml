@@ -23,7 +23,5 @@ jobs:
         npm install
         npm run build --if-present
         npm test
-    - name: Coveralls
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Codecov
+      uses: codecov/codecov-action@v1
