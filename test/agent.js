@@ -1014,3 +1014,112 @@ test('properly normalizes origin', t => {
 	t.is(Agent.normalizeOrigin('https://google.com:4434'), 'https://google.com:4434');
 	t.is(Agent.normalizeOrigin('https://google.com:4434', 'gmail.com'), 'https://gmail.com:4434');
 });
+
+test('no negative session count', async t => {
+	const agent = new Agent();
+	await t.throwsAsync(agent.getSession('https://localhost'));
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('properly calculates session count #1', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+
+	const session = await agent.getSession(server.url);
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 1);
+
+	agent.destroy();
+
+	await pEvent(session, 'close');
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('properly calculates session count #2', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+
+	const {session} = await agent.request(server.url);
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 1);
+
+	agent.destroy();
+
+	await pEvent(session, 'close');
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('properly calculates session count #3', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent();
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+
+	const request = await agent.request(server.url);
+	const {session} = request;
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 0);
+
+	request.close();
+
+	await pEvent(request, 'close');
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 1);
+
+	session.close();
+
+	await pEvent(session, 'close');
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('properly calculates session count #4', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent();
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+
+	const request = await agent.request(server.url);
+	const {session} = request;
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 0);
+
+	session.destroy();
+
+	await pEvent(request, 'close');
+
+	t.is(agent._sessionsCount, 1);
+	t.is(agent._freeSessionsCount, 0);
+
+	await pEvent(session, 'close');
+
+	t.is(agent._sessionsCount, 0);
+	t.is(agent._freeSessionsCount, 0);
+});
+
+test('catches session.request() errors', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	await t.throwsAsync(agent.request(server.url, {}, {}, false), {
+		code: 'ERR_INVALID_ARG_TYPE',
+		message: /^The "options" argument must be of type/
+	});
+
+	agent.destroy();
+});

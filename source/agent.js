@@ -52,6 +52,8 @@ const getSortedIndex = (array, value, compare) => {
 		const mid = (low + high) >>> 1;
 
 		if (compare(array[mid], value)) {
+			// This never gets called because we use descending sort. Better to have this anyway.
+			/* istanbul ignore next */
 			low = mid + 1;
 		} else {
 			high = mid;
@@ -339,6 +341,7 @@ class Agent extends EventEmitter {
 					session[kGracefullyClosing] = false;
 
 					const isFree = () => session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams;
+					let wasFree = true;
 
 					session.socket.once('session', tlsSession => {
 						// We need to cache the servername due to a bug in OpenSSL.
@@ -377,7 +380,17 @@ class Agent extends EventEmitter {
 					});
 
 					session.once('close', () => {
-						if (!receivedSettings) {
+						if (receivedSettings) {
+							// 1. If it wasn't free then no need to decrease because
+							//    it has been decreased already in session.request().
+							// 2. `stream.once('close')` won't increment the count
+							//    because the session is already closed.
+							if (wasFree) {
+								this._freeSessionsCount--;
+							}
+
+							this._sessionsCount--;
+						} else {
 							// Broken connection
 							const error = new Error('Session closed without receiving a SETTINGS frame');
 							error.code = 'HTTP2WRAPPER_NOSETTINGS';
@@ -386,9 +399,6 @@ class Agent extends EventEmitter {
 								reject(error);
 							}
 						}
-
-						this._freeSessionsCount--;
-						this._sessionsCount--;
 
 						removeFromQueue();
 
@@ -504,17 +514,17 @@ class Agent extends EventEmitter {
 						}
 
 						this._freeSessionsCount += 1;
+						receivedSettings = true;
 
 						this.emit('session', session);
 
 						processListeners();
+						removeFromQueue();
 
 						// TODO: Close last recently used (or least used?) session
 						if (session[kCurrentStreamsCount] === 0 && this._freeSessionsCount > this.maxFreeSessions) {
 							session.close();
 						}
-
-						removeFromQueue();
 
 						// Check if we haven't managed to execute all listeners.
 						if (listeners.length !== 0) {
@@ -522,8 +532,6 @@ class Agent extends EventEmitter {
 							this.getSession(normalizedOrigin, options, listeners);
 							listeners.length = 0;
 						}
-
-						receivedSettings = true;
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
 						session.on('remoteSettings', () => {
@@ -549,7 +557,7 @@ class Agent extends EventEmitter {
 						}
 
 						stream.once('close', () => {
-							const wasFree = isFree();
+							wasFree = isFree();
 
 							--session[kCurrentStreamsCount];
 
@@ -559,6 +567,8 @@ class Agent extends EventEmitter {
 								if (isFree() && !session.closed) {
 									if (!wasFree) {
 										this._freeSessionsCount++;
+
+										wasFree = true;
 									}
 
 									const isEmpty = session[kCurrentStreamsCount] === 0;
