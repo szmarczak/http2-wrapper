@@ -226,7 +226,7 @@ The maximum amount of sessions in total.
 ##### maxFreeSessions
 
 Type: `number`<br>
-Default: `1`
+Default: `10`
 
 The maximum amount of free sessions in total. This only applies to sessions with no pending requests.
 
