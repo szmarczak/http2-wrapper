@@ -81,8 +81,7 @@ const closeCoveredSessions = (where, session) => {
 			// Makes sure that the session can handle all requests from the covered session.
 			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
 		) {
-			// This allows pending requests to finish and does not prevent making new requests.
-			// TODO: Should it prevent new requests?
+			// This allows pending requests to finish and prevents making new requests.
 			gracefullyClose(coveredSession);
 		}
 	}
@@ -130,7 +129,7 @@ const gracefullyClose = session => {
 };
 
 class Agent extends EventEmitter {
-	constructor({timeout = 60000, maxSessions = 2, maxFreeSessions = 2, maxCachedTlsSessions = 100} = {}) {
+	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 10, maxCachedTlsSessions = 100} = {}) {
 		super();
 
 		// A session is considered busy when its current streams count

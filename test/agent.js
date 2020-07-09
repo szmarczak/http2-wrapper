@@ -629,7 +629,7 @@ test('doesn\'t close covered sessions if the current one is full', singleRequest
 	t.false(session.closed);
 	t.false(session[Agent.kGracefullyClosing]);
 	t.false(session.destroyed);
-	t.true(secondSession[kGracefullyClosing]);
+	t.true(secondSession[Agent.kGracefullyClosing]);
 	t.false(secondSession.closed);
 	t.false(secondSession.destroyed);
 
