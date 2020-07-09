@@ -686,6 +686,9 @@ test('uses sessions which are more loaded to use fewer connections', tripleReque
 
 	await setImmediateAsync();
 
+	// Node.js 10 fails without this
+	await setImmediateAsync();
+
 	const request = await agent.request(server.url, {}, {}, {endStream: false});
 	t.is(request.session, sessions[0].session);
 
