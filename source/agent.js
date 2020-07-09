@@ -252,13 +252,13 @@ class Agent extends EventEmitter {
 				// We could just do this.sessions[normalizedOptions].find(...) but that isn't optimal.
 				// Additionally, we are looking for session which has biggest current pending streams count.
 				for (const session of sessions) {
+					const sessionMaxConcurrentStreams = session.remoteSettings.maxConcurrentStreams;
+
+					if (sessionMaxConcurrentStreams < maxConcurrentStreams) {
+						break;
+					}
+
 					if (session[kOriginSet].includes(normalizedOrigin)) {
-						const sessionMaxConcurrentStreams = session.remoteSettings.maxConcurrentStreams;
-
-						if (sessionMaxConcurrentStreams < maxConcurrentStreams) {
-							break;
-						}
-
 						if (
 							session[kCurrentStreamsCount] >= sessionMaxConcurrentStreams ||
 							session[kGracefullyClosing] ||
@@ -272,22 +272,21 @@ class Agent extends EventEmitter {
 						// We only need set this once.
 						if (!optimalSession) {
 							maxConcurrentStreams = sessionMaxConcurrentStreams;
-						}
 
-						optimalSession = session;
+							// If this was placed after the `if`, it would use oldest session instead.
+							optimalSession = session;
+						}
 					}
 				}
 
 				if (optimalSession) {
-					// Use session which has the biggest stream capacity in order to use the smallest number of sessions possible.
-
 					while (listeners.length !== 0) {
 						const {resolve} = listeners.shift();
 						resolve(optimalSession);
 
 						// TODO: Instead of calling getSessions, redo [1].
 						if (optimalSession[kCurrentStreamsCount] === maxConcurrentStreams && listeners.length !== 0) {
-							getSessions(normalizedOptions, normalizedOrigin, listeners);
+							getSessions(normalizedOrigin, options, listeners);
 							return;
 						}
 					}
