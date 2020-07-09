@@ -521,6 +521,10 @@ class Agent extends EventEmitter {
 					// Shim `session.request()` in order to catch all streams
 					session[kRequest] = session.request;
 					session.request = (headers, streamOptions) => {
+						if (session[kGracefullyClosing]) {
+							throw new Error('The session is gracefully closing. No new streams are allowed.');
+						}
+
 						const stream = session[kRequest](headers, streamOptions);
 
 						// The process won't exit until the session is closed or all requests are gone.

@@ -3,7 +3,7 @@ const tls = require('tls');
 const test = require('ava');
 const pEvent = require('p-event');
 const is = require('@sindresorhus/is');
-const {Agent} = require('../source');
+const {Agent, constants} = require('../source');
 const {createWrapper, createServer} = require('./helpers/server');
 const setImmediateAsync = require('./helpers/set-immediate-async');
 const {key, cert} = require('./helpers/certs.js');
@@ -1176,4 +1176,50 @@ test('makes requests on a session with biggest stream capacity', async t => {
 	agent.destroy();
 
 	await Promise.all([server, secondServer].map(server => server.close()));
+});
+
+test('graceful close works', wrapper, async (t, server) => {
+	server.on('session', session => {
+		session.once('goaway', () => {
+			session.destroy('', constants.NGHTTP2_ENHANCE_YOUR_CALM);
+		});
+	});
+
+	const secondServer = await createServer({
+		origins: [
+			server.url
+		]
+	});
+
+	await secondServer.listen();
+
+	const agent = new Agent();
+
+	const firstSession = await agent.getSession(server.url);
+	const firstRequest = firstSession.request({}, {endStream: false});
+
+	const secondSession = await agent.getSession(secondServer.url);
+	await pEvent(secondSession, 'origin');
+
+	t.throws(() => firstSession.request(), {
+		message: 'The session is gracefully closing. No new streams are allowed.'
+	});
+
+	t.false(firstRequest.destroyed);
+	t.false(firstRequest.closed);
+
+	t.false(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
+
+	t.not(firstSession, secondSession);
+
+	const newRequest = await agent.request(server.url);
+	t.is(newRequest.session, secondSession);
+
+	newRequest.close();
+	firstRequest.close();
+
+	agent.destroy();
+
+	await secondServer.close();
 });
