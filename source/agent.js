@@ -49,7 +49,7 @@ const getSortedIndex = (array, value, compare) => {
 	let high = array.length;
 
 	while (low < high) {
-		let mid = (low + high) >>> 1;
+		const mid = (low + high) >>> 1;
 
 		if (compare(array[mid], value)) {
 			low = mid + 1;
@@ -103,6 +103,7 @@ const closeSessionIfCovered = (where, coveredSession) => {
 const getSessions = ({agent, isFree}) => {
 	const result = {};
 
+	// eslint-disable-next-line guard-for-in
 	for (const normalizedOptions in agent.sessions) {
 		const sessions = agent.sessions[normalizedOptions];
 
@@ -386,10 +387,7 @@ class Agent extends EventEmitter {
 							}
 						}
 
-						if (isFree()) {
-							this._freeSessionsCount--;
-						}
-
+						this._freeSessionsCount--;
 						this._sessionsCount--;
 
 						removeFromQueue();
