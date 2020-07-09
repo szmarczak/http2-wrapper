@@ -168,6 +168,7 @@ class ClientRequest extends Writable {
 		// https://github.com/nodejs/node/blob/654df09ae0c5e17d1b52a900a545f0664d8c7627/lib/internal/http2/util.js#L148-L156
 		if (this._mustNotHaveABody) {
 			callback(new Error('The GET, HEAD and DELETE methods must NOT have a body'));
+			/* istanbul ignore next: Node.js 12 throws directly */
 			return;
 		}
 
@@ -191,7 +192,7 @@ class ClientRequest extends Writable {
 		const callEnd = () => {
 			// For GET, HEAD and DELETE
 			if (this._mustNotHaveABody) {
-				process.nextTick(callback);
+				callback();
 				return;
 			}
 

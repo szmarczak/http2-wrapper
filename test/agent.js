@@ -475,7 +475,7 @@ if (supportsTlsSessions) {
 		await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session));
+		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`)));
 
 		agent.destroy();
 	});
@@ -485,7 +485,7 @@ if (supportsTlsSessions) {
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		const tlsSession = agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session;
+		const tlsSession = agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`);
 
 		session.close();
 		await pEvent(session, 'close');
@@ -504,7 +504,7 @@ if (supportsTlsSessions) {
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`).session));
+		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`)));
 
 		session.destroy(new Error(message));
 		await pEvent(session, 'close', {rejectionEvents: []});

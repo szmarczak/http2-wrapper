@@ -7,7 +7,7 @@
 		"node": ">=10.19.0"
 	},
 	"scripts": {
-		"test": "xo && nyc --reporter=lcovonly --reporter=text ava"
+		"test": "xo && nyc --reporter=lcovonly --reporter=text --reporter=html ava"
 	},
 	"files": [
 		"source"

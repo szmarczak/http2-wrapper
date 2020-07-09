@@ -51,9 +51,9 @@ const getSortedIndex = (array, value, compare) => {
 	while (low < high) {
 		const mid = (low + high) >>> 1;
 
+		/* istanbul ignore next */
 		if (compare(array[mid], value)) {
 			// This never gets called because we use descending sort. Better to have this anyway.
-			/* istanbul ignore next */
 			low = mid + 1;
 		} else {
 			high = mid;
@@ -242,11 +242,11 @@ class Agent extends EventEmitter {
 				return;
 			}
 
-			// [1]
 			if (normalizedOptions in this.sessions) {
 				const sessions = this.sessions[normalizedOptions];
 
 				let maxConcurrentStreams = -1;
+				let currentStreamsCount = -1;
 				let optimalSession;
 
 				// We could just do this.sessions[normalizedOptions].find(...) but that isn't optimal.
@@ -259,8 +259,10 @@ class Agent extends EventEmitter {
 					}
 
 					if (session[kOriginSet].includes(normalizedOrigin)) {
+						const sessionCurrentStreamsCount = session[kCurrentStreamsCount];
+
 						if (
-							session[kCurrentStreamsCount] >= sessionMaxConcurrentStreams ||
+							sessionCurrentStreamsCount >= sessionMaxConcurrentStreams ||
 							session[kGracefullyClosing] ||
 							// Unfortunately the `close` event isn't called immediately,
 							// so `session.destroyed` is `true`, but `session.closed` is `false`.
@@ -272,24 +274,34 @@ class Agent extends EventEmitter {
 						// We only need set this once.
 						if (!optimalSession) {
 							maxConcurrentStreams = sessionMaxConcurrentStreams;
+						}
 
-							// If this was placed after the `if`, it would use oldest session instead.
+						// We're looking for the session which has biggest current pending stream count,
+						// in order to minimalize the amount of active sessions.
+						if (sessionCurrentStreamsCount > currentStreamsCount) {
 							optimalSession = session;
+							currentStreamsCount = sessionCurrentStreamsCount;
 						}
 					}
 				}
 
 				if (optimalSession) {
-					while (listeners.length !== 0) {
-						const {resolve} = listeners.shift();
-						resolve(optimalSession);
+					/* istanbul ignore next: safety check */
+					if (listeners.length !== 1) {
+						for (const {reject} of listeners) {
+							const error = new Error(
+								`Expected the length of listeners to be 1, got ${listeners.length}.\n` +
+								'Please report this to https://github.com/szmarczak/http2-wrapper/'
+							);
 
-						// TODO: Instead of calling getSessions, redo [1].
-						if (optimalSession[kCurrentStreamsCount] === maxConcurrentStreams && listeners.length !== 0) {
-							getSessions(normalizedOrigin, options, listeners);
-							return;
+							reject(error);
 						}
+
+						return;
 					}
+
+					listeners[0].resolve(optimalSession);
+					return;
 				}
 			}
 
@@ -325,15 +337,12 @@ class Agent extends EventEmitter {
 			const entry = () => {
 				const name = `${normalizedOrigin}:${normalizedOptions}`;
 				let receivedSettings = false;
-				let servername;
 
 				try {
-					const tlsSessionCache = this.tlsSessionCache.get(name);
-
 					const session = http2.connect(origin, {
 						createConnection: this.createConnection,
 						settings: this.settings,
-						session: tlsSessionCache ? tlsSessionCache.session : undefined,
+						session: this.tlsSessionCache.get(name),
 						...options
 					});
 					session[kCurrentStreamsCount] = 0;
@@ -343,23 +352,7 @@ class Agent extends EventEmitter {
 					let wasFree = true;
 
 					session.socket.once('session', tlsSession => {
-						// We need to cache the servername due to a bug in OpenSSL.
-						setImmediate(() => {
-							this.tlsSessionCache.set(name, {
-								session: tlsSession,
-								servername
-							});
-						});
-					});
-
-					// OpenSSL bug workaround.
-					// See https://github.com/nodejs/node/issues/28985
-					session.socket.once('secureConnect', () => {
-						servername = session.socket.servername;
-
-						if (servername === false && typeof tlsSessionCache !== 'undefined' && typeof tlsSessionCache.servername !== 'undefined') {
-							session.socket.servername = tlsSessionCache.servername;
-						}
+						this.tlsSessionCache.set(name, tlsSession);
 					});
 
 					session.once('error', error => {
@@ -389,6 +382,15 @@ class Agent extends EventEmitter {
 							}
 
 							this._sessionsCount--;
+
+							// This cannot be moved to the stream logic,
+							// because there may be a session that hadn't made a single request.
+							const where = this.sessions[normalizedOptions];
+							where.splice(where.indexOf(session), 1);
+
+							if (where.length === 0) {
+								delete this.sessions[normalizedOptions];
+							}
 						} else {
 							// Broken connection
 							const error = new Error('Session closed without receiving a SETTINGS frame');
@@ -397,23 +399,8 @@ class Agent extends EventEmitter {
 							for (const {reject} of listeners) {
 								reject(error);
 							}
-						}
 
-						removeFromQueue();
-
-						// This cannot be moved to the stream logic,
-						// because there may be a session that hadn't made a single request.
-						if (normalizedOptions in this.sessions) {
-							const where = this.sessions[normalizedOptions];
-							const index = where.indexOf(session);
-
-							if (index !== -1) {
-								where.splice(index, 1);
-
-								if (where.length === 0) {
-									delete this.sessions[normalizedOptions];
-								}
-							}
+							removeFromQueue();
 						}
 
 						// There may be another session awaiting.
@@ -423,23 +410,15 @@ class Agent extends EventEmitter {
 					// Iterates over the queue and processes listeners.
 					const processListeners = () => {
 						if (!(normalizedOptions in this.queue) || !isFree()) {
-							return false;
+							return;
 						}
-
-						let result = false;
 
 						for (const origin of session[kOriginSet]) {
 							if (origin in this.queue[normalizedOptions]) {
 								const {listeners} = this.queue[normalizedOptions][origin];
 
 								// Prevents session overloading.
-								const accept = () => listeners.length !== 0 && isFree();
-
-								if (accept()) {
-									result = true;
-								}
-
-								while (accept()) {
+								while (listeners.length !== 0 && isFree()) {
 									// We assume `resolve(...)` calls `request(...)` *directly*,
 									// otherwise the session will get overloaded.
 									listeners.shift().resolve(session);
@@ -461,8 +440,6 @@ class Agent extends EventEmitter {
 								}
 							}
 						}
-
-						return result;
 					};
 
 					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
