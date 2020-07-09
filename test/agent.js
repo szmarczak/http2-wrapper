@@ -1123,3 +1123,45 @@ test('catches session.request() errors', wrapper, async (t, server) => {
 
 	agent.destroy();
 });
+
+test('makes requests on a session with biggest stream capacity', async t => {
+	const server = await createServer({
+		settings: {
+			maxConcurrentStreams: 10
+		},
+		origins: [
+			'https://b.com'
+		]
+	});
+
+	await server.listen();
+
+	const secondServer = await createServer({
+		settings: {
+			maxConcurrentStreams: 100
+		},
+		origins: [
+			server.url,
+			// This is needed so this Origin Set is not a subset of the above
+			'https://a.com'
+		]
+	});
+
+	await secondServer.listen();
+
+	const agent = new Agent();
+
+	const firstSession = await agent.getSession(server.url);
+
+	const secondSession = await agent.getSession(secondServer.url);
+	await pEvent(secondSession, 'origin');
+
+	const thirdSession = await agent.getSession(server.url);
+
+	t.not(firstSession, secondSession);
+	t.is(thirdSession, secondSession);
+
+	agent.destroy();
+
+	await Promise.all([server, secondServer].map(server => server.close()));
+});
