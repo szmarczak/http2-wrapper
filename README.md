@@ -45,7 +45,7 @@ const request = http2.request(options, response => {
 	});
 });
 
-request.on('error', e => console.error(e));
+request.on('error', console.error);
 
 request.write('123');
 request.end('456');

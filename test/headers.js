@@ -18,8 +18,8 @@ test('setting headers', wrapper, async (t, server) => {
 	request.setHeader('foo', 'bar');
 	request.end();
 
-	const res = await pEvent(request, 'response');
-	const data = JSON.parse(await getStream(res));
+	const response = await pEvent(request, 'response');
+	const data = JSON.parse(await getStream(response));
 	t.is(data.headers.foo, 'bar');
 });
 
@@ -27,8 +27,8 @@ test('`headers` option', wrapper, async (t, server) => {
 	const request = makeRequest({...server.options, headers: {foo: 'bar'}});
 	request.end();
 
-	const res = await pEvent(request, 'response');
-	const data = JSON.parse(await getStream(res));
+	const response = await pEvent(request, 'response');
+	const data = JSON.parse(await getStream(response));
 	t.is(data.headers.foo, 'bar');
 });
 
@@ -46,8 +46,8 @@ test('removing headers', wrapper, async (t, server) => {
 	request.removeHeader('foo');
 	request.end();
 
-	const res = await pEvent(request, 'response');
-	const data = JSON.parse(await getStream(res));
+	const response = await pEvent(request, 'response');
+	const data = JSON.parse(await getStream(response));
 	t.is(data.headers.foo, undefined);
 });
 

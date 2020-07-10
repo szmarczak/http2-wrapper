@@ -29,7 +29,7 @@ const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
 const kJobs = Symbol('jobs');
 
-const isValidHttpToken = /^[\^_`a-zA-Z\-0-9!#$%&'*+.|~]+$/;
+const isValidHttpToken = /^[\^`\-\w!#$%&*+.|~]+$/;
 const isInvalidHeaderValue = /[^\t\u0020-\u007E\u0080-\u00FF]/;
 
 class ClientRequest extends Writable {

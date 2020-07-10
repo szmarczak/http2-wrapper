@@ -10,6 +10,7 @@ const request = (url, options, callback) => {
 };
 
 const get = (url, options, callback) => {
+	// eslint-disable-next-line unicorn/prevent-abbreviations
 	const req = new ClientRequest(url, options, callback);
 	req.end();
 

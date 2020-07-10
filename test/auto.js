@@ -463,17 +463,17 @@ test.serial('reuses HTTP/1.1 TLS sockets #2', async t => {
 	a.end();
 	b.end();
 
-	const [resA, resB] = await Promise.all([
+	const [responseA, responseB] = await Promise.all([
 		pEvent(a, 'response'),
 		pEvent(b, 'response')
 	]);
 
-	resA.resume();
-	resB.resume();
+	responseA.resume();
+	responseB.resume();
 
 	await Promise.all([
-		pEvent(resA, 'end'),
-		pEvent(resB, 'end')
+		pEvent(responseA, 'end'),
+		pEvent(responseB, 'end')
 	]);
 
 	t.is(socketCount, 1);

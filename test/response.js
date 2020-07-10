@@ -108,7 +108,7 @@ test('dumps the response if no listener attached', wrapper, async (t, server) =>
 	const request = makeRequest(server.url);
 	request.end();
 
-	const resPromise = new Promise(resolve => {
+	const responsePromise = new Promise(resolve => {
 		const interval = setInterval(() => {
 			if (request.res) {
 				clearInterval(interval);
@@ -117,7 +117,7 @@ test('dumps the response if no listener attached', wrapper, async (t, server) =>
 		}, 100);
 	});
 
-	await resPromise;
+	await responsePromise;
 
 	t.true(request.res._dumped);
 });

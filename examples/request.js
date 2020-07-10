@@ -11,20 +11,20 @@ const options = {
 	}
 };
 
-const req = http2.request(options, res => {
-	console.log('statusCode:', res.statusCode);
-	console.log('headers:', res.headers);
+const request = http2.request(options, response => {
+	console.log('statusCode:', response.statusCode);
+	console.log('headers:', response.headers);
 
 	const body = [];
-	res.on('data', chunk => {
+	response.on('data', chunk => {
 		body.push(chunk);
 	});
-	res.on('end', () => {
+	response.on('end', () => {
 		console.log('body:', Buffer.concat(body).toString());
 	});
 });
 
-req.on('error', e => console.error(e));
+request.on('error', console.error);
 
-req.write('123');
-req.end('456');
+request.write('123');
+request.end('456');

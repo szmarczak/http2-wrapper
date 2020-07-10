@@ -17,12 +17,12 @@ const suite = new Benchmark.Suite();
 const session = http2.connect(destination);
 const wrapperSession = http2.connect(destination);
 
-const destinationOpts = urlToOptions(destination);
-const destinationOptsWithSession = {
-	...destinationOpts,
+const destinationOptions = urlToOptions(destination);
+const destinationOptionsWithSession = {
+	...destinationOptions,
 	h2session: wrapperSession
 };
-const destinationHTTPOpts = urlToOptions(destinationHTTP);
+const destinationHTTPOptions = urlToOptions(destinationHTTP);
 
 const httpsKeepAlive = {
 	agent: new https.Agent({keepAlive: true})
@@ -38,7 +38,7 @@ const autoHttpsKeepAlive = {
 suite.add('http2-wrapper', {
 	defer: true,
 	fn: deferred => {
-		wrapper.get(destinationOpts, response => {
+		wrapper.get(destinationOptions, response => {
 			response.resume();
 			response.once('end', () => {
 				deferred.resolve();
@@ -48,7 +48,7 @@ suite.add('http2-wrapper', {
 }).add('http2-wrapper - preconfigured session', {
 	defer: true,
 	fn: deferred => {
-		wrapper.get(destinationOptsWithSession, response => {
+		wrapper.get(destinationOptionsWithSession, response => {
 			response.resume();
 			response.once('end', () => {
 				deferred.resolve();
@@ -61,7 +61,7 @@ suite.add('http2-wrapper', {
 }).add('http2-wrapper - auto', {
 	defer: true,
 	fn: async deferred => {
-		(await wrapper.auto(destinationOpts, response => {
+		(await wrapper.auto(destinationOptions, response => {
 			response.resume();
 			response.once('end', () => {
 				deferred.resolve();
@@ -80,7 +80,7 @@ suite.add('http2-wrapper', {
 }).add('https - auto - keepalive', {
 	defer: true,
 	fn: async deferred => {
-		(await wrapper.auto(destinationOpts, autoHttpsKeepAlive, response => {
+		(await wrapper.auto(destinationOptions, autoHttpsKeepAlive, response => {
 			response.resume();
 			response.once('end', () => {
 				deferred.resolve();
@@ -112,7 +112,7 @@ suite.add('http2-wrapper', {
 }).add('http', {
 	defer: true,
 	fn: deferred => {
-		http.get(destinationHTTPOpts, response => {
+		http.get(destinationHTTPOptions, response => {
 			response.resume();
 			response.once('end', () => {
 				deferred.resolve();

@@ -11,6 +11,6 @@ class MyAgent extends http2.Agent {
 http2.get({
 	hostname: 'google.com',
 	agent: new MyAgent()
-}, res => {
-	res.on('data', chunk => console.log(`Received chunk of ${chunk.length} bytes`));
+}, response => {
+	response.on('data', chunk => console.log(`Received chunk of ${chunk.length} bytes`));
 });
