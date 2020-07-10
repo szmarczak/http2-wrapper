@@ -1219,6 +1219,11 @@ test('graceful close works', wrapper, async (t, server) => {
 	newRequest.close();
 	firstRequest.close();
 
+	await pEvent(firstRequest, 'close');
+
+	t.true(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
+
 	agent.destroy();
 
 	await secondServer.close();
