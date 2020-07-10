@@ -259,7 +259,7 @@ class ClientRequest extends Writable {
 			// before `request.end()` is called.
 			const waitForEnd = fn => {
 				return (...args) => {
-					if (this.writableFinished) {
+					if (!this.writable && !this.destroyed) {
 						fn(...args);
 					} else {
 						this.once('finish', () => {
