@@ -255,8 +255,22 @@ class ClientRequest extends Writable {
 				proxyEvents(stream, this, ['timeout', 'continue', 'close', 'error']);
 			}
 
+			// Wait for the `finish` event. We don't want to emit the `response` event
+			// before `request.end()` is called.
+			const waitForEnd = fn => {
+				return (...args) => {
+					if (this.writableFinished) {
+						fn(...args);
+					} else {
+						this.once('finish', () => {
+							fn(...args);
+						});
+					}
+				};
+			};
+
 			// This event tells we are ready to listen for the data.
-			stream.once('response', (headers, flags, rawHeaders) => {
+			stream.once('response', waitForEnd((headers, flags, rawHeaders) => {
 				// If we were to emit raw request stream, it would be as fast as the native approach.
 				// Note that wrapping the raw stream in a Proxy instance won't improve the performance (already tested it).
 				const response = new IncomingMessage(this.socket, stream.readableHighWaterMark);
@@ -308,18 +322,20 @@ class ClientRequest extends Writable {
 						response._dump();
 					}
 				}
-			});
+			}));
 
 			// Emits `information` event
-			stream.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
+			stream.once('headers', waitForEnd(
+				headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]})
+			));
 
-			stream.once('trailers', (trailers, flags, rawTrailers) => {
+			stream.once('trailers', waitForEnd((trailers, flags, rawTrailers) => {
 				const {res} = this;
 
 				// Assigns trailers to the response object.
 				res.trailers = trailers;
 				res.rawTrailers = rawTrailers;
-			});
+			}));
 
 			const {socket} = stream.session;
 			this.socket = socket;

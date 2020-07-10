@@ -798,6 +798,23 @@ test('throws when writing using GET, HEAD or DELETE', wrapper, async (t, server)
 	}
 });
 
+test('the `response` event is emitted after calling `request.end()`', wrapper, async (t, server) => {
+	server.get('/', (request, response) => {
+		response.end();
+	});
+
+	const request = makeRequest(server.options);
+	request.flushHeaders();
+
+	await pEvent(request, 'socket');
+	await pEvent(request._request, 'response');
+
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	t.is(response.statusCode, 200);
+});
+
 if (process.platform !== 'win32') {
 	const socketPath = tempy.file({extension: 'socket'});
 
