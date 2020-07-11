@@ -374,7 +374,7 @@ It's a tricky one! We cannot create an HTTP/2 session on top of an HTTP/2 stream
 
 #### The `:authority` header approach
 
-We can try specifying the `:authority` header in order to tell the server we want to connect there.
+We can try specifying the `:authority` header in order to tell the server where we want to connect.
 
 ```js
 const http2 = require('http2-wrapper');
