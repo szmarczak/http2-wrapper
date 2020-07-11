@@ -6,11 +6,7 @@ const {key, cert} = require('../../test/helpers/certs');
 
 const server = http2.createSecureServer({
 	key,
-	cert,
-	settings: {
-		enableConnectProtocol: true
-	},
-	allowHTTP1: true
+	cert
 });
 
 const defaultWebHandler = (error, request, response) => {

@@ -1,4 +1,4 @@
-const http2 = require('../../source'); // Note: using the local version
+const http2 = require('../../../source'); // Note: using the local version
 const {Agent} = http2;
 
 class ProxyAgent extends Agent {
@@ -13,7 +13,8 @@ class ProxyAgent extends Agent {
 
 		return super.request(this.origin, sessionOptions, {
 			...headers,
-			':authority': url.host
+			':authority': undefined,
+			':path': `/${url.origin}${headers[':path'] || ''}`
 		}, streamOptions);
 	}
 }
@@ -26,7 +27,7 @@ const request = http2.request({
 	headers: {
 		'content-length': 6
 	},
-	agent: new ProxyAgent('https://localhost:8000'),
+	agent: new ProxyAgent('https://localhost:8001'),
 	// For demo purposes only!
 	rejectUnauthorized: false
 }, response => {

@@ -9,13 +9,14 @@ const session = http2.connect('https://localhost:8000', {
 
 session.ref();
 
-https.request('https://httpbin.org/anything', {
+const request = https.request('https://httpbin.org/anything', {
 	createConnection: options => {
 		return session.request({
 			':method': 'CONNECT',
 			':authority': `${options.host}:${options.port}`
 		});
-	}
+	},
+	method: 'POST'
 }, response => {
 	console.log('statusCode:', response.statusCode);
 	console.log('headers:', response.headers);
@@ -29,4 +30,9 @@ https.request('https://httpbin.org/anything', {
 
 		session.unref();
 	});
-}).end();
+});
+
+request.on('error', console.error);
+
+request.write('123');
+request.end('456');

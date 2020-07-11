@@ -328,8 +328,6 @@ To see the result, just navigate to the server's address.
 
 Since we don't care about mirroring, the server needs to support the CONNECT protocol in this case.
 
-The client looks like this:
-
 ```js
 const https = require('https');
 const http2 = require('http2');
@@ -341,13 +339,14 @@ const session = http2.connect('https://localhost:8000', {
 
 session.ref();
 
-https.request('https://httpbin.org/anything', {
+const request = https.request('https://httpbin.org/anything', {
 	createConnection: options => {
 		return session.request({
 			':method': 'CONNECT',
 			':authority': `${options.host}:${options.port}`
 		});
-	}
+	},
+	method: 'POST'
 }, response => {
 	console.log('statusCode:', response.statusCode);
 	console.log('headers:', response.headers);
@@ -361,17 +360,24 @@ https.request('https://httpbin.org/anything', {
 
 		session.unref();
 	});
-}).end();
+});
+
+request.on('error', console.error);
+
+request.write('123');
+request.end('456');
 ```
 
 ### HTTP/2 over HTTP/2
 
-It's a tricky one! We cannot create an HTTP/2 session on top of an HTTP/2 stream. But... we can still specify the `:authority` header, no need to use the CONNECT protocol here.
+It's a tricky one! We cannot create an HTTP/2 session on top of an HTTP/2 stream. But there are a few solutions to this.
 
-The client looks like this:
+### The `:authority` header approach
+
+We can try specifying the `:authority` header in order to tell the server we want to connect there.
 
 ```js
-const http2 = require('../../source');
+const http2 = require('http2-wrapper');
 const {Agent} = http2;
 
 class ProxyAgent extends Agent {
@@ -393,6 +399,10 @@ const request = http2.request({
 	hostname: 'httpbin.org',
 	protocol: 'https:',
 	path: '/anything',
+	method: 'POST',
+	headers: {
+		'content-length': 6
+	},
 	agent: new ProxyAgent('https://localhost:8000'),
 	// For demo purposes only!
 	rejectUnauthorized: false
@@ -411,7 +421,64 @@ const request = http2.request({
 
 request.on('error', console.error);
 
-request.end();
+request.write('123');
+request.end('456');
+```
+
+### Classic web-proxy
+
+Another solution is to pass the request URL as the path to the proxy server.
+
+```js
+const http2 = require('http2-wrapper');
+const {Agent} = http2;
+
+class ProxyAgent extends Agent {
+	constructor(url, options) {
+		super(options);
+
+		this.origin = url;
+	}
+
+	request(origin, sessionOptions, headers, streamOptions) {
+		const url = new URL(origin);
+
+		return super.request(this.origin, sessionOptions, {
+			...headers,
+			':authority': undefined,
+			':path': `/${url.origin}${headers[':path'] || ''}`
+		}, streamOptions);
+	}
+}
+
+const request = http2.request({
+	hostname: 'httpbin.org',
+	protocol: 'https:',
+	path: '/anything',
+	method: 'POST',
+	headers: {
+		'content-length': 6
+	},
+	agent: new ProxyAgent('https://localhost:8001'),
+	// For demo purposes only!
+	rejectUnauthorized: false
+}, response => {
+	console.log('statusCode:', response.statusCode);
+	console.log('headers:', response.headers);
+
+	const body = [];
+	response.on('data', chunk => {
+		body.push(chunk);
+	});
+	response.on('end', () => {
+		console.log('body:', Buffer.concat(body).toString());
+	});
+});
+
+request.on('error', console.error);
+
+request.write('123');
+request.end('456');
 ```
 
 ## Notes
