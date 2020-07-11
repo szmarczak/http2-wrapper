@@ -1,5 +1,4 @@
 'use strict';
-const net = require('net');
 const proxy = require('http2-proxy');
 const http2 = require('../../../source'); // Note: using the local version
 const {key, cert} = require('../../../test/helpers/certs');
