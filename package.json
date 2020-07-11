@@ -3,14 +3,16 @@
 	"version": "1.0.0-beta.5.2",
 	"description": "HTTP2 client, just with the familiar `https` API",
 	"main": "source",
+	"types": "index.d.ts",
 	"engines": {
 		"node": ">=10.19.0"
 	},
 	"scripts": {
-		"test": "xo && nyc --reporter=lcovonly --reporter=text --reporter=html ava"
+		"test": "xo && nyc --reporter=lcovonly --reporter=text --reporter=html ava && tsd"
 	},
 	"files": [
-		"source"
+		"source",
+		"index.d.ts"
 	],
 	"keywords": [
 		"http2",
