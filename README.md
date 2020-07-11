@@ -345,8 +345,7 @@ https.request('https://httpbin.org/anything', {
 	createConnection: options => {
 		return session.request({
 			':method': 'CONNECT',
-			':authority': `${options.host}:${options.port}`,
-			':protocol': 'https:'
+			':authority': `${options.host}:${options.port}`
 		});
 	}
 }, response => {
@@ -391,9 +390,9 @@ class ProxyAgent extends Agent {
 }
 
 const request = http2.request({
-	hostname: 'nghttp2.org',
+	hostname: 'httpbin.org',
 	protocol: 'https:',
-	path: '/httpbin/anything',
+	path: '/anything',
 	agent: new ProxyAgent('https://localhost:8000'),
 	// For demo purposes only!
 	rejectUnauthorized: false
