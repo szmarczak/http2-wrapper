@@ -70,15 +70,17 @@ class ClientRequest extends Writable {
 			throw new ERR_INVALID_ARG_TYPE('options.agent', ['Agent-like Object', 'undefined', 'false'], options.agent);
 		}
 
-		if (!options.port) {
-			options.port = options.defaultPort || (this.agent && this.agent.defaultPort) || 443;
-		}
-
-		options.host = options.hostname || options.host || 'localhost';
-
 		if (options.protocol && options.protocol !== 'https:') {
 			throw new ERR_INVALID_PROTOCOL(options.protocol, 'https:');
 		}
+
+		const port = options.port || options.defaultPort || (this.agent && this.agent.defaultPort) || 443;
+		const host = options.hostname || options.host || 'localhost';
+
+		// Don't enforce the origin via options. It may be changed in an Agent.
+		delete options.hostname;
+		delete options.host;
+		delete options.port;
 
 		const {timeout} = options;
 		options.timeout = undefined;
@@ -112,22 +114,19 @@ class ClientRequest extends Writable {
 		this[kOptions] = options;
 
 		// Clients that generate HTTP/2 requests directly SHOULD use the :authority pseudo-header field instead of the Host header field.
-		// What about IPv6? Square brackets?
-		if (options.port === 443) {
-			options.origin = `https://${options.host}`;
+		if (port === 443) {
+			this[kOrigin] = `https://${host}`;
 
 			if (!(':authority' in this[kHeaders])) {
-				this[kHeaders][':authority'] = options.host;
+				this[kHeaders][':authority'] = host;
 			}
 		} else {
-			options.origin = `https://${options.host}:${options.port}`;
+			this[kOrigin] = `https://${host}:${port}`;
 
 			if (!(':authority' in this[kHeaders])) {
-				this[kHeaders][':authority'] = `${options.host}:${options.port}`;
+				this[kHeaders][':authority'] = `${host}:${port}`;
 			}
 		}
-
-		this[kOrigin] = options;
 
 		if (timeout) {
 			this.setTimeout(timeout);

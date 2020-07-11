@@ -165,15 +165,30 @@ test('accepts string as URL', async t => {
 });
 
 test('the default protocol is `https:`', async t => {
-	const request = await http2.auto({
-		hostname: 'localhost',
-		port: h2s.address().port
-	});
-	request.end();
+	{
+		const request = await http2.auto({
+			hostname: 'localhost',
+			port: h2s.address().port
+		});
+		request.end();
 
-	const response = await pEvent(request, 'response');
-	const data = await getStream(response);
-	t.is(data, 'h2');
+		const response = await pEvent(request, 'response');
+		const data = await getStream(response);
+		t.is(data, 'h2');
+	}
+
+	{
+		const request = await http2.auto({
+			hostname: 'localhost',
+			port: h2s.address().port,
+			protocol: undefined
+		});
+		request.end();
+
+		const response = await pEvent(request, 'response');
+		const data = await getStream(response);
+		t.is(data, 'h2');
+	}
 });
 
 test('default port for `http:` protocol is 80', async t => {
@@ -559,4 +574,18 @@ test('http2 works (Internet connection)', async t => {
 	response.resume();
 
 	t.is(response.headers[':status'], 200);
+});
+
+test('throws when ALPNProtocols is invalid', async t => {
+	await t.throwsAsync(http2.auto({
+		ALPNProtocols: undefined
+	}), {
+		message: 'The `ALPNProtocols` option must be an Array with at least one entry'
+	});
+
+	await t.throwsAsync(http2.auto({
+		ALPNProtocols: []
+	}), {
+		message: 'The `ALPNProtocols` option must be an Array with at least one entry'
+	});
 });

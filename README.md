@@ -1,17 +1,17 @@
 # http2-wrapper
-> HTTP2 client, just with the familiar `https` API
+> HTTP/2 client, just with the familiar `https` API
 
 [![Node CI](https://github.com/szmarczak/http2-wrapper/workflows/Node%20CI/badge.svg)](https://github.com/szmarczak/http2-wrapper/actions)
 [![codecov](https://codecov.io/gh/szmarczak/http2-wrapper/branch/master/graph/badge.svg)](https://codecov.io/gh/szmarczak/http2-wrapper)
 [![npm](https://img.shields.io/npm/dm/http2-wrapper.svg)](https://www.npmjs.com/package/http2-wrapper)
 [![install size](https://packagephobia.now.sh/badge?p=http2-wrapper)](https://packagephobia.now.sh/result?p=http2-wrapper)
 
-This package was created to support HTTP2 without the need to rewrite your code.<br>
+This package was created to support HTTP/2 without the need to rewrite your code.<br>
 I recommend adapting to the [`http2`](https://nodejs.org/api/http2.html) module if possible - it's much simpler to use and has many cool features!
 
-**Tip**: `http2-wrapper` is very useful when you rely on other modules that use the HTTP1 API and you want to support HTTP2.
+**Tip**: `http2-wrapper` is very useful when you rely on other modules that use the HTTP/1 API and you want to support HTTP/2.
 
-**Pro Tip**: While the native `http2` doesn't have agents yet, you can use `http2-wrapper` Agents and still operate on the native HTTP2 streams.
+**Pro Tip**: While the native `http2` doesn't have agents yet, you can use `http2-wrapper` Agents and still operate on the native HTTP/2 streams.
 
 ## Installation
 
@@ -316,65 +316,109 @@ agent.on('session', session => {
 
 ## Proxy support
 
-### Server
+An example of a full-featured proxy server can be found [here](examples/proxy/server.js). It supports **mirroring, custom authorities and the CONNECT protocol**.
+
+### Mirroring
+
+To mirror another server we need to use only [`http2-proxy`](https://github.com/nxtedition/node-http2-proxy). We don't need the CONNECT protocol or custom authorities.
+
+To see the result, just navigate to the server's address.
+
+### HTTP/1 over HTTP/2
+
+Since we don't care about mirroring, the server needs to support the CONNECT protocol in this case.
+
+The client looks like this:
 
 ```js
-const http = require('http');
-const proxy = require('http2-proxy');
-const http2 = require('http2-wrapper');
+const https = require('https');
+const http2 = require('http2');
 
-const server = http.createServer();
-
-const defaultWebHandler = (error, request, response) => {
-	if (error) {
-		console.error(error);
-
-		response.statusCode = 500;
-		response.end(error.stack);
-	}
-};
-
-server.listen(8000, error => {
-	if (error) {
-		throw error;
-	}
-
-	server.on('request', (serverRequest, serverResponse) => {
-		proxy.web(serverRequest, serverResponse, {
-			hostname: 'example.com',
-			port: 443,
-			onReq: (request, options) => {
-				const h2request = http2.request(options, response => {
-					const {headers} = response;
-
-					// `http2-proxy` doesn't automatically remove pseudo-headers
-					for (const name in headers) {
-						if (name.startsWith(':')) {
-							delete headers[name];
-						}
-					}
-				});
-
-				// `http2-proxy` waits for the `socket` event before calling `h2request.end()`
-				h2request.flushHeaders();
-
-				return h2request;
-			}
-		}, defaultWebHandler);
-	});
-
-	console.log(`Listening on port ${server.address().port}`);
+const session = http2.connect('https://localhost:8000', {
+	// For demo purposes only!
+	rejectUnauthorized: false
 });
+
+session.ref();
+
+https.request('https://httpbin.org/anything', {
+	createConnection: options => {
+		return session.request({
+			':method': 'CONNECT',
+			':authority': `${options.host}:${options.port}`,
+			':protocol': 'https:'
+		});
+	}
+}, response => {
+	console.log('statusCode:', response.statusCode);
+	console.log('headers:', response.headers);
+
+	const body = [];
+	response.on('data', chunk => {
+		body.push(chunk);
+	});
+	response.on('end', () => {
+		console.log('body:', Buffer.concat(body).toString());
+
+		session.unref();
+	});
+}).end();
 ```
 
-### Client
+### HTTP/2 over HTTP/2
 
-TODO.
+It's a tricky one! We cannot create an HTTP/2 session on top of an HTTP/2 stream. But... we can still specify the `:authority` header, no need to use the CONNECT protocol here.
+
+The client looks like this:
+
+```js
+const http2 = require('../../source');
+const {Agent} = http2;
+
+class ProxyAgent extends Agent {
+	constructor(url, options) {
+		super(options);
+
+		this.origin = url;
+	}
+
+	request(origin, sessionOptions, headers, streamOptions) {
+		return super.request(this.origin, sessionOptions, {
+			...headers,
+			':authority': (new URL(origin)).host
+		}, streamOptions);
+	}
+}
+
+const request = http2.request({
+	hostname: 'nghttp2.org',
+	protocol: 'https:',
+	path: '/httpbin/anything',
+	agent: new ProxyAgent('https://localhost:8000'),
+	// For demo purposes only!
+	rejectUnauthorized: false
+}, response => {
+	console.log('statusCode:', response.statusCode);
+	console.log('headers:', response.headers);
+
+	const body = [];
+	response.on('data', chunk => {
+		body.push(chunk);
+	});
+	response.on('end', () => {
+		console.log('body:', Buffer.concat(body).toString());
+	});
+});
+
+request.on('error', console.error);
+
+request.end();
+```
 
 ## Notes
 
- - If you're interested in [WebSockets over HTTP2](https://tools.ietf.org/html/rfc8441), then [check out this discussion](https://github.com/websockets/ws/issues/1458).
- - [HTTP2 sockets cannot be malformed](https://github.com/nodejs/node/blob/cc8250fab86486632fdeb63892be735d7628cd13/lib/internal/http2/core.js#L725), therefore modifying the socket will have no effect.
+ - If you're interested in [WebSockets over HTTP/2](https://tools.ietf.org/html/rfc8441), then [check out this discussion](https://github.com/websockets/ws/issues/1458).
+ - [HTTP/2 sockets cannot be malformed](https://github.com/nodejs/node/blob/cc8250fab86486632fdeb63892be735d7628cd13/lib/internal/http2/core.js#L725), therefore modifying the socket will have no effect.
  - You can make [a custom Agent](examples/push-stream/index.js) to support push streams.
 
 ## Benchmarks

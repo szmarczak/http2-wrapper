@@ -20,6 +20,7 @@ class PushAgent extends http2.Agent {
 					socket: stream.session.socket
 				};
 
+				// Hacky override to avoid implementing a Duplex stream
 				const end = proxy.end.bind(proxy);
 				proxy.end = (...args) => {
 					end(...args);
@@ -44,17 +45,18 @@ class PushAgent extends http2.Agent {
 		});
 	}
 
-	request(origin, options, headers) {
+	request(origin, sessionOptions, headers, streamOptions) {
 		return new Promise((resolve, reject) => {
 			// The code after `await agent.getSession()` isn't executed immediately after calling `resolve()`,
 			// so we need to use semi-callback style to support the `maxFreeSessions` option mechanism.
 
 			// For further information please see the source code of the `processListeners` function (`source/agent.js` file).
+			// A solution to avoid this hack will be greatly appreciated!
 
-			this.getSession(origin, options, [{
+			this.getSession(origin, sessionOptions, [{
 				reject,
 				resolve: session => {
-					const normalizedAuthority = http2.Agent.normalizeOrigin(origin).slice(8);
+					const normalizedAuthority = http2.Agent.normalizeOrigin(origin).host;
 
 					const parsedPushHeaders = PushAgent._parsePushHeaders(normalizedAuthority, headers);
 					const cache = session.pushCache.get(parsedPushHeaders);
@@ -70,7 +72,7 @@ class PushAgent extends http2.Agent {
 						return;
 					}
 
-					resolve(session.request(headers));
+					resolve(session.request(headers, streamOptions));
 				}
 			}]);
 		});

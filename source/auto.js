@@ -103,20 +103,25 @@ module.exports = async (input, options, callback) => {
 
 	options = {
 		ALPNProtocols: ['h2', 'http/1.1'],
-		protocol: 'https:',
 		...input,
 		...options,
 		resolveSocket: true
 	};
 
+	if (!Array.isArray(options.ALPNProtocols) || options.ALPNProtocols.length === 0) {
+		throw new Error('The `ALPNProtocols` option must be an Array with at least one entry');
+	}
+
+	options.protocol = options.protocol || 'https:';
 	const isHttps = options.protocol === 'https:';
-	const agents = options.agent;
 
 	options.host = options.hostname || options.host || 'localhost';
 	options.session = options.tlsSession;
 	options.servername = options.servername || calculateServerName(options);
 	options.port = options.port || (isHttps ? 443 : 80);
 	options._defaultAgent = isHttps ? https.globalAgent : http.globalAgent;
+
+	const agents = options.agent;
 
 	if (agents) {
 		if (agents.addRequest) {
