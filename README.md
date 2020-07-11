@@ -372,7 +372,7 @@ request.end('456');
 
 It's a tricky one! We cannot create an HTTP/2 session on top of an HTTP/2 stream. But there are a few solutions to this.
 
-### The `:authority` header approach
+#### The `:authority` header approach
 
 We can try specifying the `:authority` header in order to tell the server we want to connect there.
 
@@ -425,7 +425,7 @@ request.write('123');
 request.end('456');
 ```
 
-### Classic web-proxy
+#### Classic web-proxy
 
 Another solution is to pass the request URL as the path to the proxy server.
 
