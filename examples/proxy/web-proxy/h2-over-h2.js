@@ -13,6 +13,8 @@ class ProxyAgent extends Agent {
 
 		return super.request(this.origin, sessionOptions, {
 			...headers,
+			// This will automatically force the `:authority` header to be the proxy origin server.
+			// Otherwise, it would point incorrectly to the requested origin we want be proxied.
 			':authority': undefined,
 			':path': `/${url.origin}${headers[':path'] || ''}`
 		}, streamOptions);

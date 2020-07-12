@@ -1,21 +1,45 @@
 'use strict';
 const https = require('https');
-const http2 = require('http2');
+const http2 = require('../../source'); // Note: using the local version
+const {Agent} = https;
 
-const session = http2.connect('https://localhost:8000', {
-	// For demo purposes only!
-	rejectUnauthorized: false
-});
+class H1overH2 extends Agent {
+	constructor(origin, options) {
+		super(options);
 
-session.ref();
+		this.h2origin = origin;
+	}
+
+	createConnection(options, callback) {
+		void (async () => {
+			try {
+				const stream = await http2.globalAgent.request(this.h2origin, {
+					// For demo purposes only!
+					rejectUnauthorized: false
+				}, {
+					':method': 'CONNECT',
+					':authority': `${options.host}:${options.port}`
+				});
+
+				stream.once('error', callback);
+				stream.once('response', headers => {
+					const status = headers[':status'];
+
+					if (status !== 200) {
+						callback(new Error(`The proxy server rejected the request with status code ${status}`));
+					}
+
+					callback(null, stream);
+				});
+			} catch (error) {
+				callback(error);
+			}
+		})();
+	}
+}
 
 const request = https.request('https://httpbin.org/anything', {
-	createConnection: options => {
-		return session.request({
-			':method': 'CONNECT',
-			':authority': `${options.host}:${options.port}`
-		});
-	},
+	agent: new H1overH2('https://localhost:8000'),
 	method: 'POST'
 }, response => {
 	console.log('statusCode:', response.statusCode);
@@ -27,8 +51,6 @@ const request = https.request('https://httpbin.org/anything', {
 	});
 	response.on('end', () => {
 		console.log('body:', Buffer.concat(body).toString());
-
-		session.unref();
 	});
 });
 

@@ -11,6 +11,9 @@ class ProxyAgent extends Agent {
 	request(origin, sessionOptions, headers, streamOptions) {
 		const url = new URL(origin);
 
+		// For demo purposes only!
+		sessionOptions.rejectUnauthorized = false;
+
 		return super.request(this.origin, sessionOptions, {
 			...headers,
 			':authority': url.host
@@ -26,9 +29,7 @@ const request = http2.request({
 	headers: {
 		'content-length': 6
 	},
-	agent: new ProxyAgent('https://localhost:8000'),
-	// For demo purposes only!
-	rejectUnauthorized: false
+	agent: new ProxyAgent('https://localhost:8000')
 }, response => {
 	console.log('statusCode:', response.statusCode);
 	console.log('headers:', response.headers);

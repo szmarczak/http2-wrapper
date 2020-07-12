@@ -1,5 +1,5 @@
 'use strict';
-const net = require('net');
+const tls = require('tls');
 const proxy = require('http2-proxy');
 const http2 = require('../../source'); // Note: using the local version
 const {key, cert} = require('../../test/helpers/certs');
@@ -25,8 +25,10 @@ server.listen(8000, error => {
 
 	// Support for the CONNECT protocol
 	server.on('connect', (serverRequest, serverResponse) => {
-		const auth = new URL(`tcp://${serverRequest.headers[':authority']}`);
-		const socket = net.connect(auth.port, auth.hostname, () => {
+		serverResponse.writeHead();
+
+		const auth = new URL(`tls://${serverRequest.headers[':authority']}`);
+		const socket = tls.connect(auth.port, auth.hostname, () => {
 			socket.pipe(serverResponse);
 			serverRequest.pipe(socket);
 		});
