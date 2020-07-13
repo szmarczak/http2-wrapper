@@ -61,27 +61,29 @@ server.listen(8000, error => {
 	}
 
 	// Support for the CONNECT protocol
-	server.on('connect', (serverRequest, serverResponse, head) => {
+	server.on('connect', (requestOrStream, streamOrSocket, head) => {
+		streamOrSocket.once('error', () => {});
+
 		try {
-			validateCredentials(serverRequest);
+			validateCredentials(requestOrStream);
 		} catch (error) {
-			defaultWebHandler(error, serverRequest, serverResponse);
+			defaultWebHandler(error, requestOrStream, streamOrSocket);
 			return;
 		}
 
-		let protocol = serverRequest.headers[':protocol'] || 'tls:';
+		let protocol = requestOrStream.headers[':protocol'] || 'tls:';
 		if (!protocol.endsWith(':')) {
 			protocol += ':';
 		}
 
-		if (serverResponse.writeHead) {
-			serverResponse.writeHead();
+		if (streamOrSocket.writeHead) {
+			streamOrSocket.writeHead();
 		} else {
 			// Always default TCP for HTTP/1.1 for demo purposes only!
 			protocol = 'tcp:';
 		}
 
-		const host = serverRequest.headers[':authority'] || serverRequest.url.slice(1);
+		const host = requestOrStream.headers[':authority'] || requestOrStream.url.slice(1);
 
 		const auth = new URL(`${protocol}//${host}`);
 
@@ -89,23 +91,23 @@ server.listen(8000, error => {
 		const defaultPort = protocol === 'tls:' ? 443 : 80;
 
 		const socket = network.connect(auth.port || defaultPort, auth.hostname, () => {
-			if (!serverResponse.writeHead) {
-				serverResponse.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+			if (!streamOrSocket.writeHead) {
+				streamOrSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
 				socket.write(head);
 			}
 
-			socket.pipe(serverResponse);
+			socket.pipe(streamOrSocket);
 
-			if (serverResponse.writeHead) {
-				serverRequest.pipe(socket);
+			if (streamOrSocket.writeHead) {
+				requestOrStream.pipe(socket);
 			} else {
-				serverResponse.pipe(socket);
+				streamOrSocket.pipe(socket);
 			}
 		});
 
 		socket.on('error', error => {
-			serverResponse.statusCode = 500;
-			serverResponse.end(error.stack);
+			streamOrSocket.statusCode = 500;
+			streamOrSocket.end(error.stack);
 		});
 	});
 

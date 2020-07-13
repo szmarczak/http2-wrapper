@@ -34,7 +34,10 @@ class H2overH1 extends Agent {
 		const {username, password} = this.origin;
 		if (username || password) {
 			const data = `${username}:${password}`;
-			this.proxyOptions.authorization = `Basic ${Buffer.from(data).toString('base64')}`;
+
+			this.proxyOptions.headers = {
+				'proxy-authorization': `Basic ${Buffer.from(data).toString('base64')}`
+			};
 		}
 
 		this.origin.username = '';
@@ -50,10 +53,7 @@ class H2overH1 extends Agent {
 
 		const request = network.request(`${this.origin}${origin.hostname}:${origin.port || 443}`, {
 			...this.proxyOptions,
-			headers: {
-				...this.proxyOptions.headers,
-				'proxy-authorization': this.proxyOptions.authorization
-			},
+			headers: this.proxyOptions.headers,
 			method: 'CONNECT'
 		}).end();
 
@@ -64,7 +64,7 @@ class H2overH1 extends Agent {
 
 			return super.getSession(origin, options, listeners);
 		} catch (error) {
-			request.destroy();
+			request.close();
 
 			if (listeners.length === 0) {
 				throw error;

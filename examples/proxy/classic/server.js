@@ -65,8 +65,6 @@ server.listen(8001, error => {
 
 				delete options.path;
 
-				console.log(urlString);
-
 				const h2request = await http2.auto(urlString, options, response => {
 					const {headers} = response;
 
