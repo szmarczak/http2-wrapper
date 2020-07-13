@@ -1228,3 +1228,8 @@ test('graceful close works', wrapper, async (t, server) => {
 
 	await secondServer.close();
 });
+
+test('`protocol` property', t => {
+	const agent = new Agent();
+	t.is(agent.protocol, 'https:');
+});

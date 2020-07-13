@@ -316,197 +316,39 @@ agent.on('session', session => {
 
 ## Proxy support
 
-An example of a full-featured proxy server can be found [here](examples/proxy/server.js). It supports **mirroring, custom authorities and the CONNECT protocol**.
+## Mirroring (server-side)
 
-### Mirroring
+To mirror another server we need to use just [`http2-proxy`](https://github.com/nxtedition/node-http2-proxy). We don't need the fancy CONNECT protocol, so this will look almost exactly as the classic web proxy, the request path just won't have the protocol and the host. Example: `https://username:password@localhost:8000/`
 
-To mirror another server we need to use only [`http2-proxy`](https://github.com/nxtedition/node-http2-proxy). We don't need the CONNECT protocol or custom authorities.
+See [`examples/proxy/classic.js`] for an example.
 
-To see the result, just navigate to the server's address.
+### Classic web proxy
+
+This is a bit different than mirroring, but almost the same. Just specify the protocol and the hostname and you're done! Example: `https://username:password@localhost:8000/https://httpbin.org`
+
+Server: [`examples/proxy/classic/server.js`](examples/proxy/classic/server.js)
+Client: [`examples/proxy/classic/http2-over-http2-classic.js`](examples/proxy/classic/http2-over-http2-classic.js)
 
 ### HTTP/1 over HTTP/2
 
-Since we don't care about mirroring, the server needs to support the CONNECT protocol in this case.
+We need to make some use of the CONNECT protocol here.
 
-```js
-const https = require('https');
-const http2 = require('http2-wrapper');
-const {Agent} = https;
-
-class H1overH2 extends Agent {
-	constructor(origin, options) {
-		super(options);
-
-		this.h2origin = origin;
-	}
-
-	createConnection(options, callback) {
-		void (async () => {
-			try {
-				const stream = await http2.globalAgent.request(this.h2origin, {
-					// For demo purposes only!
-					rejectUnauthorized: false
-				}, {
-					':method': 'CONNECT',
-					':authority': `${options.host}:${options.port}`
-				});
-
-				stream.once('error', callback);
-				stream.once('response', headers => {
-					const status = headers[':status'];
-
-					if (status !== 200) {
-						callback(new Error(`The proxy server rejected the request with status code ${status}`));
-					}
-
-					callback(null, stream);
-				});
-			} catch (error) {
-				callback(error);
-			}
-		})();
-	}
-}
-
-const request = https.request('https://httpbin.org/anything', {
-	agent: new H1overH2('https://localhost:8000'),
-	method: 'POST'
-}, response => {
-	console.log('statusCode:', response.statusCode);
-	console.log('headers:', response.headers);
-
-	const body = [];
-	response.on('data', chunk => {
-		body.push(chunk);
-	});
-	response.on('end', () => {
-		console.log('body:', Buffer.concat(body).toString());
-	});
-});
-
-request.on('error', console.error);
-
-request.write('123');
-request.end('456');
-```
+Server: [`examples/proxy/server.js`](examples/proxy/server.js)
+Client: [`examples/proxy/h1-over-h2.js`](examples/proxy/h1-over-h2.js)
 
 ### HTTP/2 over HTTP/2
 
-It's a tricky one! We cannot create an HTTP/2 session on top of an HTTP/2 stream. But there are a few solutions to this.
+Now let's get fancy! Did you know you can create an HTTP/2 session on top of an HTTP/2 stream?
 
-#### The `:authority` header approach
+Server: [`examples/proxy/server.js`](examples/proxy/server.js)
+Client: [`examples/proxy/h2-over-h2.js`](examples/proxy/h2-over-h2.js)
 
-We can try specifying the `:authority` header in order to tell the server where we want to connect.
+### ??? over HTTP/2
 
-```js
-const http2 = require('http2-wrapper');
-const {Agent} = http2;
+What is that? HTTP/1? HTTP/2? No one knows until we connect.
 
-class ProxyAgent extends Agent {
-	constructor(url, options) {
-		super(options);
-
-		this.origin = url;
-	}
-
-	request(origin, sessionOptions, headers, streamOptions) {
-		const url = new URL(origin);
-
-		// For demo purposes only!
-		sessionOptions.rejectUnauthorized = false;
-
-		return super.request(this.origin, sessionOptions, {
-			...headers,
-			':authority': url.host
-		}, streamOptions);
-	}
-}
-
-const request = http2.request({
-	hostname: 'httpbin.org',
-	protocol: 'https:',
-	path: '/anything',
-	method: 'POST',
-	headers: {
-		'content-length': 6
-	},
-	agent: new ProxyAgent('https://localhost:8000')
-}, response => {
-	console.log('statusCode:', response.statusCode);
-	console.log('headers:', response.headers);
-
-	const body = [];
-	response.on('data', chunk => {
-		body.push(chunk);
-	});
-	response.on('end', () => {
-		console.log('body:', Buffer.concat(body).toString());
-	});
-});
-
-request.on('error', console.error);
-
-request.write('123');
-request.end('456');
-```
-
-#### Classic web-proxy
-
-Another solution is to pass the request URL as the path to the proxy server.
-
-```js
-const http2 = require('http2-wrapper');
-const {Agent} = http2;
-
-class ProxyAgent extends Agent {
-	constructor(url, options) {
-		super(options);
-
-		this.origin = url;
-	}
-
-	request(origin, sessionOptions, headers, streamOptions) {
-		const url = new URL(origin);
-
-		return super.request(this.origin, sessionOptions, {
-			...headers,
-			// This will automatically force the `:authority` header to be the proxy origin server.
-			// Otherwise, it would point incorrectly to the requested origin we want be proxied.
-			':authority': undefined,
-			':path': `/${url.origin}${headers[':path'] || ''}`
-		}, streamOptions);
-	}
-}
-
-const request = http2.request({
-	hostname: 'httpbin.org',
-	protocol: 'https:',
-	path: '/anything',
-	method: 'POST',
-	headers: {
-		'content-length': 6
-	},
-	agent: new ProxyAgent('https://localhost:8001'),
-	// For demo purposes only!
-	rejectUnauthorized: false
-}, response => {
-	console.log('statusCode:', response.statusCode);
-	console.log('headers:', response.headers);
-
-	const body = [];
-	response.on('data', chunk => {
-		body.push(chunk);
-	});
-	response.on('end', () => {
-		console.log('body:', Buffer.concat(body).toString());
-	});
-});
-
-request.on('error', console.error);
-
-request.write('123');
-request.end('456');
-```
+Server: [`examples/proxy/server.js`](examples/proxy/server.js)
+Client: [`examples/proxy/unknown-over-h2.js`](examples/proxy/unknown-over-h2.js)
 
 ## Notes
 

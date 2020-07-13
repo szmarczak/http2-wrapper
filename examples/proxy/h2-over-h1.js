@@ -1,11 +1,8 @@
-'use strict';
 const http2 = require('../../source'); // Note: using the local version
 
-const agent = new http2.proxies.H2overH2({
+const agent = new http2.proxies.H2overH1({
 	url: 'https://username:password@localhost:8000',
 	proxyOptions: {
-		// Remove the following line if the server doesn't support the extended CONNECT protocol
-		extendedProtocol: 'tcp',
 		// For demo purposes only!
 		rejectUnauthorized: false
 	}

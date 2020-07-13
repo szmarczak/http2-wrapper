@@ -97,6 +97,32 @@ test('`method` property', wrapper, async (t, server) => {
 	request.abort();
 });
 
+test('`protocol` property', wrapper, async (t, server) => {
+	const request = makeRequest(server.url);
+	t.is(request.protocol, 'https:');
+
+	request.abort();
+});
+
+test('`host` property', wrapper, async (t, server) => {
+	server.get('/200', okHandler);
+
+	const request = makeRequest({
+		path: '/200',
+		port: server.options.port
+	});
+
+	t.is(request.host, 'localhost');
+	request.host = server.options.hostname;
+	t.is(request.host, server.options.hostname);
+
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	const data = await getStream(response);
+	t.is(data, 'ok');
+});
+
 test('accepts `options` as the input parameter', wrapper, async (t, server) => {
 	server.get('/200', okHandler);
 

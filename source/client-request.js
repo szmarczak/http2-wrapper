@@ -5,15 +5,13 @@ const {Agent, globalAgent} = require('./agent');
 const IncomingMessage = require('./incoming-message');
 const urlToOptions = require('./utils/url-to-options');
 const proxyEvents = require('./utils/proxy-events');
-const isRequestPseudoHeader = require('./utils/is-request-pseudo-header');
 const {
 	ERR_INVALID_ARG_TYPE,
 	ERR_INVALID_PROTOCOL,
-	ERR_HTTP_HEADERS_SENT,
-	ERR_INVALID_HTTP_TOKEN,
-	ERR_HTTP_INVALID_HEADER_VALUE,
-	ERR_INVALID_CHAR
+	ERR_HTTP_HEADERS_SENT
 } = require('./utils/errors');
+const validateHeaderName = require('./utils/validate-header-name');
+const validateHeaderValue = require('./utils/validate-header-value');
 
 const {
 	HTTP2_HEADER_STATUS,
@@ -28,9 +26,6 @@ const kSession = Symbol('session');
 const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
 const kJobs = Symbol('jobs');
-
-const isValidHttpToken = /^[\^`\-\w!#$%&*+.|~]+$/;
-const isInvalidHeaderValue = /[^\t\u0020-\u007E\u0080-\u00FF]/;
 
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
@@ -82,6 +77,8 @@ class ClientRequest extends Writable {
 		delete options.host;
 		delete options.port;
 
+		this.protocol = 'https:';
+
 		const {timeout} = options;
 		options.timeout = undefined;
 
@@ -114,19 +111,7 @@ class ClientRequest extends Writable {
 		this[kOptions] = options;
 
 		// Clients that generate HTTP/2 requests directly SHOULD use the :authority pseudo-header field instead of the Host header field.
-		if (port === 443) {
-			this[kOrigin] = `https://${host}`;
-
-			if (!(':authority' in this[kHeaders])) {
-				this[kHeaders][':authority'] = host;
-			}
-		} else {
-			this[kOrigin] = `https://${host}:${port}`;
-
-			if (!(':authority' in this[kHeaders])) {
-				this[kHeaders][':authority'] = `${host}:${port}`;
-			}
-		}
+		this[kOrigin] = new URL(`https://${host}:${port}`);
 
 		if (timeout) {
 			this.setTimeout(timeout);
@@ -156,6 +141,16 @@ class ClientRequest extends Writable {
 	set path(value) {
 		if (value) {
 			this[kHeaders][HTTP2_HEADER_PATH] = value;
+		}
+	}
+
+	get host() {
+		return this[kOrigin].hostname;
+	}
+
+	set host(value) {
+		if (value) {
+			this[kOrigin].hostname = value;
 		}
 	}
 
@@ -347,6 +342,10 @@ class ClientRequest extends Writable {
 			this.emit('socket', this.socket);
 		};
 
+		if (!(':authority' in this[kHeaders])) {
+			this[kHeaders][':authority'] = this[kOrigin].host;
+		}
+
 		// Makes a HTTP2 request
 		if (this[kSession]) {
 			try {
@@ -394,17 +393,8 @@ class ClientRequest extends Writable {
 			throw new ERR_HTTP_HEADERS_SENT('set');
 		}
 
-		if (typeof name !== 'string' || (!isValidHttpToken.test(name) && !isRequestPseudoHeader(name))) {
-			throw new ERR_INVALID_HTTP_TOKEN('Header name', name);
-		}
-
-		if (typeof value === 'undefined') {
-			throw new ERR_HTTP_INVALID_HEADER_VALUE(value, name);
-		}
-
-		if (isInvalidHeaderValue.test(value)) {
-			throw new ERR_INVALID_CHAR('header content', name);
-		}
+		validateHeaderName(name);
+		validateHeaderValue(name, value);
 
 		this[kHeaders][name.toLowerCase()] = value;
 	}

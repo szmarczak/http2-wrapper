@@ -5,7 +5,11 @@ const getStream = require('get-stream');
 const http2 = require('../source');
 const {createWrapper} = require('./helpers/server');
 
-const {request: makeRequest} = http2;
+const {
+	request: makeRequest,
+	validateHeaderName,
+	validateHeaderValue
+} = http2;
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -69,24 +73,47 @@ test('can\'t change headers after they are sent', wrapper, async (t, server) => 
 test('invalid headers', t => {
 	const request = makeRequest({});
 
-	t.throws(() => request.setHeader(undefined, 'qwerty'), {
-		message: 'Header name must be a valid HTTP token [undefined]'
-	});
-	t.throws(() => request.setHeader('qwerty', undefined), {
-		message: 'Invalid value "undefined for header "qwerty"'
-	});
-	t.throws(() => request.setHeader('“', 'qwerty'), {
-		message: 'Header name must be a valid HTTP token [“]'
-	});
-	t.throws(() => request.setHeader('qwerty', '“'), {
-		message: 'Invalid character in header content [qwerty]'
-	});
+	// eslint-disable-next-line no-lone-blocks
+	{
+		t.throws(() => request.setHeader(undefined, 'qwerty'), {
+			message: 'Header name must be a valid HTTP token [undefined]'
+		});
+		t.throws(() => request.setHeader('qwerty', undefined), {
+			message: 'Invalid value "undefined for header "qwerty"'
+		});
+		t.throws(() => request.setHeader('“', 'qwerty'), {
+			message: 'Header name must be a valid HTTP token [“]'
+		});
+		t.throws(() => request.setHeader('qwerty', '“'), {
+			message: 'Invalid character in header content [qwerty]'
+		});
 
-	t.throws(() => request.getHeader(undefined), {
-		message: 'The "name" argument must be of type string. Received undefined'
-	});
+		t.throws(() => request.getHeader(undefined), {
+			message: 'The "name" argument must be of type string. Received undefined'
+		});
 
-	t.throws(() => request.removeHeader(undefined), {
-		message: 'The "name" argument must be of type string. Received undefined'
-	});
+		t.throws(() => request.removeHeader(undefined), {
+			message: 'The "name" argument must be of type string. Received undefined'
+		});
+	}
+
+	// eslint-disable-next-line no-lone-blocks
+	{
+		t.throws(() => validateHeaderName(undefined, 'qwerty'), {
+			message: 'Header name must be a valid HTTP token [undefined]'
+		});
+		t.throws(() => validateHeaderValue('qwerty', undefined), {
+			message: 'Invalid value "undefined for header "qwerty"'
+		});
+		t.throws(() => validateHeaderName('“', 'qwerty'), {
+			message: 'Header name must be a valid HTTP token [“]'
+		});
+		t.throws(() => validateHeaderValue('qwerty', '“'), {
+			message: 'Invalid character in header content [qwerty]'
+		});
+
+		t.throws(() => validateHeaderName(undefined), {
+			message: 'Header name must be a valid HTTP token [undefined]'
+		});
+	}
 });

@@ -175,12 +175,17 @@ class Agent extends EventEmitter {
 		this.tlsSessionCache = new QuickLRU({maxSize: maxCachedTlsSessions});
 	}
 
+	get protocol() {
+		return 'https:';
+	}
+
 	static normalizeOrigin(url, servername) {
 		if (typeof url === 'string') {
 			url = new URL(url);
 		}
 
 		if (servername && url.hostname !== servername) {
+			url = new URL(url);
 			url.hostname = servername;
 		}
 
@@ -221,7 +226,7 @@ class Agent extends EventEmitter {
 
 	getSession(origin, options, listeners) {
 		return new Promise((resolve, reject) => {
-			if (Array.isArray(listeners)) {
+			if (Array.isArray(listeners) && listeners.length !== 0) {
 				listeners = [...listeners];
 
 				// Resolve the current promise ASAP, we're just moving the listeners.
@@ -622,7 +627,16 @@ class Agent extends EventEmitter {
 			options.servername = host;
 		}
 
-		return tls.connect(port, host, options);
+		const socket = tls.connect(port, host, options);
+
+		// Fix a Node.js bug
+		if (socket.remotePort !== port) {
+			Object.defineProperty(socket, 'remotePort', {
+				get: () => port
+			});
+		}
+
+		return socket;
 	}
 
 	closeFreeSessions() {
