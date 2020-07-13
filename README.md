@@ -324,7 +324,7 @@ See [`examples/proxies/mirror.js`](examples/proxies/mirror.js) for an example.
 
 There are two ways to do this. The first one just overrides the `:authority` header and leaves the path relative. If the server needs an absolute URL as the path, just simply do `new H2toH2({url, proxyOptions: {overrideAuthorityHeader: false}})` instead.
 
-Server: [`examples/proxies/h2-to-h2/server.js`](examples/proxies/h2-to-h2/server.js)
+Server: [`examples/proxies/h2-to-h2/server.js`](examples/proxies/h2-to-h2/server.js)\
 Client: [`examples/proxies/h2-to-h2/h2-to-h2.js`](examples/proxies/h2-to-h2/h2-to-h2.js)
 
 ### HTTP/1 over HTTP/2
