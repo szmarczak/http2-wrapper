@@ -29,15 +29,13 @@ class H2overH1 extends Agent {
 		super(agentOptions);
 
 		this.origin = new URL(url);
-		this.proxyOptions = proxyOptions;
+		this.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
 
 		const {username, password} = this.origin;
 		if (username || password) {
 			const data = `${username}:${password}`;
 
-			this.proxyOptions.headers = {
-				'proxy-authorization': `Basic ${Buffer.from(data).toString('base64')}`
-			};
+			this.proxyOptions.headers['proxy-authorization'] = `Basic ${Buffer.from(data).toString('base64')}`;
 		}
 
 		this.origin.username = '';
@@ -53,7 +51,10 @@ class H2overH1 extends Agent {
 
 		const request = network.request(`${this.origin}${origin.hostname}:${origin.port || 443}`, {
 			...this.proxyOptions,
-			headers: this.proxyOptions.headers,
+			headers: {
+				...this.proxyOptions.headers,
+				'host': `${origin.hostname}:${origin.port || 443}`
+			},
 			method: 'CONNECT'
 		}).end();
 
@@ -64,7 +65,7 @@ class H2overH1 extends Agent {
 
 			return super.getSession(origin, options, listeners);
 		} catch (error) {
-			request.close();
+			request.destroy();
 
 			if (listeners.length === 0) {
 				throw error;

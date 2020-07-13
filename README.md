@@ -316,51 +316,56 @@ agent.on('session', session => {
 
 ## Proxy support
 
-## Mirroring (server-side)
+## Mirroring another server
 
-To mirror another server we need to use just [`http2-proxy`](https://github.com/nxtedition/node-http2-proxy). We don't need the fancy CONNECT protocol, so this will look almost exactly as the classic web proxy, the request path just won't have the protocol and the host. Example: `https://username:password@localhost:8000/`
+See [`examples/proxies/mirror.js`] for an example.
 
-See [`examples/proxy/classic.js`] for an example.
+### HTTP/2 to HTTP/2
 
-### Classic web proxy
+There are two ways to do this. The first one just overrides the `:authority` header and leaves the path relative. If the server needs an absolute URL as the path, just simply do `new H2toH2({url, proxyOptions: {overrideAuthorityHeader: false}})` instead.
 
-This is a bit different than mirroring, but almost the same. Just specify the protocol and the hostname and you're done! Example: `https://username:password@localhost:8000/https://httpbin.org`
-
-Server: [`examples/proxy/classic/server.js`](examples/proxy/classic/server.js)
-Client: [`examples/proxy/classic/http2-over-http2-classic.js`](examples/proxy/classic/http2-over-http2-classic.js)
+Server: [`examples/proxies/h2-to-h2/server.js`](examples/proxies/h2-to-h2/server.js)
+Client: [`examples/proxies/h2-to-h2/h2-to-h2.js`](examples/proxies/h2-to-h2/h2-to-h2.js)
 
 ### HTTP/1 over HTTP/2
 
-We need to make some use of the CONNECT protocol here.
+This is much different than the method above. It uses tunnelling, the `CONNECT` protocol.
 
-Server: [`examples/proxy/server.js`](examples/proxy/server.js)
-Client: [`examples/proxy/h1-over-h2.js`](examples/proxy/h1-over-h2.js)
+Server: [`examples/proxies/server.js`](examples/proxies/server.js)
+Client: [`examples/proxies/h1-over-h2.js`](examples/proxies/h1-over-h2.js)
 
 ### HTTP/2 over HTTP/2
 
 Now let's get fancy! Did you know you can create an HTTP/2 session on top of an HTTP/2 stream?
 
-Server: [`examples/proxy/server.js`](examples/proxy/server.js)
-Client: [`examples/proxy/h2-over-h2.js`](examples/proxy/h2-over-h2.js)
+Server: [`examples/proxies/server.js`](examples/proxies/server.js)
+Client: [`examples/proxies/h2-over-h2.js`](examples/proxies/h2-over-h2.js)
 
 ### ??? over HTTP/2
 
 What is that? HTTP/1? HTTP/2? No one knows until we connect.
 
-Server: [`examples/proxy/server.js`](examples/proxy/server.js)
-Client: [`examples/proxy/unknown-over-h2.js`](examples/proxy/unknown-over-h2.js)
+Server: [`examples/proxies/server.js`](examples/proxies/server.js)
+Client: [`examples/proxies/unknown-over-h2.js`](examples/proxies/unknown-over-h2.js)
+
+### HTTP/2 over HTTP/1
+
+Yes, we can do that too.
+
+Server: [`examples/proxies/server.js`](examples/proxies/server.js)
+Client: [`examples/proxies/h2-over-h1.js`](examples/proxies/h2-over-h1.js)
 
 ## Notes
 
- - If you're interested in [WebSockets over HTTP/2](https://tools.ietf.org/html/rfc8441), then [check out this discussion](https://github.com/websockets/ws/issues/1458).
- - [HTTP/2 sockets cannot be malformed](https://github.com/nodejs/node/blob/cc8250fab86486632fdeb63892be735d7628cd13/lib/internal/http2/core.js#L725), therefore modifying the socket will have no effect.
- - You can make [a custom Agent](examples/push-stream/index.js) to support push streams.
+- If you're interested in [WebSockets over HTTP/2](https://tools.ietf.org/html/rfc8441), then [check out this discussion](https://github.com/websockets/ws/issues/1458).
+- [HTTP/2 sockets cannot be malformed](https://github.com/nodejs/node/blob/cc8250fab86486632fdeb63892be735d7628cd13/lib/internal/http2/core.js#L725), therefore modifying the socket will have no effect.
+- You can make [a custom Agent](examples/push-stream/index.js) to support push streams.
 
 ## Benchmarks
 
 CPU: Intel i7-7700k (governor: performance)<br>
 Server: H2O v2.2.5 [`h2o.conf`](h2o.conf)<br>
-Node: v14.5.0
+Node: v14.5.0<br>
 Linux: 5.6.18-156.current
 
 `auto` means `http2wrapper.auto`.

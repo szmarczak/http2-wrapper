@@ -15,12 +15,12 @@ class H2overH2 extends Agent {
 		super(agentOptions);
 
 		this.origin = new URL(url);
-		this.proxyOptions = proxyOptions;
+		this.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
 
 		const {username, password} = this.origin;
 		if (username || password) {
 			const data = `${username}:${password}`;
-			this.proxyOptions.authorization = `Basic ${Buffer.from(data).toString('base64')}`;
+			this.proxyOptions.headers['proxy-authorization'] = `Basic ${Buffer.from(data).toString('base64')}`;
 		}
 	}
 
@@ -37,7 +37,7 @@ class H2overH2 extends Agent {
 				':method': 'CONNECT',
 				':authority': authority,
 				':protocol': this.proxyOptions.extendedProtocol,
-				'proxy-authorization': this.proxyOptions.authorization
+				...this.proxyOptions.headers
 			});
 
 			const statusCode = await getStatusCode(stream);

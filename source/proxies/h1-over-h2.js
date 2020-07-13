@@ -6,12 +6,12 @@ const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
 
 const initialize = (self, {url, proxyOptions = {}}) => {
 	self.origin = new URL(url);
-	self.proxyOptions = proxyOptions;
+	self.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
 
 	const {username, password} = self.origin;
 	if (username || password) {
 		const data = `${username}:${password}`;
-		self.proxyOptions.authorization = `Basic ${Buffer.from(data).toString('base64')}`;
+		self.proxyOptions.headers['proxy-authorization'] = `Basic ${Buffer.from(data).toString('base64')}`;
 	}
 };
 
@@ -22,7 +22,7 @@ const createConnection = (self, options, callback) => {
 				':method': 'CONNECT',
 				':authority': `${options.host}:${options.port}`,
 				':protocol': self.proxyOptions.extendedProtocol,
-				'proxy-authorization': self.proxyOptions.authorization
+				...self.proxyOptions.headers
 			});
 
 			stream.once('error', callback);

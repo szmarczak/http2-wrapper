@@ -6,12 +6,12 @@ class ClassicProxyAgent extends Agent {
 		super(agentOptions);
 
 		this.origin = new URL(url);
-		this.proxyOptions = proxyOptions;
+		this.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
 
 		const {username, password} = this.origin;
 		if (username || password) {
 			const data = `${username}:${password}`;
-			this.proxyOptions.authorization = `Basic ${Buffer.from(data).toString('base64')}`;
+			this.proxyOptions.headers['proxy-authorization'] = `Basic ${Buffer.from(data).toString('base64')}`;
 		}
 	}
 
@@ -20,16 +20,19 @@ class ClassicProxyAgent extends Agent {
 			origin = new URL(origin);
 		}
 
+		headers = {...headers};
+
+		if (this.proxyOptions.overrideAuthorityHeader === false) {
+			delete headers[':authority'];
+			headers[':path'] = `/${origin.origin}${headers[':path'] || ''}`;
+		}
+
 		return super.request(this.origin, {
 			...sessionOptions,
 			...this.proxyOptions
 		}, {
 			...headers,
-			// This will automatically force the `:authority` header to be the proxy origin server.
-			// Otherwise, it would point incorrectly to the requested origin we want be proxied.
-			':authority': undefined,
-			':path': `/${origin.origin}${headers[':path'] || ''}`,
-			'proxy-authorization': this.proxyOptions.authorization
+			...this.proxyOptions.headers
 		}, streamOptions);
 	}
 }

@@ -61,11 +61,17 @@ server.listen(8001, error => {
 
 		proxy.web(serverRequest, serverResponse, {
 			onReq: async (request, options) => {
-				const urlString = options.path.slice(1);
+				let url;
+
+				try {
+					url = new URL(options.path.slice(1));
+				} catch (_) {
+					url = `https://${request.headers[':authority']}${options.path}`;
+				}
 
 				delete options.path;
 
-				const h2request = await http2.auto(urlString, options, response => {
+				const h2request = await http2.auto(url, options, response => {
 					const {headers} = response;
 
 					// `http2-proxy` doesn't automatically remove pseudo-headers

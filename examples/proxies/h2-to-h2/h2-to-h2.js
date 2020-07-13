@@ -1,6 +1,6 @@
 const http2 = require('../../../source'); // Note: using the local version
 
-const agent = new http2.proxies.ClassicProxyAgent({
+const agent = new http2.proxies.H2toH2({
 	url: 'https://username:password@localhost:8001',
 	proxyOptions: {
 		// For demo purposes only!

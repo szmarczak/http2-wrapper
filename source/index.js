@@ -10,7 +10,7 @@ const {
 } = require('./proxies/h1-over-h2');
 const H2overH2 = require('./proxies/h2-over-h2');
 const H2overH1 = require('./proxies/h2-over-h1');
-const ClassicProxyAgent = require('./proxies/h2-over-h2-classic');
+const H2toH2 = require('./proxies/h2-to-h2');
 const validateHeaderName = require('./utils/validate-header-name');
 const validateHeaderValue = require('./utils/validate-header-value');
 
@@ -39,7 +39,7 @@ module.exports = {
 		H1SoverH2,
 		H2overH2,
 		H2overH1,
-		ClassicProxyAgent
+		H2toH2
 	},
 	validateHeaderName,
 	validateHeaderValue
