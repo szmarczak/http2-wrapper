@@ -1,7 +1,6 @@
 'use strict';
 const net = require('net');
 const tls = require('tls');
-const proxy = require('http2-proxy');
 const http2 = require('../../source'); // Note: using the local version
 const {key, cert} = require('../../test/helpers/certs');
 
@@ -48,10 +47,6 @@ server.listen(8000, error => {
 	}
 
 	server.on('stream', (stream, headers) => {
-		stream.once('error', (error) => {
-			console.log(error);
-		});
-
 		try {
 			validateCredentials({headers});
 		} catch (error) {
@@ -62,7 +57,7 @@ server.listen(8000, error => {
 		}
 
 		if (headers[':method'] !== 'CONNECT') {
-			stream.close(NGHTTP2_REFUSED_STREAM);
+			stream.close(http2.constants.NGHTTP2_REFUSED_STREAM);
 			return;
 		}
 
@@ -82,11 +77,11 @@ server.listen(8000, error => {
 			stream.pipe(socket);
 		});
 
-		socket.on('error', error => {
+		socket.on('error', () => {
 			stream.close(http2.constants.NGHTTP2_CONNECT_ERROR);
 		});
 
-		stream.once('close', () => {
+		stream.once('error', () => {
 			socket.destroy();
 		});
 	});
@@ -96,7 +91,7 @@ server.listen(8000, error => {
 			validateCredentials(request);
 		} catch (error) {
 			console.error(error);
-			response.end('HTTP/1.1 403 Unauthorized\r\n\r\n');
+			stream.end('HTTP/1.1 403 Unauthorized\r\n\r\n');
 			return;
 		}
 
@@ -114,11 +109,11 @@ server.listen(8000, error => {
 			stream.pipe(socket);
 		});
 
-		socket.once('error', error => {
+		socket.once('error', () => {
 			stream.destroy();
 		});
 
-		stream.once('error', error => {
+		stream.once('error', () => {
 			socket.destroy();
 		});
 	});

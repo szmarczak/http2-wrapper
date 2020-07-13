@@ -65,7 +65,7 @@ server.listen(8001, error => {
 
 				try {
 					url = new URL(options.path.slice(1));
-				} catch (_) {
+				} catch {
 					url = `https://${request.headers[':authority']}${options.path}`;
 				}
 

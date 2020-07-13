@@ -316,9 +316,9 @@ agent.on('session', session => {
 
 ## Proxy support
 
-## Mirroring another server
+### Mirroring another server
 
-See [`examples/proxies/mirror.js`] for an example.
+See [`examples/proxies/mirror.js`](examples/proxies/mirror.js) for an example.
 
 ### HTTP/2 to HTTP/2
 
@@ -331,29 +331,37 @@ Client: [`examples/proxies/h2-to-h2/h2-to-h2.js`](examples/proxies/h2-to-h2/h2-t
 
 This is much different than the method above. It uses tunnelling, the `CONNECT` protocol.
 
-Server: [`examples/proxies/server.js`](examples/proxies/server.js)
+Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/h1-over-h2.js`](examples/proxies/h1-over-h2.js)
+
+**Note:** Bear in mind that the proxy server must respond with **plain, encrypted** TLS data. Receiving already decrypted data will result in a `wrong version number` error.
 
 ### HTTP/2 over HTTP/2
 
 Now let's get fancy! Did you know you can create an HTTP/2 session on top of an HTTP/2 stream?
 
-Server: [`examples/proxies/server.js`](examples/proxies/server.js)
+Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/h2-over-h2.js`](examples/proxies/h2-over-h2.js)
+
+**Note:** Bear in mind that the proxy server must respond with **plain, encrypted** TLS data. Receiving already decrypted data will result in a `wrong version number` error.
 
 ### ??? over HTTP/2
 
 What is that? HTTP/1? HTTP/2? No one knows until we connect.
 
-Server: [`examples/proxies/server.js`](examples/proxies/server.js)
+Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/unknown-over-h2.js`](examples/proxies/unknown-over-h2.js)
+
+**Note:** Bear in mind that the proxy server must respond with **plain, encrypted** TLS data. Receiving already decrypted data will result in a `wrong version number` error.
 
 ### HTTP/2 over HTTP/1
 
 Yes, we can do that too.
 
-Server: [`examples/proxies/server.js`](examples/proxies/server.js)
+Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/h2-over-h1.js`](examples/proxies/h2-over-h1.js)
+
+**Note:** Bear in mind that the proxy server must respond with **plain, encrypted** TLS data. Receiving already decrypted data will result in a `wrong version number` error.
 
 ## Notes
 

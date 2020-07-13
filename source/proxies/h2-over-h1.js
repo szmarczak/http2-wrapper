@@ -53,7 +53,7 @@ class H2overH1 extends Agent {
 			...this.proxyOptions,
 			headers: {
 				...this.proxyOptions.headers,
-				'host': `${origin.hostname}:${origin.port || 443}`
+				host: `${origin.hostname}:${origin.port || 443}`
 			},
 			method: 'CONNECT'
 		}).end();
