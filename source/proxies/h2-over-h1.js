@@ -49,7 +49,12 @@ class H2overH1 extends Agent {
 
 		const network = this.origin.protocol === 'https:' ? https : http;
 
-		const request = network.request(`${this.origin}${origin.hostname}:${origin.port || 443}`, {
+		// `new URL('https://localhost/httpbin.org:443')` results in
+		// a `/httpbin.org:443` path, which has an invalid leading slash.
+		const request = network.request({
+			hostname: this.origin.hostname,
+			port: this.origin.port,
+			path: `${origin.hostname}:${origin.port || 443}`,
 			...this.proxyOptions,
 			headers: {
 				...this.proxyOptions.headers,

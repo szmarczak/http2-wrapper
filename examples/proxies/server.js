@@ -95,11 +95,15 @@ server.listen(8000, error => {
 			return;
 		}
 
-		const auth = new URL(`tcp://${request.url.slice(1)}`);
+		if (request.url.startsWith('/')) {
+			stream.end('HTTP/1.1 406 Leading Slash\r\n\r\n');
+			return;
+		}
 
-		const protocol = 'tcp:';
-		const network = protocol === 'tls:' ? tls : net;
-		const defaultPort = protocol === 'tls:' ? 443 : 80;
+		const auth = new URL(`tcp://${request.url}`);
+
+		const network = auth.protocol === 'tls:' ? tls : net;
+		const defaultPort = auth.protocol === 'tls:' ? 443 : 80;
 
 		const socket = network.connect(auth.port || defaultPort, auth.hostname, () => {
 			stream.write('HTTP/1.1 200 Connection Established\r\n\r\n');
