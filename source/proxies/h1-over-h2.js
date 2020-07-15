@@ -1,4 +1,5 @@
 'use strict';
+const tls = require('tls');
 const http = require('http');
 const https = require('https');
 const {globalAgent} = require('../agent');
@@ -7,6 +8,10 @@ const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
 const initialize = (self, {url, proxyOptions = {}}) => {
 	self.origin = new URL(url);
 	self.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
+
+	if (typeof proxyOptions.raw !== 'boolean') {
+		throw new TypeError(`Expected 'proxyOptions.raw' to be a boolean, got ${typeof proxyOptions.raw}`);
+	}
 
 	const {username, password} = self.origin;
 	if (username || password) {
@@ -21,7 +26,6 @@ const createConnection = (self, options, callback) => {
 			const stream = await globalAgent.request(self.origin, self.proxyOptions, {
 				':method': 'CONNECT',
 				':authority': `${options.host}:${options.port}`,
-				':protocol': self.proxyOptions.extendedProtocol,
 				...self.proxyOptions.headers
 			});
 
@@ -31,6 +35,16 @@ const createConnection = (self, options, callback) => {
 
 				if (statusCode !== 200) {
 					callback(new UnexpectedStatusCodeError(statusCode));
+				}
+
+				if (self.proxyOptions.raw && self instanceof https.Agent) {
+					const secureStream = tls.connect(stream, options);
+
+					secureStream.once('close', () => {
+						stream.destroy();
+					});
+
+					callback(null, secureStream);
 				}
 
 				callback(null, stream);

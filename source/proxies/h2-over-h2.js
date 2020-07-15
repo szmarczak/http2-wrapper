@@ -1,5 +1,6 @@
 'use strict';
 const {Agent, globalAgent} = require('../agent');
+const JSStreamSocket = require('../utils/js-stream-socket');
 const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
 
 const getStatusCode = stream => new Promise((resolve, reject) => {
@@ -17,6 +18,10 @@ class H2overH2 extends Agent {
 		this.origin = new URL(url);
 		this.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
 
+		if (typeof proxyOptions.raw !== 'boolean') {
+			throw new TypeError(`Expected 'proxyOptions.raw' to be a boolean, got ${typeof proxyOptions.raw}`);
+		}
+
 		const {username, password} = this.origin;
 		if (username || password) {
 			const data = `${username}:${password}`;
@@ -24,7 +29,7 @@ class H2overH2 extends Agent {
 		}
 	}
 
-	async getSession(origin, options, listeners) {
+	async getSession(origin, options = {}, listeners = []) {
 		try {
 			if (!(origin instanceof URL)) {
 				origin = new URL(origin);
@@ -36,7 +41,6 @@ class H2overH2 extends Agent {
 			const stream = await globalAgent.request(this.origin, this.proxyOptions, {
 				':method': 'CONNECT',
 				':authority': authority,
-				':protocol': this.proxyOptions.extendedProtocol,
 				...this.proxyOptions.headers
 			});
 
@@ -45,7 +49,23 @@ class H2overH2 extends Agent {
 				throw new UnexpectedStatusCodeError(statusCode);
 			}
 
-			options.socket = stream;
+			if (this.proxyOptions.raw) {
+				options.socket = stream;
+			} else {
+				options.createConnection = () => {
+					const socket = new JSStreamSocket(stream);
+					socket.encrypted = true;
+					socket.alpnProtocol = 'h2';
+					socket.servername = origin.hostname;
+					socket._handle.getpeername = out => {
+						out.family = undefined;
+						out.address = undefined;
+						out.port = origin.port || undefined;
+					};
+
+					return socket;
+				};
+			}
 
 			return super.getSession(origin, options, listeners);
 		} catch (error) {

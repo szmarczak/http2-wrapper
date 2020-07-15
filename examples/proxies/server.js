@@ -61,7 +61,17 @@ server.listen(8000, error => {
 			return;
 		}
 
-		let protocol = headers[':protocol'] || 'tls:';
+		let defaultProtocol;
+
+		let ALPNProtocols = [];
+		if (headers.alpnprotocols) {
+			ALPNProtocols = headers.alpnprotocols.split(', ').join(',').split(',');
+			defaultProtocol = 'tls:';
+		} else {
+			defaultProtocol = 'tcp:';
+		}
+
+		let protocol = headers[':protocol'] || defaultProtocol;
 		if (!protocol.endsWith(':')) {
 			protocol += ':';
 		}
@@ -71,7 +81,7 @@ server.listen(8000, error => {
 		const network = protocol === 'tls:' ? tls : net;
 		const defaultPort = protocol === 'tls:' ? 443 : 80;
 
-		const socket = network.connect(auth.port || defaultPort, auth.hostname, () => {
+		const socket = network.connect(auth.port || defaultPort, auth.hostname, {ALPNProtocols}, () => {
 			stream.respond();
 			socket.pipe(stream);
 			stream.pipe(socket);
@@ -100,12 +110,27 @@ server.listen(8000, error => {
 			return;
 		}
 
-		const auth = new URL(`tcp://${request.url}`);
+		let defaultProtocol;
+
+		let ALPNProtocols = [];
+		if (request.headers.alpnprotocols) {
+			ALPNProtocols = request.headers.alpnprotocols.split(', ');
+			defaultProtocol = 'tls:';
+		} else {
+			defaultProtocol = 'tcp:';
+		}
+
+		let protocol = defaultProtocol;
+		if (!protocol.endsWith(':')) {
+			protocol += ':';
+		}
+
+		const auth = new URL(`${protocol}//${request.url}`);
 
 		const network = auth.protocol === 'tls:' ? tls : net;
 		const defaultPort = auth.protocol === 'tls:' ? 443 : 80;
 
-		const socket = network.connect(auth.port || defaultPort, auth.hostname, () => {
+		const socket = network.connect(auth.port || defaultPort, auth.hostname, {ALPNProtocols}, () => {
 			stream.write('HTTP/1.1 200 Connection Established\r\n\r\n');
 			socket.write(head);
 

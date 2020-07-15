@@ -4,8 +4,9 @@ const http2 = require('../../source'); // Note: using the local version
 const H1Agent = new http2.proxies.H1overH2({
 	url: 'https://username:password@localhost:8000',
 	proxyOptions: {
-		// Remove the following line if the server doesn't support the extended CONNECT protocol
-		extendedProtocol: 'tcp',
+		// If the proxy doesn't process TLS sockets automatically, set this to `true`.
+		raw: true,
+
 		// For demo purposes only!
 		rejectUnauthorized: false
 	}
@@ -14,8 +15,9 @@ const H1Agent = new http2.proxies.H1overH2({
 const H1SAgent = new http2.proxies.H1SoverH2({
 	url: 'https://username:password@localhost:8000',
 	proxyOptions: {
-		// Remove the following line if the server doesn't support the extended CONNECT protocol
-		extendedProtocol: 'tls',
+		// If the proxy doesn't process TLS sockets automatically, set this to `true`.
+		raw: true,
+
 		// For demo purposes only!
 		rejectUnauthorized: false
 	}
@@ -24,8 +26,9 @@ const H1SAgent = new http2.proxies.H1SoverH2({
 const H2Agent = new http2.proxies.H2overH2({
 	url: 'https://username:password@localhost:8000',
 	proxyOptions: {
-		// Remove the following line if the server doesn't support the extended CONNECT protocol
-		extendedProtocol: 'tcp',
+		// If the proxy doesn't process TLS sockets automatically, set this to `true`.
+		raw: true,
+
 		// For demo purposes only!
 		rejectUnauthorized: false
 	}
