@@ -9,6 +9,8 @@ const {
 	Http2OverHttps
 } = http2.proxies;
 
+/* eslint-disable capitalized-comments */
+
 (async () => {
 	const proxy = {
 		url: new URL('https://username:password@localhost:8000'),
@@ -37,7 +39,6 @@ const {
 				rejectUnauthorized: false
 			});
 
-			let agent;
 			if (alpnProtocol === 'h2') {
 				agent = {
 					http: new HttpOverHttp2(proxy),
@@ -90,3 +91,5 @@ const {
 		console.error(error);
 	}
 })();
+
+/* eslint-enable capitalized-comments */
