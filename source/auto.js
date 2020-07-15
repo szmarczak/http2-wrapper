@@ -48,6 +48,7 @@ const resolveProtocol = async options => {
 
 		const {path, agent} = options;
 		options.path = options.socketPath;
+		options.resolveSocket = true;
 
 		const resultPromise = resolveALPN(options);
 		queue.set(name, resultPromise);
@@ -104,8 +105,7 @@ module.exports = async (input, options, callback) => {
 	options = {
 		ALPNProtocols: ['h2', 'http/1.1'],
 		...input,
-		...options,
-		resolveSocket: true
+		...options
 	};
 
 	if (!Array.isArray(options.ALPNProtocols) || options.ALPNProtocols.length === 0) {
@@ -147,3 +147,4 @@ module.exports = async (input, options, callback) => {
 };
 
 module.exports.protocolCache = cache;
+module.exports.resolveProtocol = resolveProtocol;

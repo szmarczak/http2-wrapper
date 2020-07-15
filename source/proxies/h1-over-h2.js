@@ -55,7 +55,7 @@ const createConnection = (self, options, callback) => {
 	})();
 };
 
-class H1overH2 extends http.Agent {
+class HttpOverHttp2 extends http.Agent {
 	constructor(args) {
 		super(args.agentOptions);
 
@@ -67,7 +67,7 @@ class H1overH2 extends http.Agent {
 	}
 }
 
-class H1SoverH2 extends https.Agent {
+class HttpsOverHttp2 extends https.Agent {
 	constructor(args) {
 		super(args.agentOptions);
 
@@ -80,6 +80,6 @@ class H1SoverH2 extends https.Agent {
 }
 
 module.exports = {
-	H1overH2,
-	H1SoverH2
+	HttpOverHttp2,
+	HttpsOverHttp2
 };

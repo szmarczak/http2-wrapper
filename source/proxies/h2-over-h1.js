@@ -25,7 +25,7 @@ const getStream = request => new Promise((resolve, reject) => {
 	request.once('connect', onConnect);
 });
 
-class H2overH1 extends Agent {
+class Http2OverHttp extends Agent {
 	constructor({url, proxyOptions = {}, agentOptions}) {
 		super(agentOptions);
 
@@ -104,4 +104,7 @@ class H2overH1 extends Agent {
 	}
 }
 
-module.exports = H2overH1;
+module.exports = {
+	Http2OverHttp,
+	Http2OverHttps: Http2OverHttp
+};

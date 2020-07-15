@@ -1,7 +1,7 @@
 'use strict';
 const {Agent} = require('../agent');
 
-class ClassicProxyAgent extends Agent {
+class Http2ToHttp2 extends Agent {
 	constructor({url, proxyOptions = {}, agentOptions}) {
 		super(agentOptions);
 
@@ -37,4 +37,4 @@ class ClassicProxyAgent extends Agent {
 	}
 }
 
-module.exports = ClassicProxyAgent;
+module.exports = Http2ToHttp2;

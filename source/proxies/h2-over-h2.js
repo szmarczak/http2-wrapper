@@ -11,7 +11,7 @@ const getStatusCode = stream => new Promise((resolve, reject) => {
 	});
 });
 
-class H2overH2 extends Agent {
+class Http2OverHttp2 extends Agent {
 	constructor({url, proxyOptions = {}, agentOptions}) {
 		super(agentOptions);
 
@@ -80,4 +80,4 @@ class H2overH2 extends Agent {
 	}
 }
 
-module.exports = H2overH2;
+module.exports = Http2OverHttp2;

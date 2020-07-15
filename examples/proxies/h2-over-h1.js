@@ -1,6 +1,6 @@
 const http2 = require('../../source'); // Note: using the local version
 
-const agent = new http2.proxies.H2overH1({
+const agent = new http2.proxies.Http2OverHttps({
 	url: 'https://username:password@localhost:8000',
 	proxyOptions: {
 		// If the proxy doesn't process TLS sockets automatically, set this to `true`.

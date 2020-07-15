@@ -334,16 +334,12 @@ This is much different than the method above. It uses tunnelling, the `CONNECT` 
 Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/h1-over-h2.js`](examples/proxies/h1-over-h2.js)
 
-**Note:** Bear in mind that the proxy server must respond with **plain, encrypted** TLS data. Receiving already decrypted data will result in a `wrong version number` error.
-
 ### HTTP/2 over HTTP/2
 
 Now let's get fancy! Did you know you can create an HTTP/2 session on top of an HTTP/2 stream?
 
 Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/h2-over-h2.js`](examples/proxies/h2-over-h2.js)
-
-**Note:** Bear in mind that the proxy server must respond with **plain, encrypted** TLS data. Receiving already decrypted data will result in a `wrong version number` error.
 
 ### ??? over HTTP/2
 
@@ -352,8 +348,6 @@ What is that? HTTP/1? HTTP/2? No one knows until we connect.
 Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/unknown-over-h2.js`](examples/proxies/unknown-over-h2.js)
 
-**Note:** Bear in mind that the proxy server must respond with **plain, encrypted** TLS data. Receiving already decrypted data will result in a `wrong version number` error.
-
 ### HTTP/2 over HTTP/1
 
 Yes, we can do that too.
@@ -361,7 +355,11 @@ Yes, we can do that too.
 Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/h2-over-h1.js`](examples/proxies/h2-over-h1.js)
 
-**Note:** Bear in mind that the proxy server must respond with **plain, encrypted** TLS data. Receiving already decrypted data will result in a `wrong version number` error.
+### ??? over ???
+
+It is possible that we don't know the protocol of both: the proxy server and the server being proxied.
+
+Client: [`examples/proxies/unknown-over-unknown.js`](examples/proxies/unknown-over-unknown.js)
 
 ## Notes
 

@@ -5,12 +5,15 @@ const ClientRequest = require('./client-request');
 const IncomingMessage = require('./incoming-message');
 const auto = require('./auto');
 const {
-	H1overH2,
-	H1SoverH2
+	HttpOverHttp2,
+	HttpsOverHttp2
 } = require('./proxies/h1-over-h2');
-const H2overH2 = require('./proxies/h2-over-h2');
-const H2overH1 = require('./proxies/h2-over-h1');
-const H2toH2 = require('./proxies/h2-to-h2');
+const Http2OverHttp2 = require('./proxies/h2-over-h2');
+const {
+	Http2OverHttp,
+	Http2OverHttps
+} = require('./proxies/h2-over-h1');
+const Http2ToHttp2 = require('./proxies/h2-to-h2');
 const validateHeaderName = require('./utils/validate-header-name');
 const validateHeaderValue = require('./utils/validate-header-value');
 
@@ -35,11 +38,12 @@ module.exports = {
 	get,
 	auto,
 	proxies: {
-		H1overH2,
-		H1SoverH2,
-		H2overH2,
-		H2overH1,
-		H2toH2
+		HttpOverHttp2,
+		HttpsOverHttp2,
+		Http2OverHttp2,
+		Http2ToHttp2,
+		Http2OverHttp,
+		Http2OverHttps
 	},
 	validateHeaderName,
 	validateHeaderValue
