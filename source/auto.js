@@ -140,6 +140,9 @@ module.exports = async (input, options, callback) => {
 			}
 
 			return new Http2ClientRequest(options, callback);
+		} else {
+			// I am not sure if I should run the following code,it's protocol is still "https"
+			return https.request(options, callback)
 		}
 	}
 
