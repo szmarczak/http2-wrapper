@@ -315,7 +315,6 @@ class ClientRequest extends Writable {
 			});
 
 			this.socket = new Proxy(stream, proxySocketHandler);
-			this.connection = this.socket;
 
 			for (const job of this[kJobs]) {
 				job();
@@ -344,6 +343,26 @@ class ClientRequest extends Writable {
 				this.emit('error', error);
 			}
 		}
+	}
+
+	get connection() {
+		return this.socket;
+	}
+
+	set connection(value) {
+		this.socket = value;
+	}
+
+	getHeaderNames() {
+		return Object.keys(this[kHeaders]);
+	}
+
+	hasHeader(name) {
+		if (typeof name !== 'string') {
+			throw new ERR_INVALID_ARG_TYPE('name', 'string', name);
+		}
+
+		return Boolean(this[kHeaders][name.toLowerCase()]);
 	}
 
 	getHeader(name) {

@@ -27,6 +27,28 @@ test('setting headers', wrapper, async (t, server) => {
 	t.is(data.headers.foo, 'bar');
 });
 
+test('getHeaderNames()', wrapper, async (t, server) => {
+	const request = makeRequest(server.options);
+	request.setHeader('hello', 'world');
+
+	t.deepEqual(request.getHeaderNames(), [':method', 'hello']);
+
+	request.abort();
+});
+
+test('hasHeader()', wrapper, async (t, server) => {
+	const request = makeRequest(server.options);
+	request.setHeader('hello', 'world');
+
+	t.true(request.hasHeader('hello'));
+
+	t.throws(() => request.hasHeader(false), {
+		message: 'The "name" argument must be of type string. Received boolean'
+	});
+
+	request.abort();
+});
+
 test('`headers` option', wrapper, async (t, server) => {
 	const request = makeRequest({...server.options, headers: {foo: 'bar'}});
 	request.end();

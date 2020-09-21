@@ -816,10 +816,21 @@ test('the `response` event can be emitted after calling `request.write()`', wrap
 	await new Promise(resolve => request.end(resolve));
 });
 
-if (process.platform !== 'win32') {
-	const socketPath = tempy.file({extension: 'socket'});
+test('.connection is .socket', wrapper, async (t, server) => {
+	const request = makeRequest(server.options);
 
-	test.serial('`socketPath` option', async t => {
+	request.connection = 123;
+	t.is(request.socket, 123);
+
+	request.abort();
+});
+
+{
+	const testFn = process.platform === 'win32' ? test.skip : test.serial;
+
+	testFn('`socketPath` option', async t => {
+		const socketPath = tempy.file({extension: 'socket'});
+
 		const localServer = await createServer();
 		await localServer.listen(socketPath);
 

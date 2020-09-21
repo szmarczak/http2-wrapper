@@ -25,9 +25,16 @@ class IncomingMessage extends Readable {
 		this.rawTrailers = [];
 
 		this.socket = socket;
-		this.connection = socket;
 
 		this._dumped = false;
+	}
+
+	get connection() {
+		return this.socket;
+	}
+
+	set connection(value) {
+		this.socket = value;
 	}
 
 	_destroy(error) {

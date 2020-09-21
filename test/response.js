@@ -299,3 +299,10 @@ test('pipeline works', wrapper, async (t, server) => {
 	t.false(request.aborted);
 	t.false(request.destroyed);
 });
+
+test('.connection is .socket', t => {
+	const response = new IncomingMessage();
+	response.connection = 123;
+
+	t.is(response.socket, 123);
+});
