@@ -795,21 +795,22 @@ test('throws when writing using GET, HEAD or DELETE', wrapper, async (t, server)
 	}
 });
 
-test('the `response` event is emitted after calling `request.end()`', wrapper, async (t, server) => {
-	server.get('/', (request, response) => {
+test('the `response` event can be emitted after calling `request.write()`', wrapper, async (t, server) => {
+	server.post('/', (request, response) => {
+		request.resume();
 		response.end();
 	});
 
-	const request = makeRequest(server.options);
-	request.flushHeaders();
-
-	await pEvent(request, 'socket');
-	await pEvent(request._request, 'response');
-
-	request.end();
+	const request = makeRequest({
+		...server.options,
+		method: 'POST'
+	});
+	request.write('anything');
 
 	const response = await pEvent(request, 'response');
 	t.is(response.statusCode, 200);
+
+	await new Promise(resolve => request.end(resolve));
 });
 
 if (process.platform !== 'win32') {
