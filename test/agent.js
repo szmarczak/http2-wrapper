@@ -377,7 +377,11 @@ test('appends to freeSessions after the stream has ended', singleRequestWrapper,
 	await pEvent(thirdRequest, 'close');
 
 	await setImmediateAsync();
-	t.is(agent.freeSessions[''].length, 2);
+
+	// The following is needed for Node.js >= 14,
+	// as the session may be in the middle of the destroy process.
+	const filtered = agent.freeSessions[''].filter(session => !session.destroyed);
+	t.is(filtered.length, 2);
 
 	agent.destroy();
 });
