@@ -392,13 +392,16 @@ test('throws when acesssing `socket` after session destruction', wrapper, async 
 	request.end();
 
 	const response = await pEvent(request, 'response');
-	t.is(response.socket, h2session.socket);
+
+	// We cannot compare `response.socket` to `h2session.socket` directly,
+	// as `response.socket` is a Proxy object.
+	t.is(response.socket.address(), h2session.socket.address());
 
 	request.abort();
 	h2session.close();
 
 	await pEvent(response.socket, 'close');
-	t.throws(() => response.socket.destroyed);
+	t.throws(() => response.socket.write);
 });
 
 test('doesn\'t close custom sessions', wrapper, (t, server) => {

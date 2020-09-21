@@ -43,3 +43,9 @@ makeError(TypeError, 'ERR_HTTP_INVALID_HEADER_VALUE', args => {
 makeError(TypeError, 'ERR_INVALID_CHAR', args => {
 	return `Invalid character in ${args[0]} [${args[1]}]`;
 });
+
+makeError(
+	Error,
+	'ERR_HTTP2_NO_SOCKET_MANIPULATION',
+	'HTTP/2 sockets should not be directly manipulated (e.g. read and written)'
+);

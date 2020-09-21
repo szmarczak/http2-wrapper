@@ -12,6 +12,7 @@ const {
 } = require('./utils/errors');
 const validateHeaderName = require('./utils/validate-header-name');
 const validateHeaderValue = require('./utils/validate-header-value');
+const proxySocketHandler = require('./utils/proxy-socket-handler');
 
 const {
 	HTTP2_HEADER_STATUS,
@@ -315,9 +316,8 @@ class ClientRequest extends Writable {
 				res.rawTrailers = rawTrailers;
 			});
 
-			const {socket} = stream.session;
-			this.socket = socket;
-			this.connection = socket;
+			this.socket = new Proxy(stream, proxySocketHandler);
+			this.connection = this.socket;
 
 			for (const job of this[kJobs]) {
 				job();
