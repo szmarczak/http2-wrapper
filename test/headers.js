@@ -117,3 +117,13 @@ test('invalid headers', t => {
 		});
 	}
 });
+
+test('valid pseudo headers', t => {
+	const request = makeRequest({});
+
+	const pseudoHeaders = [':method', ':scheme', ':authority', ':path'];
+
+	for (const header of pseudoHeaders) {
+		t.notThrows(() => request.setHeader(header, ''));
+	}
+});
