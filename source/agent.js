@@ -604,7 +604,22 @@ class Agent extends EventEmitter {
 				reject,
 				resolve: session => {
 					try {
-						resolve(session.request(headers, streamOptions));
+						const stream = session.request(headers, streamOptions);
+
+						// Do not throw before `request(...)` has been awaited
+						// TODO: test this somehow.
+						stream.__destroy = stream._destroy;
+						stream._destroy = async (...args) => {
+							const callback = args.pop();
+
+							const next = Promise.resolve();
+							stream.__destroy(...args, async error => {
+								await next;
+								callback(error);
+							});
+						};
+
+						resolve(stream);
 					} catch (error) {
 						reject(error);
 					}
