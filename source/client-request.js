@@ -149,10 +149,8 @@ class ClientRequest extends Writable {
 		return this[kOrigin].hostname;
 	}
 
-	set host(value) {
-		if (value) {
-			this[kOrigin].hostname = value;
-		}
+	set host(_value) {
+		// Do nothing as this is read only.
 	}
 
 	get _mustNotHaveABody() {

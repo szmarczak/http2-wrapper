@@ -113,8 +113,8 @@ test('`host` property', wrapper, async (t, server) => {
 	});
 
 	t.is(request.host, 'localhost');
-	request.host = server.options.hostname;
-	t.is(request.host, server.options.hostname);
+	request.host = 'this will not be set';
+	t.is(request.host, 'localhost');
 
 	request.end();
 
