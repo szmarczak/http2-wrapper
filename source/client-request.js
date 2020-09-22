@@ -219,7 +219,10 @@ class ClientRequest extends Writable {
 		}
 
 		if (this._request) {
-			this._request.destroy();
+			// TODO: Remove this when https://github.com/nodejs/node/issues/35306 gets fixed
+			process.nextTick(() => {
+				this._request.destroy();
+			});
 		}
 
 		callback(error);
