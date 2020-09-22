@@ -322,7 +322,7 @@ See [`examples/proxies/mirror.js`](examples/proxies/mirror.js) for an example.
 
 ### HTTP/1 over HTTP/2
 
-This is much different than the method above. It uses tunnelling, the `CONNECT` protocol.
+It uses tunnelling, the `CONNECT` protocol.
 
 Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
 Client: [`examples/proxies/h1-over-h2.js`](examples/proxies/h1-over-h2.js)
