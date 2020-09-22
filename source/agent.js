@@ -256,6 +256,16 @@ class Agent extends EventEmitter {
 
 				// We could just do this.sessions[normalizedOptions].find(...) but that isn't optimal.
 				// Additionally, we are looking for session which has biggest current pending streams count.
+				//
+				// |------------| |------------| |------------|
+				// | Session: A | | Session: B | | Session: C |
+				// | Pending: 5 |-| Pending: 8 |-| Pending: 4 |
+				// | Max:    10 | | Max:    10 | | Max:     5 |
+				// |------------| |------------| |------------|
+				//                     ^
+				//                     |
+				//     pick this one  --
+				//
 				for (const session of sessions) {
 					const sessionMaxConcurrentStreams = session.remoteSettings.maxConcurrentStreams;
 

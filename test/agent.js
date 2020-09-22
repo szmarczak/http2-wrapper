@@ -1237,3 +1237,77 @@ test('`protocol` property', t => {
 	const agent = new Agent();
 	t.is(agent.protocol, 'https:');
 });
+
+test('session are being picked in an optimal way #1', tripleRequestWrapper, async (t, server) => {
+	server.get('/', () => {});
+
+	const agent = new Agent();
+	const requests = await Promise.all([
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url)
+	]);
+
+	t.is(requests[0].session, requests[1].session);
+	t.is(requests[0].session, requests[2].session);
+	t.is(requests[3].session, requests[4].session);
+	t.is(requests[3].session, requests[5].session);
+
+	{
+		const toDestroy = [0, 1, 5];
+
+		const wait = Promise.all(toDestroy.map(index => pEvent(requests[index], 'close')));
+
+		for (const index of toDestroy) {
+			requests[index].destroy();
+		}
+
+		await wait;
+	}
+
+	const newer = await agent.request(server.url);
+
+	t.is(newer.session, requests[4].session);
+
+	agent.destroy();
+});
+
+test('session are being picked in an optimal way #2', tripleRequestWrapper, async (t, server) => {
+	server.get('/', () => {});
+
+	const agent = new Agent();
+	const requests = await Promise.all([
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url)
+	]);
+
+	t.is(requests[0].session, requests[1].session);
+	t.is(requests[0].session, requests[2].session);
+	t.is(requests[3].session, requests[4].session);
+	t.is(requests[3].session, requests[5].session);
+
+	{
+		const toDestroy = [0, 4, 5];
+
+		const wait = Promise.all(toDestroy.map(index => pEvent(requests[index], 'close')));
+
+		for (const index of toDestroy) {
+			requests[index].destroy();
+		}
+
+		await wait;
+	}
+
+	const newer = await agent.request(server.url);
+
+	t.is(newer.session, requests[2].session);
+
+	agent.destroy();
+});
