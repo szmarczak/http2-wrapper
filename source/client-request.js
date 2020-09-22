@@ -248,6 +248,17 @@ class ClientRequest extends Writable {
 				proxyEvents(stream, this, ['timeout', 'continue', 'close', 'error']);
 			}
 
+			stream.once('aborted', () => {
+				const {res} = this;
+				if (res) {
+					res.aborted = true;
+					res.emit('aborted');
+					res.destroy();
+				}
+
+				// TODO: do we need an `else` here?
+			});
+
 			// This event tells we are ready to listen for the data.
 			stream.once('response', (headers, flags, rawHeaders) => {
 				// If we were to emit raw request stream, it would be as fast as the native approach.
@@ -312,6 +323,12 @@ class ClientRequest extends Writable {
 				// Assigns trailers to the response object.
 				res.trailers = trailers;
 				res.rawTrailers = rawTrailers;
+			});
+
+			stream.once('close', () => {
+				// TODO: Make sure `ClientRequest` emits `close` too
+				// TODO: Make sure `IncomingMessage` emits `close` too
+				this.destroy();
 			});
 
 			this.socket = new Proxy(stream, proxySocketHandler);

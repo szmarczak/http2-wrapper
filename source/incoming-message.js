@@ -38,7 +38,10 @@ class IncomingMessage extends Readable {
 		this.socket = value;
 	}
 
-	_destroy(error) {
+	_destroy(error, callback) {
+		// See https://github.com/nodejs/node/issues/35303
+		callback();
+
 		this.req._request.destroy(error);
 	}
 

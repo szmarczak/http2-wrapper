@@ -84,6 +84,34 @@ test('aborting dumps the response', wrapper, async (t, server) => {
 	t.true(response._dumped);
 });
 
+test('`aborted` event', wrapper, async (t, server) => {
+	server.post('/', (_request, response) => {
+		response.write('asdf');
+
+		setTimeout(() => {
+			response.destroy();
+		}, 100);
+	});
+
+	const request = makeRequest(server.url);
+	request.method = 'POST';
+	request.flushHeaders();
+
+	const response = await pEvent(request, 'response');
+
+	response.once('end', () => {
+		t.fail('Response emitted `end`');
+	});
+
+	const promises = [
+		pEvent(response, 'aborted')
+	];
+
+	await promises;
+
+	t.pass();
+});
+
 test.serial('`.setTimeout()` works', wrapper.lolex, async (t, server, clock) => {
 	server.get('/headers-only', (request, response) => {
 		response.writeHead(200);

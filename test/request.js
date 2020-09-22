@@ -565,7 +565,7 @@ test('`.abort()` works', wrapper, async (t, server) => {
 	t.true(request.aborted);
 });
 
-test('emits `abort` only once', wrapper, (t, server) => {
+test('emits `abort` only once', wrapper, async (t, server) => {
 	let aborts = 0;
 
 	const request = makeRequest(server.options);
@@ -573,7 +573,9 @@ test('emits `abort` only once', wrapper, (t, server) => {
 	request.abort();
 	request.abort();
 
-	t.is(aborts, 0);
+	await delay(100);
+
+	t.is(aborts, 1);
 });
 
 test('`.setNoDelay()` doesn\'t throw', wrapper, (t, server) => {
