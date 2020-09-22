@@ -364,42 +364,42 @@ Client: [`examples/proxies/unknown-over-unknown.js`](examples/proxies/unknown-ov
 
 CPU: Intel i7-7700k (governor: performance)<br>
 Server: H2O v2.2.5 [`h2o.conf`](h2o.conf)<br>
-Node: v14.5.0<br>
-Linux: 5.6.18-156.current
+Node: v14.11.0<br>
+Linux: 5.6.19-158.current
 
 `auto` means `http2wrapper.auto`.
 
 ```
-http2-wrapper                         x 12,181 ops/sec ±3.39% (75 runs sampled)
-http2-wrapper - preconfigured session x 13,140 ops/sec ±2.51% (79 runs sampled)
-http2-wrapper - auto                  x 11,412 ops/sec ±2.55% (78 runs sampled)
-http2                                 x 16,050 ops/sec ±1.39% (86 runs sampled)
-https         - auto - keepalive      x 12,288 ops/sec ±2.69% (79 runs sampled)
-https                - keepalive      x 12,155 ops/sec ±3.32% (78 runs sampled)
-https                                 x 1,604 ops/sec  ±2.03% (77 runs sampled)
-http                                  x 6,041 ops/sec  ±3.82% (76 runs sampled)
+http2-wrapper                         x 11,233 ops/sec ±1.52% (80 runs sampled)
+http2-wrapper - preconfigured session x 12,329 ops/sec ±1.99% (82 runs sampled)
+http2-wrapper - auto                  x 9,365 ops/sec ±5.07% (81 runs sampled)
+http2                                 x 15,983 ops/sec ±1.34% (81 runs sampled)
+https         - auto - keepalive      x 11,452 ops/sec ±2.42% (78 runs sampled)
+https                - keepalive      x 10,513 ops/sec ±2.84% (75 runs sampled)
+https                                 x 1,586 ops/sec ±1.14% (83 runs sampled)
+http                                  x 5,273 ops/sec ±1.80% (80 runs sampled)
 Fastest is http2
 ```
 
 `http2-wrapper`:
-- 32% **less** performant than `http2`
+- 30% **less** performant than `http2`
 - as performant as `https - keepalive`
-- 100% **more** performant than `http`
+- 113% **more** performant than `http`
 
 `http2-wrapper - preconfigured session`:
-- 22% **less** performant than `http2`
-- 8% **more** performant than `https - keepalive`
-- 118% **more** performant than `http`
+- 23% **less** performant than `http2`
+- 17% **more** performant than `https - keepalive`
+- 134% **more** performant than `http`
 
 `http2-wrapper - auto`:
 - 41% **less** performant than `http2`
-- 8% **less** performant than `https - keepalive`
+- 11% **less** performant than `https - keepalive`
 - 89% **more** performant than `http`
 
 `https - auto - keepalive`:
-- 31% **less** performant than `http2`
+- 28% **less** performant than `http2`
 - as performant as `https - keepalive`
-- 103% **more** performant than `http`
+- 117% **more** performant than `http`
 
 ## Related
 
