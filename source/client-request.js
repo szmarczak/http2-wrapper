@@ -299,7 +299,9 @@ class ClientRequest extends Writable {
 					});
 
 					stream.once('end', () => {
-						if (!this.aborted) {
+						// TODO: Remove the second condition
+						// See https://github.com/nodejs/node/issues/35304
+						if (!this.aborted && !this.res.aborted) {
 							response.push(null);
 						}
 					});
