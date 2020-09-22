@@ -843,6 +843,18 @@ test('throws when server aborts the request', wrapper, async (t, server) => {
 	});
 });
 
+test('`close` event is emitted', wrapper, async (t, server) => {
+	const request = makeRequest(server.url);
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	await pEvent(request, 'close');
+
+	t.pass();
+});
+
 {
 	const testFn = process.platform === 'win32' ? test.skip : test.serial;
 

@@ -329,15 +329,18 @@ class ClientRequest extends Writable {
 
 			stream.once('close', () => {
 				const {aborted, res} = this;
-				if (aborted && res) {
-					res.aborted = true;
-					res.emit('aborted');
-					res.destroy();
+				if (res) {
+					if (aborted) {
+						res.aborted = true;
+						res.emit('aborted');
+						res.destroy();
+					}
+
+					res.emit('close');
 				}
 
-				// TODO: Make sure `ClientRequest` emits `close` too
-				// TODO: Make sure `IncomingMessage` emits `close` too
 				this.destroy();
+				this.emit('close');
 			});
 
 			this.socket = new Proxy(stream, proxySocketHandler);

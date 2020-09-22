@@ -116,6 +116,28 @@ test('`aborted` event', wrapper, async (t, server) => {
 	t.pass();
 });
 
+test('`aborted` is not emitted on completed response', wrapper, async (t, server) => {
+	const request = makeRequest(server.url);
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	response.on('aborted', () => {
+		t.fail('`aborted` was emitted');
+	});
+
+	await new Promise(resolve => {
+		response.on('end', () => {
+			request.abort();
+
+			process.nextTick(resolve);
+		});
+	});
+
+	t.pass();
+});
+
 test.serial('`.setTimeout()` works', wrapper.lolex, async (t, server, clock) => {
 	server.get('/headers-only', (request, response) => {
 		response.writeHead(200);
@@ -338,4 +360,16 @@ test('.connection is .socket', t => {
 	response.connection = 123;
 
 	t.is(response.socket, 123);
+});
+
+test('`close` event is emitted', wrapper, async (t, server) => {
+	const request = makeRequest(server.url);
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	await pEvent(response, 'close');
+
+	t.pass();
 });
