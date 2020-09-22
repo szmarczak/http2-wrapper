@@ -237,7 +237,8 @@ test('`end` event', wrapper, async (t, server) => {
 
 	await pEvent(response, 'end');
 
-	t.false(response.destroyed);
+	// Auto destroy is on
+	t.true(response.destroyed);
 });
 
 test('response exceeds the highWaterMark size', wrapper, async (t, server) => {

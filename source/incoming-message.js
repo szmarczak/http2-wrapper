@@ -4,8 +4,8 @@ const {Readable} = require('stream');
 class IncomingMessage extends Readable {
 	constructor(socket, highWaterMark) {
 		super({
-			highWaterMark,
-			autoDestroy: false
+			emitClose: false,
+			highWaterMark
 		});
 
 		this.statusCode = null;
