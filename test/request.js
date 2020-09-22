@@ -827,6 +827,20 @@ test('.connection is .socket', wrapper, async (t, server) => {
 	request.abort();
 });
 
+test('throws when server aborts the request', wrapper, async (t, server) => {
+	server.post('/', (_request, response) => {
+		response.destroy();
+	});
+
+	const request = makeRequest(server.url);
+	request.method = 'POST';
+	request.flushHeaders();
+
+	await t.throwsAsync(pEvent(request, 'data'), {
+		message: 'The server aborted the HTTP/2 stream'
+	});
+});
+
 {
 	const testFn = process.platform === 'win32' ? test.skip : test.serial;
 

@@ -254,9 +254,9 @@ class ClientRequest extends Writable {
 					res.aborted = true;
 					res.emit('aborted');
 					res.destroy();
+				} else {
+					this.destroy(new Error('The server aborted the HTTP/2 stream'));
 				}
-
-				// TODO: do we need an `else` here?
 			});
 
 			// This event tells we are ready to listen for the data.
