@@ -539,9 +539,11 @@ test('aborting after flushing headers errors when the connection gets broken', w
 	request.flushHeaders();
 	request.abort();
 
-	// It's also called after every test finishes, so we need to overwrite `.close()` for this one.
-	server.close();
-	server.close = () => {};
+	{
+		// It's also called after every test finishes, so we need to overwrite `.close()` for this one.
+		const promise = server.close();
+		server.close = () => promise;
+	}
 
 	const error = await pEvent(request, 'error');
 	t.is(error.code, 'ECONNREFUSED');

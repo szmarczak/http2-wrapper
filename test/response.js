@@ -78,6 +78,10 @@ test('aborting dumps the response', wrapper, async (t, server) => {
 	response.on('data', () => {});
 	request.abort();
 
+	response.once('end', () => {
+		t.fail('Response emitted `end` event');
+	});
+
 	await pEvent(response, 'aborted');
 
 	t.is(response.listenerCount('data'), 0);

@@ -272,16 +272,11 @@ class ClientRequest extends Writable {
 				response.rawHeaders = rawHeaders;
 
 				response.once('end', () => {
-					if (this.aborted) {
-						response.aborted = true;
-						response.emit('aborted');
-					} else {
-						response.complete = true;
+					response.complete = true;
 
-						// Has no effect, just be consistent with the Node.js behavior
-						response.socket = null;
-						response.connection = null;
-					}
+					// Has no effect, just be consistent with the Node.js behavior
+					response.socket = null;
+					response.connection = null;
 				});
 
 				if (isConnectMethod) {
@@ -304,7 +299,9 @@ class ClientRequest extends Writable {
 					});
 
 					stream.once('end', () => {
-						response.push(null);
+						if (!this.aborted) {
+							response.push(null);
+						}
 					});
 
 					if (!this.emit('response', response)) {
@@ -326,6 +323,13 @@ class ClientRequest extends Writable {
 			});
 
 			stream.once('close', () => {
+				const {aborted, res} = this;
+				if (aborted && res) {
+					res.aborted = true;
+					res.emit('aborted');
+					res.destroy();
+				}
+
 				// TODO: Make sure `ClientRequest` emits `close` too
 				// TODO: Make sure `IncomingMessage` emits `close` too
 				this.destroy();
