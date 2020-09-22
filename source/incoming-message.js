@@ -5,6 +5,7 @@ class IncomingMessage extends Readable {
 	constructor(socket, highWaterMark) {
 		super({
 			emitClose: false,
+			autoDestroy: true,
 			highWaterMark
 		});
 
