@@ -80,6 +80,15 @@ class ClientRequest extends Writable {
 		// Unused
 		delete options.hostname;
 
+		// 1. All requests where `options.servername` is the same as `options.host`
+		//    should fall under the same category in Agent.
+		// 2. Otherwise it will fail to close covered sessions.
+		// 3. request('https://example.com') is NOT request('https://1.2.3.4', {servername: 'example.com'})
+		//    although they PROBABLY connect to the same destination.
+		if (!options.servername || options.servername === options.host) {
+			delete options.host;
+		}
+
 		this.protocol = 'https:';
 
 		const {timeout} = options;

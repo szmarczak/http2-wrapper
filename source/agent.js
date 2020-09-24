@@ -9,6 +9,12 @@ const kRequest = Symbol('request');
 const kOriginSet = Symbol('cachedOriginSet');
 const kGracefullyClosing = Symbol('gracefullyClosing');
 
+// TODO: Should we keep `localAddress`?
+//       This may make using multiple interfaces a bit harder.
+//       getSession('https://example.com')
+//         will always give different result than
+//       getSession('https://example.com', {localAddress: '1.2.3.4'})
+
 const nameKeys = [
 	// `http2.connect()` options
 	'maxDeflateDynamicTableSize',
@@ -22,19 +28,21 @@ const nameKeys = [
 	'peerMaxConcurrentStreams',
 	'settings',
 
-	// `tls.connect()` options
+	// `tls.connect()` source options
 	'family',
 	'localAddress',
 	'rejectUnauthorized',
+
+	// `tls.connect()` secure context options
 	'pskCallback',
 	'minDHSize',
 
-	// These describe destination so they're ignored:
-	// 'host',
-	// 'port',
-	// 'path',
-	// 'socket',
-	// 'servername',
+	// `tls.connect()` destination options
+	'host',
+	'port',
+	'path',
+	'socket',
+	'servername',
 
 	// `tls.createSecureContext()` options
 	'ca',
@@ -476,6 +484,8 @@ class Agent extends EventEmitter {
 					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
 					session.on('origin', () => {
 						session[kOriginSet] = session.originSet;
+						session[kGracefullyClosing] = false;
+						closeSessionIfCovered(this.sessions[normalizedOptions], session);
 
 						if (!isFree()) {
 							// The session is full.
@@ -542,6 +552,9 @@ class Agent extends EventEmitter {
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
 						session.on('remoteSettings', () => {
+							session[kGracefullyClosing] = false;
+							closeSessionIfCovered(this.sessions[normalizedOptions], session);
+
 							if (!isFree()) {
 								return;
 							}
