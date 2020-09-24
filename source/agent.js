@@ -20,6 +20,8 @@ const nameKeys = [
 	'paddingStrategy',
 
 	// `tls.connect()` options
+	// 'host',
+	// 'port',
 	'localAddress',
 	'path',
 	'rejectUnauthorized',
@@ -144,8 +146,11 @@ class Agent extends EventEmitter {
 		// SESSIONS[NORMALIZED_OPTIONS] = [];
 		this.sessions = {};
 
-		// The queue for creating new sessions. It looks like this:
-		// QUEUE[NORMALIZED_OPTIONS][NORMALIZED_ORIGIN] = ENTRY_FUNCTION
+		// The queue for creating new sessions.
+		// Because V8 does a good job on compressing strings,
+		// we do not need to do queue[options][origin].
+		//
+		// QUEUE[NORMALIZED_ARGUMENTS] = ENTRY_FUNCTION
 		//
 		// The entry function has `listeners`, `completed` and `destroyed` properties.
 		// `listeners` is an array of objects containing `resolve` and `reject` functions.
@@ -179,26 +184,15 @@ class Agent extends EventEmitter {
 		return 'https:';
 	}
 
-	static normalizeOrigin(url, servername) {
-		if (typeof url === 'string') {
-			url = new URL(url);
-		}
-
-		if (servername && url.hostname !== servername) {
-			url = new URL(url);
-			url.hostname = servername;
-		}
-
-		return url.origin;
-	}
-
-	normalizeOptions(options) {
-		let normalized = '';
+	normalizeOptions(origin, options) {
+		let normalized = String(origin);
 
 		if (options) {
 			for (const key of nameKeys) {
-				if (options[key]) {
-					normalized += `:${options[key]}`;
+				normalized += `:`;
+
+				if (options[key] !== undefined) {
+					normalized += options[key];
 				}
 			}
 		}
@@ -206,26 +200,26 @@ class Agent extends EventEmitter {
 		return normalized;
 	}
 
-	_tryToCreateNewSession(normalizedOptions, normalizedOrigin) {
-		if (!(normalizedOptions in this.queue) || !(normalizedOrigin in this.queue[normalizedOptions])) {
-			return;
-		}
+	_processQueue() {
+		for (const key in this.queue) {
+			if (this._sessionsCount >= this.maxSessions) {
+				break;
+			}
 
-		const item = this.queue[normalizedOptions][normalizedOrigin];
+			const item = this.queue[key];
 
-		// The entry function can be run only once.
-		// BUG: The session may be never created when:
-		// - the first condition is false AND
-		// - this function is never called with the same arguments in the future.
-		if (this._sessionsCount < this.maxSessions && !item.completed) {
-			item.completed = true;
+			// The entry function can be run only once.
+			if (!item.completed) {
+				item.completed = true;
 
-			item();
+				item();
+			}
 		}
 	}
 
 	getSession(origin, options, listeners) {
 		return new Promise((resolve, reject) => {
+			// Get listeners
 			if (Array.isArray(listeners) && listeners.length !== 0) {
 				listeners = [...listeners];
 
@@ -236,17 +230,35 @@ class Agent extends EventEmitter {
 				listeners = [{resolve, reject}];
 			}
 
-			const normalizedOptions = this.normalizeOptions(options);
-			const normalizedOrigin = Agent.normalizeOrigin(origin, options && options.servername);
-
-			if (normalizedOrigin === undefined) {
+			// Parse origin
+			try {
+				if (typeof origin === 'string') {
+					origin = new URL(origin);
+					origin.href = origin.origin;
+				} else if (!(origin instanceof URL)) {
+					throw new TypeError('The `origin` argument needs to be a string or an URL object');
+				}
+			} catch (error) {
 				for (const {reject} of listeners) {
-					reject(new TypeError('The `origin` argument needs to be a string or an URL object'));
+					reject(error);
 				}
 
 				return;
 			}
 
+			// Compare servername
+			if (options) {
+				const {servername, hostname} = options;
+				if (servername && hostname !== servername) {
+					reject(new Error(`The hostname ${hostname} differs from servername ${servername}`));
+					return;
+				}
+			}
+
+			const normalizedOptions = this.normalizeOptions(origin, options);
+			const normalizedArguments = `${origin.origin}:${normalizedOptions}`;
+
+			// BUG: this does not check for any origin whatsoever
 			if (normalizedOptions in this.sessions) {
 				const sessions = this.sessions[normalizedOptions];
 
@@ -320,18 +332,11 @@ class Agent extends EventEmitter {
 				}
 			}
 
-			if (normalizedOptions in this.queue) {
-				if (normalizedOrigin in this.queue[normalizedOptions]) {
-					// There's already an item in the queue, just attach ourselves to it.
-					this.queue[normalizedOptions][normalizedOrigin].listeners.push(...listeners);
-
-					// This shouldn't be executed here.
-					// See the comment inside _tryToCreateNewSession.
-					this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
-					return;
-				}
+			if (normalizedArguments in this.queue) {
+				// There's already an item in the queue, just attach ourselves to it.
+				this.queue[normalizedArguments].listeners.push(...listeners);
 			} else {
-				this.queue[normalizedOptions] = {};
+				this.queue[normalizedArguments] = {};
 			}
 
 			// The entry must be removed from the queue IMMEDIATELY when:
@@ -339,12 +344,8 @@ class Agent extends EventEmitter {
 			// 2. an error occurs.
 			const removeFromQueue = () => {
 				// Our entry can be replaced. We cannot remove the new one.
-				if (normalizedOptions in this.queue && this.queue[normalizedOptions][normalizedOrigin] === entry) {
-					delete this.queue[normalizedOptions][normalizedOrigin];
-
-					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
-						delete this.queue[normalizedOptions];
-					}
+				if (this.queue[normalizedArguments] === entry) {
+					delete this.queue[normalizedArguments];
 				}
 			};
 
@@ -419,12 +420,14 @@ class Agent extends EventEmitter {
 						}
 
 						// There may be another session awaiting.
-						this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
+						this._processQueue();
 					});
 
 					// Iterates over the queue and processes listeners.
+					// Because we do not do QUEUE[NORMALIZED_OPTIONS][NORMALIZED_ORIGIN],
+					// the performance can suffer up to 16x when there are multiple origins.
 					const processListeners = () => {
-						if (!(normalizedOptions in this.queue) || !isFree()) {
+						if (!(normalizedOptions in this.queue)) {
 							return;
 						}
 
@@ -526,6 +529,10 @@ class Agent extends EventEmitter {
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
 						session.on('remoteSettings', () => {
+							if (!isFree()) {
+								return;
+							}
+
 							processListeners();
 
 							// In case the Origin Set changes
@@ -604,7 +611,7 @@ class Agent extends EventEmitter {
 			entry.destroyed = false;
 
 			this.queue[normalizedOptions][normalizedOrigin] = entry;
-			this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
+			this._processQueue();
 		});
 	}
 

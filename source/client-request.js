@@ -1,4 +1,5 @@
 'use strict';
+const {isIP} = require('net');
 const http2 = require('http2');
 const {Writable} = require('stream');
 const {Agent, globalAgent} = require('./agent');
@@ -70,13 +71,14 @@ class ClientRequest extends Writable {
 			throw new ERR_INVALID_PROTOCOL(options.protocol, 'https:');
 		}
 
-		const port = options.port || options.defaultPort || (this.agent && this.agent.defaultPort) || 443;
-		const host = options.hostname || options.host || 'localhost';
+		if (!options.port) {
+			options.port = options.defaultPort || (this.agent && this.agent.defaultPort) || 443;
+		}
 
-		// Don't enforce the origin via options. It may be changed in an Agent.
+		options.host = options.hostname || options.host || 'localhost';
+
+		// Unused
 		delete options.hostname;
-		delete options.host;
-		delete options.port;
 
 		this.protocol = 'https:';
 
@@ -112,7 +114,7 @@ class ClientRequest extends Writable {
 		this[kOptions] = options;
 
 		// Clients that generate HTTP/2 requests directly SHOULD use the :authority pseudo-header field instead of the Host header field.
-		this[kOrigin] = new URL(`https://${host}:${port}`);
+		this[kOrigin] = new URL(`${this.protocol}//${options.servername || options.host}:${options.port}`);
 
 		if (timeout) {
 			this.setTimeout(timeout);

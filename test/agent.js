@@ -1311,3 +1311,27 @@ test('session are being picked in an optimal way #2', tripleRequestWrapper, asyn
 
 	agent.destroy();
 });
+
+test.only('can add to queue not-already-queued normalizedOrigin with already-queued normalizedOptions', singleRequestWrapper, async (t, server) => {
+	server.get('/', () => {});
+
+	const agent = new Agent({maxSessions: 1});
+	const request = await agent.request(`https://localhost:${server.options.port}`, {servername: 'localhost'});
+	const queuedRequestA = agent.request(`https://127.0.0.2:${server.options.port}`, {servername: 'localhost'});
+	const queuedRequestB = agent.request(`https://127.0.0.3:${server.options.port}`, {servername: 'localhost'});
+
+	const {session: firstSession} = request;
+	request.destroy();
+
+	const secondRequest = await queuedRequestA;
+	const {session: secondSession} = request;
+	t.not(firstSession, secondSession);
+	secondRequest.destroy();
+
+	const thirdRequest = await queuedRequestB;
+	const {session: thirdSession} = request;
+	t.not(secondSession, thirdSession);
+	thirdRequest.destroy();
+
+	t.pass();
+});
