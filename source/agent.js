@@ -259,9 +259,10 @@ class Agent extends EventEmitter {
 
 			// Compare servername
 			if (options) {
-				const {servername, hostname} = options;
+				const {servername} = options;
+				const {hostname} = origin;
 				if (servername && hostname !== servername) {
-					reject(new Error(`The hostname ${hostname} differs from servername ${servername}`));
+					reject(new Error(`The origin ${hostname} differs from servername ${servername}`));
 					return;
 				}
 			}
