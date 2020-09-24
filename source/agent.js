@@ -12,36 +12,50 @@ const kGracefullyClosing = Symbol('gracefullyClosing');
 const nameKeys = [
 	// `http2.connect()` options
 	'maxDeflateDynamicTableSize',
+	'maxSettings',
 	'maxSessionMemory',
 	'maxHeaderListPairs',
 	'maxOutstandingPings',
 	'maxReservedRemoteStreams',
 	'maxSendHeaderBlockLength',
 	'paddingStrategy',
+	'peerMaxConcurrentStreams',
+	'settings',
 
 	// `tls.connect()` options
+	'family',
 	'localAddress',
-	'path',
 	'rejectUnauthorized',
+	'pskCallback',
 	'minDHSize',
+
+	// These describe destination so they're ignored:
+	// 'host',
+	// 'port',
+	// 'path',
+	// 'socket',
+	// 'servername',
 
 	// `tls.createSecureContext()` options
 	'ca',
 	'cert',
-	'clientCertEngine',
+	'sigalgs',
 	'ciphers',
-	'key',
-	'pfx',
-	'servername',
-	'minVersion',
-	'maxVersion',
-	'secureProtocol',
+	'clientCertEngine',
 	'crl',
-	'honorCipherOrder',
-	'ecdhCurve',
 	'dhparam',
+	'ecdhCurve',
+	'honorCipherOrder',
+	'key',
+	'privateKeyEngine',
+	'privateKeyIdentifier',
+	'maxVersion',
+	'minVersion',
+	'pfx',
 	'secureOptions',
-	'sessionIdContext'
+	'secureProtocol',
+	'sessionIdContext',
+	'ticketKeys'
 ];
 
 const getSortedIndex = (array, value, compare) => {
@@ -51,8 +65,8 @@ const getSortedIndex = (array, value, compare) => {
 	while (low < high) {
 		const mid = (low + high) >>> 1;
 
-		/* istanbul ignore next */
 		if (compare(array[mid], value)) {
+			/* istanbul ignore next */
 			// This never gets called because we use descending sort. Better to have this anyway.
 			low = mid + 1;
 		} else {
