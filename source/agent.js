@@ -20,8 +20,6 @@ const nameKeys = [
 	'paddingStrategy',
 
 	// `tls.connect()` options
-	// 'host',
-	// 'port',
 	'localAddress',
 	'path',
 	'rejectUnauthorized',
@@ -147,8 +145,8 @@ class Agent extends EventEmitter {
 		this.sessions = {};
 
 		// The queue for creating new sessions.
-		// Because V8 does a good job on compressing strings,
-		// we do not need to do queue[options][origin].
+		// V8 does a good job on compressing strings (although it's quite slow).
+		// So we do not need to do queue[options][origin]. The current approach is sufficient for our needs.
 		//
 		// QUEUE[NORMALIZED_ARGUMENTS] = ENTRY_FUNCTION
 		//
@@ -258,7 +256,6 @@ class Agent extends EventEmitter {
 			const normalizedOptions = this.normalizeOptions(origin, options);
 			const normalizedArguments = `${origin.origin}:${normalizedOptions}`;
 
-			// BUG: this does not check for any origin whatsoever
 			if (normalizedOptions in this.sessions) {
 				const sessions = this.sessions[normalizedOptions];
 
@@ -285,30 +282,32 @@ class Agent extends EventEmitter {
 						break;
 					}
 
-					if (session[kOriginSet].includes(normalizedOrigin)) {
-						const sessionCurrentStreamsCount = session[kCurrentStreamsCount];
+					if (!session[kOriginSet].includes(normalizedOrigin)) {
+						continue;
+					}
 
-						if (
-							sessionCurrentStreamsCount >= sessionMaxConcurrentStreams ||
-							session[kGracefullyClosing] ||
-							// Unfortunately the `close` event isn't called immediately,
-							// so `session.destroyed` is `true`, but `session.closed` is `false`.
-							session.destroyed
-						) {
-							continue;
-						}
+					const sessionCurrentStreamsCount = session[kCurrentStreamsCount];
 
-						// We only need set this once.
-						if (!optimalSession) {
-							maxConcurrentStreams = sessionMaxConcurrentStreams;
-						}
+					if (
+						sessionCurrentStreamsCount >= sessionMaxConcurrentStreams ||
+						session[kGracefullyClosing] ||
+						// Unfortunately the `close` event isn't called immediately,
+						// so `session.destroyed` is `true`, but `session.closed` is `false`.
+						session.destroyed
+					) {
+						continue;
+					}
 
-						// We're looking for the session which has biggest current pending stream count,
-						// in order to minimalize the amount of active sessions.
-						if (sessionCurrentStreamsCount > currentStreamsCount) {
-							optimalSession = session;
-							currentStreamsCount = sessionCurrentStreamsCount;
-						}
+					// We only need set this once.
+					if (!optimalSession) {
+						maxConcurrentStreams = sessionMaxConcurrentStreams;
+					}
+
+					// We're looking for the session which has biggest current pending stream count,
+					// in order to minimalize the amount of active sessions.
+					if (sessionCurrentStreamsCount > currentStreamsCount) {
+						optimalSession = session;
+						currentStreamsCount = sessionCurrentStreamsCount;
 					}
 				}
 
