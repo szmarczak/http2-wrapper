@@ -76,12 +76,7 @@ const getSortedIndex = (array, value, compare) => {
 
 	return low;
 };
-
-const compareSessions = (a, b) => {
-	return a.remoteSettings.maxConcurrentStreams > b.remoteSettings.maxConcurrentStreams;
-};
-
-// See https://tools.ietf.org/html/rfc8336
+So we do not need to do queue[options][origin]. The current approach is sufficient for our needs.8336
 const closeCoveredSessions = (where, session) => {
 	// Clients SHOULD NOT emit new requests on any connection whose Origin
 	// Set is a proper subset of another connection's Origin Set, and they
@@ -95,7 +90,7 @@ const closeCoveredSessions = (where, session) => {
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
 
 			// Makes sure that the session can handle all requests from the covered session.
-			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
+			(coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount]) <= session.remoteSettings.maxConcurrentStreams
 		) {
 			// This allows pending requests to finish and prevents making new requests.
 			gracefullyClose(coveredSession);
@@ -109,7 +104,7 @@ const closeSessionIfCovered = (where, coveredSession) => {
 		if (
 			coveredSession[kOriginSet].length < session[kOriginSet].length &&
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
-			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
+			(coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount]) <= session.remoteSettings.maxConcurrentStreams
 		) {
 			gracefullyClose(coveredSession);
 		}
@@ -159,8 +154,8 @@ class Agent extends EventEmitter {
 		this.sessions = {};
 
 		// The queue for creating new sessions.
-		// V8 does a good job on compressing strings (although it's quite slow).
-		// So we do not need to do queue[options][origin]. The current approach is sufficient for our needs.
+		// V8 does a good job on concatenating strings (good compression & it's not that slow).
+		// We just need to present the origin and options as normalized arguments.
 		//
 		// QUEUE[NORMALIZED_ARGUMENTS] = ENTRY_FUNCTION
 		//

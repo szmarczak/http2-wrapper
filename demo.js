@@ -31,20 +31,13 @@ if (false) {
 		}
 	}
 } else {
-	const ids = (new Array(100)).map(() => makeid(512));
+	let i = '';
 
-	const results = [];
+	for (let x = 0; x < 1000; x++) {
+		i += ':';
 
-	for (let i = 0; i < 1000; i++) {
-		const k = makeid(512);
-
-		for (const id of ids) {
-			o[`${k}${id}`] = Math.round(Math.random());
-		}
-
-		for (let id of ids) {
-			id += k;
-			results.push(Boolean(o[id]));
+		if (Math.random() > 0.5) {
+			i += makeid(512);
 		}
 	}
 }
