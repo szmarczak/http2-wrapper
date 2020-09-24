@@ -76,7 +76,11 @@ const getSortedIndex = (array, value, compare) => {
 
 	return low;
 };
-So we do not need to do queue[options][origin]. The current approach is sufficient for our needs.8336
+const compareSessions = (a, b) => {
+	return a.remoteSettings.maxConcurrentStreams > b.remoteSettings.maxConcurrentStreams;
+};
+
+// See https://tools.ietf.org/html/rfc8336
 const closeCoveredSessions = (where, session) => {
 	// Clients SHOULD NOT emit new requests on any connection whose Origin
 	// Set is a proper subset of another connection's Origin Set, and they
