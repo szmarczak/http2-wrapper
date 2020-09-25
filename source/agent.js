@@ -71,8 +71,8 @@ const getSortedIndex = (array, value, compare) => {
 	while (low < high) {
 		const mid = (low + high) >>> 1;
 
-		/* istanbul ignore next */
 		if (compare(array[mid], value)) {
+			/* istanbul ignore next */
 			// This never gets called because we use descending sort. Better to have this anyway.
 			low = mid + 1;
 		} else {
@@ -101,7 +101,7 @@ const closeCoveredSessions = (where, session) => {
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
 
 			// Makes sure that the session can handle all requests from the covered session.
-			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
+			(coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount]) <= session.remoteSettings.maxConcurrentStreams
 		) {
 			// This allows pending requests to finish and prevents making new requests.
 			gracefullyClose(coveredSession);
@@ -115,7 +115,7 @@ const closeSessionIfCovered = (where, coveredSession) => {
 		if (
 			coveredSession[kOriginSet].length < session[kOriginSet].length &&
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
-			coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount] <= session.remoteSettings.maxConcurrentStreams
+			(coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount]) <= session.remoteSettings.maxConcurrentStreams
 		) {
 			gracefullyClose(coveredSession);
 		}
@@ -314,30 +314,32 @@ class Agent extends EventEmitter {
 						break;
 					}
 
-					if (session[kOriginSet].includes(normalizedOrigin)) {
-						const sessionCurrentStreamsCount = session[kCurrentStreamsCount];
+					if (!session[kOriginSet].includes(normalizedOrigin)) {
+						continue;
+					}
 
-						if (
-							sessionCurrentStreamsCount >= sessionMaxConcurrentStreams ||
-							session[kGracefullyClosing] ||
-							// Unfortunately the `close` event isn't called immediately,
-							// so `session.destroyed` is `true`, but `session.closed` is `false`.
-							session.destroyed
-						) {
-							continue;
-						}
+					const sessionCurrentStreamsCount = session[kCurrentStreamsCount];
 
-						// We only need set this once.
-						if (!optimalSession) {
-							maxConcurrentStreams = sessionMaxConcurrentStreams;
-						}
+					if (
+						sessionCurrentStreamsCount >= sessionMaxConcurrentStreams ||
+						session[kGracefullyClosing] ||
+						// Unfortunately the `close` event isn't called immediately,
+						// so `session.destroyed` is `true`, but `session.closed` is `false`.
+						session.destroyed
+					) {
+						continue;
+					}
 
-						// We're looking for the session which has biggest current pending stream count,
-						// in order to minimalize the amount of active sessions.
-						if (sessionCurrentStreamsCount > currentStreamsCount) {
-							optimalSession = session;
-							currentStreamsCount = sessionCurrentStreamsCount;
-						}
+					// We only need set this once.
+					if (!optimalSession) {
+						maxConcurrentStreams = sessionMaxConcurrentStreams;
+					}
+
+					// We're looking for the session which has biggest current pending stream count,
+					// in order to minimalize the amount of active sessions.
+					if (sessionCurrentStreamsCount > currentStreamsCount) {
+						optimalSession = session;
+						currentStreamsCount = sessionCurrentStreamsCount;
 					}
 				}
 
