@@ -12,7 +12,9 @@ const {request: makeRequest, get, constants, connect, Agent, globalAgent} = requ
 const {createWrapper, createServer, createProxyServer} = require('./helpers/server');
 const setImmediateAsync = require('./helpers/set-immediate-async');
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const delay = ms => new Promise(resolve => {
+	setTimeout(resolve, ms);
+});
 
 test.serial = test;
 
@@ -817,7 +819,9 @@ test('the `response` event can be emitted after calling `request.write()`', wrap
 	const response = await pEvent(request, 'response');
 	t.is(response.statusCode, 200);
 
-	await new Promise(resolve => request.end(resolve));
+	await new Promise(resolve => {
+		request.end(resolve);
+	});
 });
 
 test('.connection is .socket', wrapper, async (t, server) => {
