@@ -1,4 +1,7 @@
 'use strict';
+// See https://github.com/facebook/jest/issues/2549
+// eslint-disable-next-line node/prefer-global/url
+const {URL} = require('url');
 const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
