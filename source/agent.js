@@ -212,7 +212,7 @@ class Agent extends EventEmitter {
 		}
 
 		normalized += ':';
-		if (options && options.port && options.port !== 443) {
+		if (options && options.port && Number(options.port) !== 443) {
 			normalized += options.port;
 		}
 
@@ -275,8 +275,9 @@ class Agent extends EventEmitter {
 					}
 
 					// Validate port
-					if (port && Number(origin.port || 443) !== Number(port)) {
-						throw new Error(`Origin port ${origin.port || 443} does not match options ${options.port}`);
+					const normalizedOriginPort = Number(origin.port || 443);
+					if (port && normalizedOriginPort !== Number(port)) {
+						throw new Error(`Origin port ${normalizedOriginPort} does not match options ${options.port}`);
 					}
 				}
 			} catch (error) {
