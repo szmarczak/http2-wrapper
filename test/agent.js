@@ -102,11 +102,18 @@ test('gives the queued session if exists', wrapper, async (t, server) => {
 
 	const firstPromise = agent.getSession(server.url, {});
 
-	t.is(typeof Object.values(agent.queue[''])[0], 'function');
+	t.is(Object.values(agent.queue).length, 1);
+	t.is(Object.values(Object.values(agent.queue)[0]).length, 1);
+
+	const queued = Object.values(Object.values(agent.queue)[0])[0];
+	t.is(typeof queued, 'function');
 
 	const secondPromise = agent.getSession(server.url, {});
 
-	t.is(typeof Object.values(agent.queue[''])[0], 'function');
+	t.is(Object.values(agent.queue).length, 1);
+	t.is(Object.values(Object.values(agent.queue)[0]).length, 1);
+
+	t.is(Object.values(Object.values(agent.queue)[0])[0], queued);
 	t.is(await firstPromise, await secondPromise);
 
 	agent.destroy();
@@ -174,9 +181,10 @@ test('respects the `maxSessions` option', singleRequestWrapper, async (t, server
 	const {session} = (await agent.request(server.url, server.options, {}, {endStream: false})).end();
 	const requestPromise = agent.request(server.url, server.options, {}, {endStream: false});
 
-	t.is(typeof Object.values(agent.queue[''])[0], 'function');
+	t.is(typeof Object.values(Object.values(agent.queue)[0])[0], 'function');
 	t.is(Object.values(agent.freeSessions).length, 0);
-	t.is(Object.values(agent.busySessions['']).length, 1);
+	t.is(Object.values(agent.busySessions).length, 1);
+	t.is(Object.values(agent.busySessions)[0].length, 1);
 
 	session.destroy();
 
@@ -350,10 +358,9 @@ test('sessions are grouped into authorities and options`', wrapper, async (t, se
 test('custom servername', wrapper, async (t, server) => {
 	const agent = new Agent();
 
-	const session = await agent.getSession(server.url, {servername: 'foobar'});
-	t.is(session.socket.servername, 'foobar');
-
-	agent.destroy();
+	await t.throwsAsync(agent.getSession(server.url, {servername: 'foobar'}), {
+		message: 'Origin localhost differs from servername foobar'
+	});
 });
 
 test('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
@@ -378,9 +385,11 @@ test('appends to freeSessions after the stream has ended', singleRequestWrapper,
 
 	await setImmediateAsync();
 
+	t.is(Object.values(agent.freeSessions).length, 1);
+
 	// The following is needed for Node.js >= 14,
 	// as the session may be in the middle of the destroy process.
-	const filtered = agent.freeSessions[''].filter(session => !session.destroyed);
+	const filtered = Object.values(agent.freeSessions)[0].filter(session => !session.destroyed);
 	t.is(filtered.length, 2);
 
 	agent.destroy();
@@ -474,24 +483,26 @@ test('`.settings` property', wrapper, async (t, server) => {
 	agent.destroy();
 });
 
-if (supportsTlsSessions) {
-	test('caches a TLS session when successfully connected', wrapper, async (t, server) => {
+{
+	const testFn = supportsTlsSessions ? test : test.skip;
+
+	testFn('caches a TLS session when successfully connected', wrapper, async (t, server) => {
 		const agent = new Agent();
 
 		await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`)));
+		t.true(is.buffer(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
 
 		agent.destroy();
 	});
 
-	test('reuses a TLS session', wrapper, async (t, server) => {
+	testFn('reuses a TLS session', wrapper, async (t, server) => {
 		const agent = new Agent();
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		const tlsSession = agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`);
+		const tlsSession = agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`);
 
 		session.close();
 		await pEvent(session, 'close');
@@ -504,18 +515,18 @@ if (supportsTlsSessions) {
 		agent.destroy();
 	});
 
-	test('purges the TLS session cache on session error', wrapper, async (t, server) => {
+	testFn('purges the TLS session cache on session error', wrapper, async (t, server) => {
 		const agent = new Agent();
 
 		const session = await agent.getSession(server.url);
 		await setImmediateAsync();
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`)));
+		t.true(is.buffer(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
 
 		session.destroy(new Error(message));
 		await pEvent(session, 'close', {rejectionEvents: []});
 
-		t.true(is.undefined(agent.tlsSessionCache.get(`${Agent.normalizeOrigin(server.url)}:`)));
+		t.true(is.undefined(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
 
 		agent.destroy();
 	});
@@ -714,7 +725,10 @@ test('`.freeSessions` may contain destroyed sessions', wrapper, async (t, server
 	const session = await agent.getSession(server.url);
 	session.destroy();
 
-	t.true(agent.freeSessions[''][0].destroyed);
+	t.is(Object.values(agent.freeSessions).length, 1);
+	t.is(Object.values(Object.values(agent.freeSessions)[0]).length, 1);
+
+	t.true(Object.values(Object.values(agent.freeSessions)[0])[0].destroyed);
 
 	agent.destroy();
 });
@@ -724,7 +738,10 @@ test('`.freeSessions` may contain closed sessions', wrapper, async (t, server) =
 	const session = await agent.getSession(server.url);
 	session.close();
 
-	const that = agent.freeSessions[''][0];
+	t.is(Object.values(agent.freeSessions).length, 1);
+	t.is(Object.values(Object.values(agent.freeSessions)[0]).length, 1);
+
+	const that = Object.values(Object.values(agent.freeSessions)[0])[0];
 
 	t.true(that.closed);
 	t.false(that[Agent.kGracefullyClosing]);
@@ -964,7 +981,8 @@ test('prevents overloading sessions #4', tripleRequestWrapper, async (t, server)
 		await pEvent(session, 'remoteSettings');
 	}
 
-	t.is(agent.freeSessions[''].length, 2);
+	t.is(Object.values(agent.freeSessions).length, 1);
+	t.is(Object.values(agent.freeSessions)[0].length, 2);
 
 	agent.destroy();
 });
@@ -1020,15 +1038,6 @@ test('errors on failure', async t => {
 
 	t.is(error.port, 443);
 	t.is(error.address, '127.0.0.1');
-});
-
-test('properly normalizes origin', t => {
-	t.is(Agent.normalizeOrigin('https://google.com'), 'https://google.com');
-	t.is(Agent.normalizeOrigin('https://google.com', 'gmail.com'), 'https://gmail.com');
-	t.is(Agent.normalizeOrigin('https://google.com:443'), 'https://google.com');
-	t.is(Agent.normalizeOrigin('https://google.com:443', 'gmail.com'), 'https://gmail.com');
-	t.is(Agent.normalizeOrigin('https://google.com:4434'), 'https://google.com:4434');
-	t.is(Agent.normalizeOrigin('https://google.com:4434', 'gmail.com'), 'https://gmail.com:4434');
 });
 
 test('no negative session count', async t => {

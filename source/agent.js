@@ -9,39 +9,59 @@ const kRequest = Symbol('request');
 const kOriginSet = Symbol('cachedOriginSet');
 const kGracefullyClosing = Symbol('gracefullyClosing');
 
+// TODO: Should we keep `localAddress`?
+//       This may make using multiple interfaces a bit harder.
+//       getSession('https://example.com')
+//         will always give different result than
+//       getSession('https://example.com', {localAddress: '1.2.3.4'})
+
 const nameKeys = [
 	// `http2.connect()` options
 	'maxDeflateDynamicTableSize',
+	'maxSettings',
 	'maxSessionMemory',
 	'maxHeaderListPairs',
 	'maxOutstandingPings',
 	'maxReservedRemoteStreams',
 	'maxSendHeaderBlockLength',
 	'paddingStrategy',
+	'peerMaxConcurrentStreams',
+	'settings',
 
-	// `tls.connect()` options
+	// `tls.connect()` source options
+	'family',
 	'localAddress',
-	'path',
 	'rejectUnauthorized',
+
+	// `tls.connect()` secure context options
+	'pskCallback',
 	'minDHSize',
+
+	// `tls.connect()` destination options
+	// `host`, `servername` and `port` require custom handling
+	'path',
+	'socket',
 
 	// `tls.createSecureContext()` options
 	'ca',
 	'cert',
-	'clientCertEngine',
+	'sigalgs',
 	'ciphers',
-	'key',
-	'pfx',
-	'servername',
-	'minVersion',
-	'maxVersion',
-	'secureProtocol',
+	'clientCertEngine',
 	'crl',
-	'honorCipherOrder',
-	'ecdhCurve',
 	'dhparam',
+	'ecdhCurve',
+	'honorCipherOrder',
+	'key',
+	'privateKeyEngine',
+	'privateKeyIdentifier',
+	'maxVersion',
+	'minVersion',
+	'pfx',
 	'secureOptions',
-	'sessionIdContext'
+	'secureProtocol',
+	'sessionIdContext',
+	'ticketKeys'
 ];
 
 const getSortedIndex = (array, value, compare) => {
@@ -179,28 +199,28 @@ class Agent extends EventEmitter {
 		return 'https:';
 	}
 
-	static normalizeOrigin(url, servername) {
-		if (typeof url === 'string') {
-			url = new URL(url);
-		}
-
-		if (servername && url.hostname !== servername) {
-			url = new URL(url);
-			url.hostname = servername;
-		}
-
-		return url.origin;
-	}
-
 	normalizeOptions(options) {
 		let normalized = '';
 
-		if (options) {
-			for (const key of nameKeys) {
-				if (options[key]) {
-					normalized += `:${options[key]}`;
-				}
+		for (const key of nameKeys) {
+			normalized += ':';
+
+			if (options && options[key] !== undefined) {
+				normalized += options[key];
 			}
+		}
+
+		normalized += ':';
+		if (options && options.port && options.port !== 443) {
+			normalized += options.port;
+		}
+
+		if (options && options.servername && options.servername !== options.host) {
+			normalized += ':';
+			normalized += options.servername;
+
+			normalized += ':';
+			normalized += options.host;
 		}
 
 		return normalized;
@@ -236,8 +256,37 @@ class Agent extends EventEmitter {
 				listeners = [{resolve, reject}];
 			}
 
+			// Parse origin
+			try {
+				if (typeof origin === 'string') {
+					origin = new URL(origin);
+					origin.href = origin.origin;
+				} else if (!(origin instanceof URL)) {
+					throw new TypeError('The `origin` argument needs to be a string or an URL object');
+				}
+			} catch (error) {
+				for (const {reject} of listeners) {
+					reject(error);
+				}
+
+				return;
+			}
+
+			// Compare servername
+			if (options) {
+				const {servername} = options;
+				const {hostname} = origin;
+				if (servername && hostname !== servername) {
+					for (const {reject} of listeners) {
+						reject(new Error(`Origin ${hostname} differs from servername ${servername}`));
+					}
+
+					return;
+				}
+			}
+
 			const normalizedOptions = this.normalizeOptions(options);
-			const normalizedOrigin = Agent.normalizeOrigin(origin, options && options.servername);
+			const normalizedOrigin = origin.origin;
 
 			if (normalizedOrigin === undefined) {
 				for (const {reject} of listeners) {

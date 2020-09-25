@@ -115,15 +115,6 @@ class ClientRequest extends Writable {
 		// Clients that generate HTTP/2 requests directly SHOULD use the :authority pseudo-header field instead of the Host header field.
 		this[kOrigin] = new URL(`${this.protocol}//${options.servername || options.host}:${options.port}`);
 
-		// 1. All requests where `options.servername` is the same as `options.host`
-		//    should fall under the same category in Agent.
-		// 2. Otherwise it will fail to close covered sessions.
-		// 3. request('https://example.com') is NOT request('https://1.2.3.4', {servername: 'example.com'})
-		//    although they PROBABLY connect to the same destination.
-		if (options.host === this[kOrigin].hostname) {
-			delete options.host;
-		}
-
 		if (timeout) {
 			this.setTimeout(timeout);
 		}
