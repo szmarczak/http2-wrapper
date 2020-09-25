@@ -75,8 +75,6 @@ const getSortedIndex = (array, value, compare) => {
 		const mid = (low + high) >>> 1;
 
 		if (compare(array[mid], value)) {
-			/* istanbul ignore next */
-			// This never gets called because we use descending sort. Better to have this anyway.
 			low = mid + 1;
 		} else {
 			high = mid;

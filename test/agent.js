@@ -1320,3 +1320,40 @@ test('session are being picked in an optimal way #2', tripleRequestWrapper, asyn
 
 	agent.destroy();
 });
+
+test('sessions are sorted highest to lowest capacity', tripleRequestWrapper, async (t, server) => {
+	const secondServer = await createServer({
+		settings: {
+			maxConcurrentStreams: 1
+		}
+	});
+
+	const thirdServer = await createServer({
+		settings: {
+			maxConcurrentStreams: 4
+		}
+	});
+
+	await secondServer.listen();
+	await thirdServer.listen();
+
+	const agent = new Agent();
+
+	const sessions = [
+		await agent.getSession(server.url),
+		await agent.getSession(secondServer.url),
+		await agent.getSession(thirdServer.url)
+	];
+
+	t.is(Object.values(agent.sessions).length, 1);
+	t.deepEqual(Object.values(agent.sessions)[0], [
+		sessions[2],
+		sessions[0],
+		sessions[1]
+	]);
+
+	agent.destroy();
+
+	await thirdServer.close();
+	await secondServer.close();
+});
