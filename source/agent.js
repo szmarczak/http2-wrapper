@@ -276,7 +276,7 @@ class Agent extends EventEmitter {
 
 					// Validate port
 					if (port && Number(origin.port || 443) !== Number(port)) {
-						throw new Error(`Origin port ${origin.port} does not match options ${options.port}`);
+						throw new Error(`Origin port ${origin.port || 443} does not match options ${options.port}`);
 					}
 				}
 			} catch (error) {
