@@ -6,6 +6,7 @@ const http = require('http');
 const https = require('https');
 const resolveALPN = require('resolve-alpn');
 const QuickLRU = require('quick-lru');
+const {Agent, globalAgent} = require('./agent');
 const Http2ClientRequest = require('./client-request');
 const calculateServerName = require('./utils/calculate-server-name');
 const urlToOptions = require('./utils/url-to-options');
@@ -46,53 +47,37 @@ const resolveProtocol = async options => {
 	if (!cache.has(name)) {
 		if (queue.has(name)) {
 			const result = await queue.get(name);
-			return result.alpnProtocol;
+			return {alpnProtocol: result.alpnProtocol};
 		}
 
-		const {path, agent} = options;
+		const {path} = options;
 		options.path = options.socketPath;
-		options.resolveSocket = true;
 
 		const resultPromise = resolveALPN(options);
 		queue.set(name, resultPromise);
 
 		try {
-			const {socket, alpnProtocol} = await resultPromise;
-			cache.set(name, alpnProtocol);
+			const result = await resultPromise;
+
+			// https://github.com/nodejs/node/pull/34859
+			result.socket.secureConnecting = false;
+
+			cache.set(name, result.alpnProtocol);
+			queue.delete(name);
 
 			options.path = path;
 
-			if (alpnProtocol === 'h2') {
-				// https://github.com/nodejs/node/issues/33343
-				socket.destroy();
-			} else {
-				const {globalAgent} = https;
-				const defaultCreateConnection = https.Agent.prototype.createConnection;
-
-				if (agent) {
-					if (agent.createConnection === defaultCreateConnection) {
-						installSocket(agent, socket, options);
-					} else {
-						socket.destroy();
-					}
-				} else if (globalAgent.createConnection === defaultCreateConnection) {
-					installSocket(globalAgent, socket, options);
-				} else {
-					socket.destroy();
-				}
-			}
-
-			queue.delete(name);
-
-			return alpnProtocol;
+			return result;
 		} catch (error) {
 			queue.delete(name);
+
+			options.path = path;
 
 			throw error;
 		}
 	}
 
-	return cache.get(name);
+	return {alpnProtocol: cache.get(name)};
 };
 
 module.exports = async (input, options, callback) => {
@@ -124,26 +109,57 @@ module.exports = async (input, options, callback) => {
 	options.port = options.port || (isHttps ? 443 : 80);
 	options._defaultAgent = isHttps ? https.globalAgent : http.globalAgent;
 
-	const agents = options.agent;
+	let {agent} = options;
 
-	if (agents) {
-		if (agents.addRequest) {
-			throw new Error('The `options.agent` object can contain only `http`, `https` or `http2` properties');
-		}
-
-		options.agent = agents[isHttps ? 'https' : 'http'];
+	// We don't support `false` agents
+	if (agent !== false && agent !== undefined && typeof agent !== 'object') {
+		throw new Error('The `options.agent` can be only an object `http`, `https` or `http2` properties');
 	}
 
 	if (isHttps) {
-		const protocol = await resolveProtocol(options);
+		options.resolveSocket = true;
 
-		if (protocol === 'h2') {
-			if (agents) {
-				options.agent = agents.http2;
+		let {socket, alpnProtocol} = await resolveProtocol(options);
+
+		if (socket && options.createConnection) {
+			socket.destroy();
+			socket = undefined;
+		}
+
+		delete options.resolveSocket;
+
+		const isH2 = alpnProtocol === 'h2';
+
+		if (agent) {
+			agent = isH2 ? agent.http2 : agent.https;
+			options.agent = agent;
+		} else if (agent === undefined) {
+			agent = isH2 ? globalAgent : https.globalAgent;
+		}
+
+		if (socket) {
+			if (agent === false) {
+				socket.destroy();
+			} else {
+				const defaultCreateConnection = (isH2 ? Agent : https.Agent).prototype.createConnection;
+
+				if (agent.createConnection === defaultCreateConnection) {
+					if (isH2) {
+						options.createConnection = () => socket;
+					} else {
+						installSocket(agent, socket, options);
+					}
+				} else {
+					socket.destroy();
+				}
 			}
+		}
 
+		if (isH2) {
 			return new Http2ClientRequest(options, callback);
 		}
+	} else if (agent) {
+		options.agent = agent.http;
 	}
 
 	return http.request(options, callback);

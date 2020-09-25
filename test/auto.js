@@ -378,6 +378,43 @@ test('invalid `agent` option', async t => {
 	}));
 });
 
+test.serial('reuses HTTP/2 TLS sockets', async t => {
+	http2.auto.protocolCache.clear();
+
+	const agent = new http2.Agent();
+
+	let counter = 0;
+
+	tls._connect = tls.connect;
+	tls.connect = (...args) => {
+		counter++;
+		return tls._connect(...args);
+	};
+
+	const options = {
+		agent: {
+			http2: agent
+		},
+		ALPNProtocols: ['h2']
+	};
+
+	const request = await http2.auto(h2s.url, options);
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	const body = await getStream(response);
+
+	t.is(body, 'h2');
+
+	tls.connect = tls._connect;
+	delete tls._connect;
+
+	agent.destroy();
+
+	t.is(counter, 1);
+	t.pass();
+});
+
 test.serial('reuses HTTP/1.1 TLS sockets', async t => {
 	http2.auto.protocolCache.clear();
 
