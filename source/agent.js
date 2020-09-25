@@ -288,14 +288,6 @@ class Agent extends EventEmitter {
 			const normalizedOptions = this.normalizeOptions(options);
 			const normalizedOrigin = origin.origin;
 
-			if (normalizedOrigin === undefined) {
-				for (const {reject} of listeners) {
-					reject(new TypeError('The `origin` argument needs to be a string or an URL object'));
-				}
-
-				return;
-			}
-
 			if (normalizedOptions in this.sessions) {
 				const sessions = this.sessions[normalizedOptions];
 
