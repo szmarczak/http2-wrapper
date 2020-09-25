@@ -39,7 +39,7 @@
 		"ava": "^3.10.1",
 		"benchmark": "^2.1.4",
 		"get-stream": "^5.1.0",
-		"got": "^11.5.0",
+		"got": "^11.7.0",
 		"http2-proxy": "^5.0.51",
 		"https-proxy-agent": "^5.0.0",
 		"lolex": "^6.0.0",

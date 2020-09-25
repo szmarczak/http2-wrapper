@@ -273,6 +273,9 @@ class ClientRequest extends Writable {
 				const response = new IncomingMessage(this.socket, stream.readableHighWaterMark);
 				this.res = response;
 
+				// Undocumented, but it used by `cacheable-request`
+				response.url = `${this[kOrigin].origin}${this.path}`;
+
 				response.req = this;
 				response.statusCode = headers[HTTP2_HEADER_STATUS];
 				response.headers = headers;
