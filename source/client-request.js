@@ -66,7 +66,7 @@ class ClientRequest extends Writable {
 		} else if (typeof options.agent.request === 'function') {
 			this.agent = options.agent;
 		} else {
-			throw new ERR_INVALID_ARG_TYPE('options.agent', ['Agent-like Object', 'undefined', 'false'], options.agent);
+			throw new ERR_INVALID_ARG_TYPE('options.agent', ['http2wrapper.Agent-like Object', 'undefined', 'false'], options.agent);
 		}
 
 		if (options.protocol && options.protocol !== 'https:') {

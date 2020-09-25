@@ -652,7 +652,7 @@ test('throws on invalid `agent` option', t => {
 	t.throws(
 		() => makeRequest({agent: 0}),
 		{
-			message: 'The "options.agent" property must be one of type Agent-like Object, undefined or false. Received number'
+			message: 'The "options.agent" property must be one of type http2wrapper.Agent-like Object, undefined or false. Received number'
 		}
 	);
 });
