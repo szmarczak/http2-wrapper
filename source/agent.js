@@ -257,13 +257,27 @@ class Agent extends EventEmitter {
 				listeners = [{resolve, reject}];
 			}
 
-			// Parse origin
 			try {
+				// Parse origin
 				if (typeof origin === 'string') {
 					origin = new URL(origin);
 					origin.href = origin.origin;
 				} else if (!(origin instanceof URL)) {
 					throw new TypeError('The `origin` argument needs to be a string or an URL object');
+				}
+
+				if (options) {
+					// Validate servername
+					const {servername, port} = options;
+					const {hostname} = origin;
+					if (servername && hostname !== servername) {
+						throw new Error(`Origin ${hostname} differs from servername ${servername}`);
+					}
+
+					// Validate port
+					if (port && Number(origin.port || 443) !== Number(port)) {
+						throw new Error(`Origin port ${origin.port} does not match options ${options.port}`);
+					}
 				}
 			} catch (error) {
 				for (const {reject} of listeners) {
@@ -271,19 +285,6 @@ class Agent extends EventEmitter {
 				}
 
 				return;
-			}
-
-			// Compare servername
-			if (options) {
-				const {servername} = options;
-				const {hostname} = origin;
-				if (servername && hostname !== servername) {
-					for (const {reject} of listeners) {
-						reject(new Error(`Origin ${hostname} differs from servername ${servername}`));
-					}
-
-					return;
-				}
 			}
 
 			const normalizedOptions = this.normalizeOptions(options);
@@ -347,12 +348,12 @@ class Agent extends EventEmitter {
 				if (optimalSession) {
 					/* istanbul ignore next: safety check */
 					if (listeners.length !== 1) {
-						for (const {reject} of listeners) {
-							const error = new Error(
-								`Expected the length of listeners to be 1, got ${listeners.length}.\n` +
-								'Please report this to https://github.com/szmarczak/http2-wrapper/'
-							);
+						const error = new Error(
+							`Expected the length of listeners to be 1, got ${listeners.length}.\n` +
+							'Please report this to https://github.com/szmarczak/http2-wrapper/'
+						);
 
+						for (const {reject} of listeners) {
 							reject(error);
 						}
 
@@ -696,7 +697,7 @@ class Agent extends EventEmitter {
 		options.ALPNProtocols = ['h2'];
 
 		const port = origin.port || 443;
-		const host = origin.hostname || origin.host;
+		const host = origin.hostname;
 
 		if (typeof options.servername === 'undefined') {
 			options.servername = host;
