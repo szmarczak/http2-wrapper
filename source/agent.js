@@ -467,7 +467,7 @@ class Agent extends EventEmitter {
 
 					// Iterates over the queue and processes listeners.
 					const processListeners = () => {
-						if (!(normalizedOptions in this.queue) || !isFree()) {
+						if (!(normalizedOptions in this.queue)) {
 							return;
 						}
 
@@ -503,6 +503,8 @@ class Agent extends EventEmitter {
 					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
 					session.on('origin', () => {
 						session[kOriginSet] = session.originSet;
+						session[kGracefullyClosing] = false;
+						closeSessionIfCovered(this.sessions[normalizedOptions], session);
 
 						if (!isFree()) {
 							// The session is full.
@@ -569,6 +571,10 @@ class Agent extends EventEmitter {
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
 						session.on('remoteSettings', () => {
+							if (!isFree()) {
+								return;
+							}
+
 							processListeners();
 
 							// In case the Origin Set changes
