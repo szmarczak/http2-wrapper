@@ -702,16 +702,7 @@ class Agent extends EventEmitter {
 			options.servername = host;
 		}
 
-		const socket = tls.connect(port, host, options);
-
-		// Fix a Node.js bug
-		if (socket.remotePort !== port) {
-			Object.defineProperty(socket, 'remotePort', {
-				get: () => port
-			});
-		}
-
-		return socket;
+		return tls.connect(port, host, options);
 	}
 
 	closeFreeSessions() {
