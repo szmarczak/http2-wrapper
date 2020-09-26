@@ -1,6 +1,7 @@
 const {promisify} = require('util');
 const tls = require('tls');
 const test = require('ava');
+const getStream = require('get-stream');
 const pEvent = require('p-event');
 const is = require('@sindresorhus/is');
 const {Agent, constants} = require('../source');
@@ -360,14 +361,6 @@ test('throws on servername mismatch', wrapper, async (t, server) => {
 
 	await t.throwsAsync(agent.getSession(server.url, {servername: 'foobar'}), {
 		message: 'Origin localhost differs from servername foobar'
-	});
-});
-
-test('throws on port mismatch', wrapper, async (t, server) => {
-	const agent = new Agent();
-
-	await t.throwsAsync(agent.getSession(server.url, {port: 443}), {
-		message: `Origin port ${server.options.port} does not match options 443`
 	});
 });
 
@@ -1364,4 +1357,51 @@ test('sessions are sorted highest to lowest capacity', tripleRequestWrapper, asy
 
 	await thirdServer.close();
 	await secondServer.close();
+});
+
+// eslint-disable-next-line ava/no-skip-test
+test.skip('supports custom hosts', async t => {
+	const server = await createServer({
+		origins: ['https://example.com']
+	});
+
+	server.get('/', (request, response) => {
+		response.end('ok');
+	});
+
+	await server.listen();
+
+	const agent = new Agent();
+
+	await agent.getSession('https://example.com', {host: 'localhost', port: server.options.port});
+
+	const stream = await agent.request('https://example.com');
+	const body = await getStream(stream);
+
+	t.is(body, 'ok');
+
+	agent.destroy();
+
+	await server.close();
+});
+
+test('no infinity loop', wrapper, async (t, server) => {
+	server.get('/', (request, response) => {
+		response.end('ok');
+	});
+
+	const agent = new Agent();
+
+	await t.throwsAsync((async () => {
+		await agent.getSession('https://example.com', {host: 'localhost', port: server.options.port});
+
+		const stream = await agent.request('https://example.com');
+		const body = await getStream(stream);
+
+		t.is(body, 'ok');
+
+		agent.destroy();
+	})(), {
+		message: `Requested origin https://example.com does not match server https://example.com:${server.options.port}`
+	});
 });

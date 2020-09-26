@@ -41,7 +41,8 @@ const nameKeys = [
 	'minDHSize',
 
 	// `tls.connect()` destination options
-	// `host`, `servername` and `port` require custom handling
+	// `servername` is automatically validated
+	// `host` and `port` describe a destination server so they're skipped
 	'path',
 	'socket',
 
@@ -211,19 +212,6 @@ class Agent extends EventEmitter {
 			}
 		}
 
-		normalized += ':';
-		if (options && options.port && Number(options.port) !== 443) {
-			normalized += options.port;
-		}
-
-		if (options && options.servername && options.servername !== options.host) {
-			normalized += ':';
-			normalized += options.servername;
-
-			normalized += ':';
-			normalized += options.host;
-		}
-
 		return normalized;
 	}
 
@@ -268,16 +256,10 @@ class Agent extends EventEmitter {
 
 				if (options) {
 					// Validate servername
-					const {servername, port} = options;
+					const {servername} = options;
 					const {hostname} = origin;
 					if (servername && hostname !== servername) {
 						throw new Error(`Origin ${hostname} differs from servername ${servername}`);
-					}
-
-					// Validate port
-					const normalizedOriginPort = Number(origin.port || 443);
-					if (port && normalizedOriginPort !== Number(port)) {
-						throw new Error(`Origin port ${normalizedOriginPort} does not match options ${options.port}`);
 					}
 				}
 			} catch (error) {
@@ -540,6 +522,18 @@ class Agent extends EventEmitter {
 						}
 
 						session[kOriginSet] = session.originSet;
+
+						const mainOrigin = session[kOriginSet][0];
+						if (mainOrigin !== normalizedOrigin) {
+							const error = new Error(`Requested origin ${normalizedOrigin} does not match server ${mainOrigin}`);
+
+							for (const listener of listeners) {
+								listener.reject(error);
+							}
+
+							session.destroy();
+							return;
+						}
 
 						{
 							const where = this.sessions;
