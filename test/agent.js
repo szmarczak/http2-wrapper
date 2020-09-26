@@ -355,11 +355,19 @@ test('sessions are grouped into authorities and options`', wrapper, async (t, se
 	agent.destroy();
 });
 
-test('custom servername', wrapper, async (t, server) => {
+test('throws on servername mismatch', wrapper, async (t, server) => {
 	const agent = new Agent();
 
 	await t.throwsAsync(agent.getSession(server.url, {servername: 'foobar'}), {
 		message: 'Origin localhost differs from servername foobar'
+	});
+});
+
+test('throws on port mismatch', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	await t.throwsAsync(agent.getSession(server.url, {port: 443}), {
+		message: `Origin port ${server.options.port} does not match options 443`
 	});
 });
 
