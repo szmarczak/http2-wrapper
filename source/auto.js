@@ -110,8 +110,6 @@ module.exports = async (input, options, callback) => {
 	options._defaultAgent = isHttps ? https.globalAgent : http.globalAgent;
 
 	let {agent} = options;
-
-	// We don't support `false` agents
 	if (agent !== false && agent !== undefined && typeof agent !== 'object') {
 		throw new Error('The `options.agent` can be only an object `http`, `https` or `http2` properties');
 	}
