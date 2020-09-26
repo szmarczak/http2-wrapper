@@ -56,7 +56,7 @@ class PushAgent extends http2.Agent {
 			this.getSession(origin, sessionOptions, [{
 				reject,
 				resolve: session => {
-					const normalizedAuthority = http2.Agent.normalizeOrigin(origin).host;
+					const normalizedAuthority = (new URL(origin)).origin;
 
 					const parsedPushHeaders = PushAgent._parsePushHeaders(normalizedAuthority, headers);
 					const cache = session.pushCache.get(parsedPushHeaders);
