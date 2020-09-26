@@ -41,8 +41,11 @@ const nameKeys = [
 	'minDHSize',
 
 	// `tls.connect()` destination options
-	// `servername` is automatically validated
-	// `host` and `port` describe a destination server so they're skipped
+	// - `servername` is automatically validated, skip it
+	// - `host` and `port` just describe the destination server,
+	//    it doesn't have to be an origin, skip it
+	// - `path` and `socket` also point to a destination server,
+	//    but they're under a different category
 	'path',
 	'socket',
 
