@@ -363,9 +363,6 @@ class Agent extends EventEmitter {
 				if (normalizedOrigin in this.queue[normalizedOptions]) {
 					// There's already an item in the queue, just attach ourselves to it.
 					this.queue[normalizedOptions][normalizedOrigin].listeners.push(...listeners);
-
-					// TODO: This shouldn't be executed here.
-					this._processQueue();
 					return;
 				}
 			} else {
