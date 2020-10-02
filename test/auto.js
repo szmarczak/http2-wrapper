@@ -658,3 +658,5 @@ test.serial('does not reuse if agent is false', async t => {
 	// Who has invented `socket hang up` on client destroy? Useless.
 	request.once('error', () => {});
 });
+
+test.todo('creates a new socket on early socket close by the server');
