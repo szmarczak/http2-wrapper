@@ -109,6 +109,8 @@ module.exports = async (input, options, callback) => {
 	options.port = options.port || (isHttps ? 443 : 80);
 	options._defaultAgent = isHttps ? https.globalAgent : http.globalAgent;
 
+	// Note: We don't support `h2session` here
+
 	let {agent} = options;
 	if (agent !== false && agent !== undefined && (typeof agent !== 'object' || Object.getPrototypeOf(agent) !== Object.prototype)) {
 		throw new Error('The `options.agent` can be only an object `http`, `https` or `http2` properties');
@@ -143,7 +145,11 @@ module.exports = async (input, options, callback) => {
 
 				if (agent.createConnection === defaultCreateConnection) {
 					if (isH2) {
-						options.createConnection = () => socket;
+						socket.setTimeout(10 * 1000, () => {
+							socket.destroy();
+						});
+
+						options._reuseSocket = socket;
 					} else {
 						installSocket(agent, socket, options);
 					}

@@ -44,6 +44,9 @@ test.before('setup', async () => {
 	await h2s.listen();
 
 	h1s.url = `http://localhost:${h1s.address().port}`;
+
+	h1s.unref();
+	h2s.unref();
 });
 
 test.after('cleanup', async () => {
@@ -229,14 +232,16 @@ test('passes http/2 errors', async t => {
 	});
 });
 
-// This needs to run first, because the cache is shared between the tests.
-test.serial('reuses protocol cache for https requests', async t => {
+test('reuses protocol cache for https requests', async t => {
 	http2.auto.protocolCache.clear();
 
-	await t.notThrowsAsync(http2.auto(h2s.url));
-	await t.notThrowsAsync(http2.auto(h2s.url));
+	const first = await http2.auto(h2s.url);
+	const second = await http2.auto(h2s.url);
 
 	t.is(http2.auto.protocolCache.size, 1);
+
+	first.destroy();
+	second.destroy();
 });
 
 test.serial('cache hostname defaults to `localhost`', async t => {

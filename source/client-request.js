@@ -121,6 +121,27 @@ class ClientRequest extends Writable {
 		options.session = options.tlsSession;
 		options.path = options.socketPath;
 
+		// A socket is being reused
+		if (options._reuseSocket) {
+			const socket = options._reuseSocket;
+
+			const destroySocket = () => {
+				socket.destroy();
+			};
+
+			this.once('close', destroySocket);
+
+			options.createConnection = (...args) => {
+				this.off('close', destroySocket);
+
+				if (socket.destroyed) {
+					return this.agent.createConnection(...args);
+				}
+
+				return socket;
+			};
+		}
+
 		this[kOptions] = options;
 
 		// Clients that generate HTTP/2 requests directly SHOULD use the :authority pseudo-header field instead of the Host header field.
@@ -234,6 +255,10 @@ class ClientRequest extends Writable {
 			// TODO: Remove this when https://github.com/nodejs/node/issues/35306 gets fixed
 			process.nextTick(() => {
 				this._request.destroy();
+			});
+		} else {
+			process.nextTick(() => {
+				this.emit('close');
 			});
 		}
 
