@@ -1405,3 +1405,20 @@ test('no infinity loop', wrapper, async (t, server) => {
 		message: `Requested origin https://example.com does not match server https://example.com:${server.options.port}`
 	});
 });
+
+test('closes free sessions automatically', wrapper, async (t, server) => {
+	const secondServer = await createServer();
+	await secondServer.listen();
+
+	const agent = new Agent({maxSessions: 1});
+
+	const session = await agent.getSession(server.url);
+	const secondSession = await agent.getSession(secondServer.url);
+
+	t.true(session.closed);
+	t.false(secondSession.closed);
+
+	agent.destroy();
+
+	await secondServer.close();
+});

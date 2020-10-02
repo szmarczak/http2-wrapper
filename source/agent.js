@@ -2,6 +2,7 @@
 // See https://github.com/facebook/jest/issues/2549
 // eslint-disable-next-line node/prefer-global/url
 const {URL} = require('url');
+const {setImmediate} = require('timers');
 const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
@@ -220,6 +221,13 @@ class Agent extends EventEmitter {
 
 	_tryToCreateNewSession(normalizedOptions, normalizedOrigin) {
 		if (!(normalizedOptions in this.queue) || !(normalizedOrigin in this.queue[normalizedOptions])) {
+			return;
+		}
+
+		if (this._sessionsCount >= this.maxSessions) {
+			this.closeFreeSessions(1);
+
+			setImmediate(() => this._tryToCreateNewSession(normalizedOptions, normalizedOrigin));
 			return;
 		}
 
@@ -704,11 +712,15 @@ class Agent extends EventEmitter {
 		return tls.connect(port, host, options);
 	}
 
-	closeFreeSessions() {
+	closeFreeSessions(count = Infinity) {
 		for (const sessions of Object.values(this.sessions)) {
 			for (const session of sessions) {
 				if (session[kCurrentStreamsCount] === 0) {
 					session.close();
+
+					if (--count <= 0) {
+						return;
+					}
 				}
 			}
 		}
