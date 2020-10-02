@@ -841,7 +841,7 @@ test('throws when server aborts the request', wrapper, async (t, server) => {
 	request.method = 'POST';
 	request.flushHeaders();
 
-	await t.throwsAsync(pEvent(request, 'data'), {
+	await t.throwsAsync(pEvent(request, 'neverGetsEmitted'), {
 		message: 'The server aborted the HTTP/2 stream'
 	});
 });
@@ -856,6 +856,25 @@ test('`close` event is emitted', wrapper, async (t, server) => {
 	await pEvent(request, 'close');
 
 	t.pass();
+});
+
+test('throws on session.request() exception', proxyWrapper, async (t, server) => {
+	const h2session = connect(server.url);
+
+	const request = makeRequest({
+		h2session,
+		method: 'CONNECT',
+		headers: {
+			':path': '/'
+		}
+	});
+	request.end();
+
+	await t.throwsAsync(pEvent(request, 'neverGetsEmitted'), {
+		message: ':authority header is required for CONNECT requests'
+	});
+
+	h2session.close();
 });
 
 test.cb('supports h2c when passing a custom session', t => {

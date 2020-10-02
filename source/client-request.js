@@ -367,7 +367,7 @@ class ClientRequest extends Writable {
 			this.emit('socket', this.socket);
 		};
 
-		if (!(':authority' in this[kHeaders])) {
+		if (!(':authority' in this[kHeaders]) && !isConnectMethod) {
 			this[kHeaders][':authority'] = this[kOrigin].host;
 		}
 
