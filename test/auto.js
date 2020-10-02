@@ -626,3 +626,11 @@ test('throws when ALPNProtocols is invalid', async t => {
 		message: 'The `ALPNProtocols` option must be an Array with at least one entry'
 	});
 });
+
+test('throws on invalid agent option', async t => {
+	await t.throwsAsync(http2.auto({
+		agent: https.globalAgent
+	}), {
+		message: 'The `options.agent` can be only an object `http`, `https` or `http2` properties'
+	});
+});

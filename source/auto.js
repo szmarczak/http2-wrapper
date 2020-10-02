@@ -110,7 +110,7 @@ module.exports = async (input, options, callback) => {
 	options._defaultAgent = isHttps ? https.globalAgent : http.globalAgent;
 
 	let {agent} = options;
-	if (agent !== false && agent !== undefined && typeof agent !== 'object') {
+	if (agent !== false && agent !== undefined && (typeof agent !== 'object' || Object.getPrototypeOf(agent) !== Object.prototype)) {
 		throw new Error('The `options.agent` can be only an object `http`, `https` or `http2` properties');
 	}
 
