@@ -718,25 +718,19 @@ class Agent extends EventEmitter {
 	closeFreeSessions(maxCount = Infinity) {
 		let success = false;
 
-		/* eslint-disable no-labels */
+		for (const sessions of Object.values(this.sessions)) {
+			for (const session of sessions) {
+				if (session[kCurrentStreamsCount] === 0) {
+					session.close();
 
-		top: {
-			for (const sessions of Object.values(this.sessions)) {
-				for (const session of sessions) {
-					if (session[kCurrentStreamsCount] === 0) {
-						session.close();
+					success = true;
 
-						success = true;
-
-						if (--maxCount <= 0) {
-							break top;
-						}
+					if (--maxCount <= 0) {
+						return true;
 					}
 				}
 			}
 		}
-
-		/* eslint-enable no-labels */
 
 		return success;
 	}
