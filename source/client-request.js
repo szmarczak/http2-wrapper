@@ -53,6 +53,12 @@ class ClientRequest extends Writable {
 
 		if (options.h2session) {
 			this[kSession] = options.h2session;
+
+			if (this[kSession].destroyed) {
+				throw new Error('The session has been closed already');
+			}
+
+			this.protocol = this[kSession].socket.encrypted ? 'https:' : 'http:';
 		} else if (options.agent === false) {
 			this.agent = new Agent({maxFreeSessions: 0});
 		} else if (typeof options.agent === 'undefined' || options.agent === null) {
@@ -69,8 +75,12 @@ class ClientRequest extends Writable {
 			throw new ERR_INVALID_ARG_TYPE('options.agent', ['http2wrapper.Agent-like Object', 'undefined', 'false'], options.agent);
 		}
 
-		if (options.protocol && options.protocol !== 'https:') {
-			throw new ERR_INVALID_PROTOCOL(options.protocol, 'https:');
+		if (this.agent) {
+			this.protocol = this.agent.protocol;
+		}
+
+		if (options.protocol && options.protocol !== this.protocol) {
+			throw new ERR_INVALID_PROTOCOL(options.protocol, this.protocol);
 		}
 
 		if (!options.port) {
@@ -81,8 +91,6 @@ class ClientRequest extends Writable {
 
 		// Unused
 		delete options.hostname;
-
-		this.protocol = 'https:';
 
 		const {timeout} = options;
 		options.timeout = undefined;

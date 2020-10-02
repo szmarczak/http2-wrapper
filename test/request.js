@@ -8,7 +8,7 @@ const pEvent = require('p-event');
 const getStream = require('get-stream');
 const tempy = require('tempy');
 const is = require('@sindresorhus/is');
-const {request: makeRequest, get, constants, connect, Agent, globalAgent} = require('../source');
+const {request: makeRequest, get, constants, connect, Agent, globalAgent, createServer: createUnsecureServer} = require('../source');
 const {createWrapper, createServer, createProxyServer} = require('./helpers/server');
 const setImmediateAsync = require('./helpers/set-immediate-async');
 
@@ -630,13 +630,12 @@ test('throws if making a request using a closed session', wrapper, async (t, ser
 	const h2session = connect(server.url);
 	h2session.destroy();
 
-	const request = makeRequest({
+	t.throws(() => makeRequest({
 		...server.options,
 		h2session
-	}).end();
-
-	const error = await pEvent(request, 'error');
-	t.is(error.code, 'ERR_HTTP2_INVALID_SESSION');
+	}), {
+		message: 'The session has been closed already'
+	});
 });
 
 test('`.path` returns the pseudo path header', t => {
@@ -857,6 +856,34 @@ test('`close` event is emitted', wrapper, async (t, server) => {
 	await pEvent(request, 'close');
 
 	t.pass();
+});
+
+test.cb('supports h2c when passing a custom session', t => {
+	const server = createUnsecureServer((request, response) => {
+		response.end('h2c');
+	});
+
+	server.listen(error => {
+		if (error) {
+			t.end(error);
+			return;
+		}
+
+		const session = connect(`http://localhost:${server.address().port}`);
+
+		const request = makeRequest({
+			h2session: session
+		}, async response => {
+			const body = await getStream(response);
+
+			t.is(body, 'h2c');
+
+			session.close();
+			server.close(t.end);
+		});
+
+		request.end();
+	});
 });
 
 {
