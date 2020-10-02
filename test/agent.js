@@ -1422,3 +1422,22 @@ test('closes free sessions automatically', wrapper, async (t, server) => {
 
 	await secondServer.close();
 });
+
+test('can process different sessions on session close', wrapper, async (t, server) => {
+	const secondServer = await createServer();
+	await secondServer.listen();
+
+	const agent = new Agent({maxSessions: 1});
+
+	const request = await agent.request(server.url);
+	const secondSessionPromise = agent.getSession(secondServer.url, {rejectUnauthorized: false});
+
+	request.close();
+
+	const secondSession = await secondSessionPromise;
+	secondSession.close();
+
+	t.pass();
+
+	await secondServer.close();
+});

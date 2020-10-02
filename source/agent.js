@@ -219,28 +219,28 @@ class Agent extends EventEmitter {
 		return normalized;
 	}
 
-	_tryToCreateNewSession(normalizedOptions, normalizedOrigin) {
-		if (!(normalizedOptions in this.queue) || !(normalizedOrigin in this.queue[normalizedOptions])) {
-			return;
-		}
+	_processQueue() {
+		// eslint-disable-next-line guard-for-in
+		for (const normalizedOptions in this.queue) {
+			// eslint-disable-next-line guard-for-in
+			for (const normalizedOrigin in this.queue[normalizedOptions]) {
+				if (this._sessionsCount >= this.maxSessions) {
+					if (this.closeFreeSessions(1)) {
+						setImmediate(() => this._processQueue());
+					}
 
-		if (this._sessionsCount >= this.maxSessions) {
-			this.closeFreeSessions(1);
+					return;
+				}
 
-			setImmediate(() => this._tryToCreateNewSession(normalizedOptions, normalizedOrigin));
-			return;
-		}
+				const item = this.queue[normalizedOptions][normalizedOrigin];
 
-		const item = this.queue[normalizedOptions][normalizedOrigin];
+				// The entry function can be run only once.
+				if (!item.completed) {
+					item.completed = true;
 
-		// The entry function can be run only once.
-		// BUG: The session may be never created when:
-		// - the first condition is false AND
-		// - this function is never called with the same arguments in the future.
-		if (this._sessionsCount < this.maxSessions && !item.completed) {
-			item.completed = true;
-
-			item();
+					item();
+				}
+			}
 		}
 	}
 
@@ -364,9 +364,8 @@ class Agent extends EventEmitter {
 					// There's already an item in the queue, just attach ourselves to it.
 					this.queue[normalizedOptions][normalizedOrigin].listeners.push(...listeners);
 
-					// This shouldn't be executed here.
-					// See the comment inside _tryToCreateNewSession.
-					this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
+					// TODO: This shouldn't be executed here.
+					this._processQueue();
 					return;
 				}
 			} else {
@@ -458,7 +457,7 @@ class Agent extends EventEmitter {
 						}
 
 						// There may be another session awaiting.
-						this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
+						this._processQueue();
 					});
 
 					// Iterates over the queue and processes listeners.
@@ -623,14 +622,14 @@ class Agent extends EventEmitter {
 										wasFree = true;
 									}
 
-									const isEmpty = session[kCurrentStreamsCount] === 0;
+									const isEmpty = () => session[kCurrentStreamsCount] === 0;
 
-									if (isEmpty) {
+									if (isEmpty()) {
 										session.unref();
 									}
 
 									if (
-										isEmpty &&
+										isEmpty() &&
 										(
 											this._freeSessionsCount > this.maxFreeSessions ||
 											session[kGracefullyClosing]
@@ -640,6 +639,10 @@ class Agent extends EventEmitter {
 									} else {
 										closeCoveredSessions(this.sessions[normalizedOptions], session);
 										processListeners();
+
+										if (isEmpty()) {
+											this._processQueue();
+										}
 									}
 								}
 							}
@@ -661,7 +664,7 @@ class Agent extends EventEmitter {
 			entry.destroyed = false;
 
 			this.queue[normalizedOptions][normalizedOrigin] = entry;
-			this._tryToCreateNewSession(normalizedOptions, normalizedOrigin);
+			this._processQueue();
 		});
 	}
 
@@ -712,18 +715,30 @@ class Agent extends EventEmitter {
 		return tls.connect(port, host, options);
 	}
 
-	closeFreeSessions(count = Infinity) {
-		for (const sessions of Object.values(this.sessions)) {
-			for (const session of sessions) {
-				if (session[kCurrentStreamsCount] === 0) {
-					session.close();
+	closeFreeSessions(maxCount = Infinity) {
+		let success = false;
 
-					if (--count <= 0) {
-						return;
+		/* eslint-disable no-labels */
+
+		top: {
+			for (const sessions of Object.values(this.sessions)) {
+				for (const session of sessions) {
+					if (session[kCurrentStreamsCount] === 0) {
+						session.close();
+
+						success = true;
+
+						if (--maxCount <= 0) {
+							break top;
+						}
 					}
 				}
 			}
 		}
+
+		/* eslint-enable no-labels */
+
+		return success;
 	}
 
 	destroy(reason) {
