@@ -634,3 +634,22 @@ test('throws on invalid agent option', async t => {
 		message: 'The `options.agent` can be only an object `http`, `https` or `http2` properties'
 	});
 });
+
+test.serial('does not reuse if agent is false', async t => {
+	http2.auto.protocolCache.clear();
+
+	const options = {
+		agent: false,
+		ALPNProtocols: ['http/1.1']
+	};
+
+	const request = await http2.auto(h2s.url, options);
+	await pEvent(request, 'socket');
+
+	t.is(Object.values(https.globalAgent.sockets).length, 0);
+
+	request.destroy();
+
+	// Who has invented `socket hang up` on client destroy? Useless.
+	request.once('error', () => {});
+});
