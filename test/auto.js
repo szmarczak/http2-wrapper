@@ -659,4 +659,43 @@ test.serial('does not reuse if agent is false', async t => {
 	request.once('error', () => {});
 });
 
-test.todo('creates a new socket on early socket close by the server');
+test.serial('creates a new socket on early socket close by the server', async t => {
+	http2.auto.protocolCache.clear();
+
+	const server = await createServer();
+	await server.listen();
+
+	server.get('/', (request, response) => {
+		response.end('hello world');
+	});
+
+	let count = 0;
+
+	let first = true;
+	server.on('connection', socket => {
+		count++;
+
+		if (first) {
+			socket.end();
+
+			first = false;
+		}
+	});
+
+	const request = await http2.auto(server.url);
+
+	await new Promise(resolve => {
+		setTimeout(resolve, 10);
+	});
+
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	t.is(count, 2);
+
+	http2.globalAgent.destroy();
+
+	await server.close();
+});
