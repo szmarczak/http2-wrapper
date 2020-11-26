@@ -30,6 +30,7 @@ const kSession = Symbol('session');
 const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
 const kJobs = Symbol('jobs');
+const kPendingAgentPromise = Symbol('pendingAgentPromise');
 
 const [major, minor] = process.versions.node.split('.').map(v => Number(v));
 const supportsSocketWithData = (major === 15 && minor >= 3) || major > 15;
@@ -100,6 +101,8 @@ class ClientRequest extends Writable {
 
 		this[kHeaders] = Object.create(null);
 		this[kJobs] = [];
+
+		this[kPendingAgentPromise] = undefined;
 
 		this.socket = null;
 		this.connection = null;
@@ -246,7 +249,7 @@ class ClientRequest extends Writable {
 		this.destroy();
 	}
 
-	_destroy(error, callback) {
+	async _destroy(error, callback) {
 		if (this.res) {
 			this.res._dump();
 		}
@@ -260,6 +263,14 @@ class ClientRequest extends Writable {
 			process.nextTick(() => {
 				this.emit('close');
 			});
+		}
+
+		try {
+			await this[kPendingAgentPromise];
+		} catch (internalError) {
+			if (!error) {
+				error = internalError;
+			}
 		}
 
 		callback(error);
@@ -285,8 +296,12 @@ class ClientRequest extends Writable {
 
 			// Forwards `timeout`, `continue`, `close` and `error` events to this instance.
 			if (!isConnectMethod) {
-				proxyEvents(stream, this, ['timeout', 'continue', 'close', 'error']);
+				proxyEvents(stream, this, ['timeout', 'continue', 'close']);
 			}
+
+			stream.once('error', error => {
+				this.destroy(error);
+			});
 
 			stream.once('aborted', () => {
 				const {res} = this;
@@ -401,17 +416,22 @@ class ClientRequest extends Writable {
 			try {
 				onStream(this[kSession].request(this[kHeaders]));
 			} catch (error) {
-				process.nextTick(() => {
-					this.emit('error', error);
-				});
+				this.destroy(error);
 			}
 		} else {
 			this.reusedSocket = true;
 
 			try {
-				onStream(await this.agent.request(this[kOrigin], this[kOptions], this[kHeaders]));
+				const promise = this.agent.request(this[kOrigin], this[kOptions], this[kHeaders]);
+				this[kPendingAgentPromise] = promise;
+
+				onStream(await promise);
+
+				this[kPendingAgentPromise] = false;
 			} catch (error) {
-				this.emit('error', error);
+				this[kPendingAgentPromise] = false;
+
+				this.destroy(error);
 			}
 		}
 	}
