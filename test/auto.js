@@ -410,6 +410,46 @@ test.serial('reuses HTTP/1.1 TLS sockets', async t => {
 	request.once('error', () => {});
 });
 
+test.serial('sets agent timeout on reused HTTP/1.1 TLS sockets', async t => {
+	http2.auto.protocolCache.clear();
+
+	const agent = new https.Agent({
+		keepAlive: true,
+		timeout: 10
+	});
+
+	agent.createSocket = () => {
+		throw new Error('Socket not reused');
+	};
+
+	agent.prependOnceListener('free', socket => {
+		t.true(socket._httpMessage.shouldKeepAlive);
+	});
+
+	const options = {
+		agent: {
+			https: agent
+		},
+		ALPNProtocols: ['http/1.1']
+	};
+
+	const request = await http2.auto(h2s.url, options);
+
+	await pEvent(request, 'timeout');
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	await pEvent(response, 'end');
+
+	await new Promise(resolve => {
+		setTimeout(resolve, 20);
+	});
+
+	t.is(Object.keys(agent.freeSockets).length, 0);
+});
+
 test.serial('reuses HTTP/1.1 TLS sockets - agentRemove works', async t => {
 	http2.auto.protocolCache.clear();
 

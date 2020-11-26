@@ -30,7 +30,14 @@ const installSocket = (agent, socket, options) => {
 	socket.on('close', onClose);
 
 	const onTimeout = () => {
-		socket.destroy();
+		const {freeSockets} = agent;
+
+		for (const sockets of Object.values(freeSockets)) {
+			if (sockets.includes(socket)) {
+				socket.destroy();
+				return;
+			}
+		}
 	};
 
 	socket.on('timeout', onTimeout);
