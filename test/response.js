@@ -266,9 +266,7 @@ test('trailers', wrapper, async (t, server) => {
 	const response = await pEvent(request, 'response');
 	await getStream(response);
 
-	t.deepEqual(response.trailers, {
-		foo: 'bar'
-	});
+	t.is(response.trailers.foo, 'bar');
 
 	t.deepEqual(response.rawTrailers, ['foo', 'bar']);
 });
