@@ -31,8 +31,8 @@ const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
 const kJobs = Symbol('jobs');
 
-const [major, minor, patch] = process.versions.node.split('.');
-const supportsSocketWithData = (major == 15 && minor >= 3) || major > 15;
+const [major, minor] = process.versions.node.split('.').map(v => Number(v));
+const supportsSocketWithData = (major === 15 && minor >= 3) || major > 15;
 
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
@@ -141,7 +141,7 @@ class ClientRequest extends Writable {
 					return reuseSocket;
 				};
 
-				this.agent.getSession(this[kOrigin], this[kOptions], []);
+				this.agent.getSession(this[kOrigin], this[kOptions]).catch(() => {});
 			} else {
 				reuseSocket.destroy();
 			}

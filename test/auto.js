@@ -232,7 +232,7 @@ test('passes http/2 errors', async t => {
 	});
 });
 
-test('reuses protocol cache for https requests', async t => {
+test.serial('reuses protocol cache for https requests', async t => {
 	http2.auto.protocolCache.clear();
 
 	const first = await http2.auto(h2s.url);
@@ -383,43 +383,6 @@ test('invalid `agent` option', async t => {
 	}));
 });
 
-test.serial('reuses HTTP/2 TLS sockets', async t => {
-	http2.auto.protocolCache.clear();
-
-	const agent = new http2.Agent();
-
-	let counter = 0;
-
-	tls._connect = tls.connect;
-	tls.connect = (...args) => {
-		counter++;
-		return tls._connect(...args);
-	};
-
-	const options = {
-		agent: {
-			http2: agent
-		},
-		ALPNProtocols: ['h2']
-	};
-
-	const request = await http2.auto(h2s.url, options);
-	request.end();
-
-	const response = await pEvent(request, 'response');
-	const body = await getStream(response);
-
-	t.is(body, 'h2');
-
-	tls.connect = tls._connect;
-	delete tls._connect;
-
-	agent.destroy();
-
-	t.is(counter, 1);
-	t.pass();
-});
-
 test.serial('reuses HTTP/1.1 TLS sockets', async t => {
 	http2.auto.protocolCache.clear();
 
@@ -538,7 +501,7 @@ test.serial('reuses HTTP/1.1 TLS sockets #2', async t => {
 	agent.destroy();
 });
 
-test.serial('does not reuse if agent has custom createConnection()', async t => {
+test.serial('does not reuse sockets if agent has custom createConnection()', async t => {
 	http2.auto.protocolCache.clear();
 
 	const agent = new https.Agent({keepAlive: true});
@@ -701,9 +664,46 @@ test.serial('creates a new socket on early socket close by the server', async t 
 });
 
 {
-	const [major, minor, patch] = process.versions.node.split('.');
-	const supportsCreateConnection = (major == 15 && minor >= 3) || major > 15;
+	const [major, minor] = process.versions.node.split('.').map(v => Number(v));
+	const supportsCreateConnection = (major === 15 && minor >= 3) || major > 15;
 	const testFn = supportsCreateConnection ? test.serial : test.skip;
+
+	testFn('reuses HTTP/2 TLS sockets', async t => {
+		http2.auto.protocolCache.clear();
+
+		const agent = new http2.Agent();
+
+		let counter = 0;
+
+		tls._connect = tls.connect;
+		tls.connect = (...args) => {
+			counter++;
+			return tls._connect(...args);
+		};
+
+		const options = {
+			agent: {
+				http2: agent
+			},
+			ALPNProtocols: ['h2']
+		};
+
+		const request = await http2.auto(h2s.url, options);
+		request.end();
+
+		const response = await pEvent(request, 'response');
+		const body = await getStream(response);
+
+		t.is(body, 'h2');
+
+		tls.connect = tls._connect;
+		delete tls._connect;
+
+		agent.destroy();
+
+		t.is(counter, 1);
+		t.pass();
+	});
 
 	testFn('Node.js native - HTTP/2 - reuse a socket that has already buffered some data', async t => {
 		t.plan(1);
@@ -716,11 +716,13 @@ test.serial('creates a new socket on early socket close by the server', async t 
 			host: '127.0.0.1',
 			servername: 'localhost',
 			port: server.options.port
-		  };
+		};
 
-		  await new Promise(resolve => {
+		await new Promise(resolve => {
 			const socket = tls.connect(options, async () => {
-				await new Promise(resolve => setTimeout(resolve, 1000));
+				await new Promise(resolve => {
+					setTimeout(resolve, 1000);
+				});
 
 				const session = http2.connect(`https://localhost:${server.options.port}`, {
 					createConnection: () => socket
@@ -738,9 +740,9 @@ test.serial('creates a new socket on early socket close by the server', async t 
 					resolve();
 				});
 			});
-		  });
+		});
 
-		  await server.close();
+		await server.close();
 	});
 
 	testFn('creates a new socket on early socket close by the server 2', async t => {
@@ -762,7 +764,9 @@ test.serial('creates a new socket on early socket close by the server', async t 
 		});
 
 		const request = await http2.auto(server.url);
-		await new Promise(resolve => setTimeout(resolve, 200));
+		await new Promise(resolve => {
+			setTimeout(resolve, 200);
+		});
 		request.end();
 
 		const response = await pEvent(request, 'response');
