@@ -29,10 +29,17 @@ const installSocket = (agent, socket, options) => {
 
 	socket.on('close', onClose);
 
+	const onTimeout = () => {
+		socket.destroy();
+	};
+
+	socket.on('timeout', onTimeout);
+
 	const onRemove = () => {
 		agent.removeSocket(socket, options);
 		socket.off('close', onClose);
 		socket.off('free', onFree);
+		socket.off('timeout', onTimeout);
 		socket.off('agentRemove', onRemove);
 	};
 
