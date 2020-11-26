@@ -145,10 +145,6 @@ module.exports = async (input, options, callback) => {
 
 				if (agent.createConnection === defaultCreateConnection) {
 					if (isH2) {
-						socket.setTimeout(10 * 1000, () => {
-							socket.destroy();
-						});
-
 						options._reuseSocket = socket;
 					} else {
 						installSocket(agent, socket, options);

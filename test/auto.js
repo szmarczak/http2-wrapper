@@ -699,3 +699,79 @@ test.serial('creates a new socket on early socket close by the server', async t 
 
 	await server.close();
 });
+
+{
+	const [major, minor, patch] = process.versions.node.split('.');
+	const supportsCreateConnection = (major == 15 && minor >= 3) || major > 15;
+	const testFn = supportsCreateConnection ? test.serial : test.skip;
+
+	testFn('Node.js native - HTTP/2 - reuse a socket that has already buffered some data', async t => {
+		t.plan(1);
+
+		const server = await createServer();
+		await server.listen();
+
+		const options = {
+			ALPNProtocols: ['h2'],
+			host: '127.0.0.1',
+			servername: 'localhost',
+			port: server.options.port
+		  };
+
+		  await new Promise(resolve => {
+			const socket = tls.connect(options, async () => {
+				await new Promise(resolve => setTimeout(resolve, 1000));
+
+				const session = http2.connect(`https://localhost:${server.options.port}`, {
+					createConnection: () => socket
+				});
+
+				session.once('remoteSettings', () => {
+					t.pass();
+					resolve();
+
+					session.close();
+				});
+
+				session.once('error', () => {
+					t.fail('Session errored');
+					resolve();
+				});
+			});
+		  });
+
+		  await server.close();
+	});
+
+	testFn('creates a new socket on early socket close by the server 2', async t => {
+		http2.auto.protocolCache.clear();
+
+		const server = await createServer();
+		await server.listen();
+
+		server.on('connection', socket => {
+			socket.setTimeout(100);
+
+			socket.once('timeout', () => {
+				socket.destroy();
+			});
+		});
+
+		server.get('/', (request, response) => {
+			response.end('hello world');
+		});
+
+		const request = await http2.auto(server.url);
+		await new Promise(resolve => setTimeout(resolve, 200));
+		request.end();
+
+		const response = await pEvent(request, 'response');
+		response.resume();
+
+		t.pass();
+
+		http2.globalAgent.destroy();
+
+		await server.close();
+	});
+}

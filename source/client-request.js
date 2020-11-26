@@ -31,6 +31,9 @@ const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
 const kJobs = Symbol('jobs');
 
+const [major, minor, patch] = process.versions.node.split('.');
+const supportsSocketWithData = (major == 15 && minor >= 3) || major > 15;
+
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
 		super({
@@ -121,31 +124,28 @@ class ClientRequest extends Writable {
 		options.session = options.tlsSession;
 		options.path = options.socketPath;
 
-		// A socket is being reused
-		if (options._reuseSocket) {
-			const socket = options._reuseSocket;
-
-			const destroySocket = () => {
-				socket.destroy();
-			};
-
-			this.once('close', destroySocket);
-
-			options.createConnection = (...args) => {
-				this.off('close', destroySocket);
-
-				if (socket.destroyed) {
-					return this.agent.createConnection(...args);
-				}
-
-				return socket;
-			};
-		}
-
 		this[kOptions] = options;
 
 		// Clients that generate HTTP/2 requests directly SHOULD use the :authority pseudo-header field instead of the Host header field.
 		this[kOrigin] = new URL(`${this.protocol}//${options.servername || options.host}:${options.port}`);
+
+		// A socket is being reused
+		const reuseSocket = options._reuseSocket;
+		if (reuseSocket) {
+			if (supportsSocketWithData) {
+				options.createConnection = (...args) => {
+					if (reuseSocket.destroyed) {
+						return this.agent.createConnection(...args);
+					}
+
+					return reuseSocket;
+				};
+
+				this.agent.getSession(this[kOrigin], this[kOptions], []);
+			} else {
+				reuseSocket.destroy();
+			}
+		}
 
 		if (timeout) {
 			this.setTimeout(timeout);
