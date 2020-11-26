@@ -31,6 +31,7 @@ const kOptions = Symbol('options');
 const kFlushedHeaders = Symbol('flushedHeaders');
 const kJobs = Symbol('jobs');
 const kPendingAgentPromise = Symbol('pendingAgentPromise');
+const kCustomAbortError = Symbol('customAbortError');
 
 const [major, minor] = process.versions.node.split('.').map(v => Number(v));
 const supportsSocketWithData = (major === 15 && minor >= 3) || major > 15;
@@ -246,7 +247,7 @@ class ClientRequest extends Writable {
 
 		this.aborted = true;
 
-		this.destroy();
+		this.destroy(kCustomAbortError);
 	}
 
 	async _destroy(error, callback) {
@@ -268,12 +269,16 @@ class ClientRequest extends Writable {
 		try {
 			await this[kPendingAgentPromise];
 		} catch (internalError) {
-			if (!error) {
+			if (error === kCustomAbortError) {
 				error = internalError;
 			}
 		}
 
-		callback(error);
+		if (error === kCustomAbortError) {
+			callback();
+		} else {
+			callback(error);
+		}
 	}
 
 	async flushHeaders() {

@@ -58,7 +58,7 @@ test('does not modify options', t => {
 		};
 
 		const request = input ? makeRequest(input, options, noop) : makeRequest(options, noop);
-		request.abort();
+		request.destroy();
 
 		t.deepEqual(options, originalOptions);
 	}
@@ -96,14 +96,14 @@ test('`method` property', wrapper, async (t, server) => {
 	request.method = 0;
 	t.is(request.method, 'POST');
 
-	request.abort();
+	request.destroy();
 });
 
 test('`protocol` property', wrapper, async (t, server) => {
 	const request = makeRequest(server.url);
 	t.is(request.protocol, 'https:');
 
-	request.abort();
+	request.destroy();
 });
 
 test('`host` property', wrapper, async (t, server) => {
@@ -177,7 +177,7 @@ test('`response` event', wrapper, async (t, server) => {
 	request.end();
 
 	await pEvent(request, 'response');
-	request.abort();
+	request.destroy();
 
 	t.pass();
 });
@@ -236,7 +236,7 @@ test('`h2session` option', wrapper, async (t, server) => {
 	request.end();
 
 	await pEvent(request, 'finish');
-	request.abort();
+	request.destroy();
 	h2session.close();
 
 	t.false(request.reusedSocket);
@@ -250,7 +250,7 @@ test('`.reusedSocket` is `true` if using Agent', wrapper, async (t, server) => {
 	await pEvent(request, 'response');
 	t.true(request.reusedSocket);
 
-	request.abort();
+	request.destroy();
 });
 
 test('`aborted` property is `false` before aborting', wrapper, (t, server) => {
@@ -325,7 +325,7 @@ test('`.end()` works', wrapper, async (t, server) => {
 test('`headersSent` property is `false` before flushing headers', wrapper, (t, server) => {
 	const request = makeRequest(server.options);
 	t.false(request.headersSent);
-	request.abort();
+	request.destroy();
 });
 
 test('`headersSent` is `true` after flushing headers', wrapper, async (t, server) => {
@@ -349,7 +349,7 @@ test.serial('`timeout` option', wrapper.lolex, async (t, server, clock) => {
 	clock.tick(1);
 
 	await promise;
-	request.abort();
+	request.destroy();
 
 	t.pass();
 });
@@ -365,7 +365,7 @@ test.serial('`.setTimeout()` works', wrapper.lolex, async (t, server, clock) => 
 	clock.tick(1);
 
 	await promise;
-	request.abort();
+	request.destroy();
 
 	t.pass();
 });
@@ -399,7 +399,7 @@ test('throws when acesssing `socket` after session destruction', wrapper, async 
 	// as `response.socket` is a Proxy object.
 	t.is(response.socket.address(), h2session.socket.address());
 
-	request.abort();
+	request.destroy();
 	h2session.close();
 
 	await pEvent(response.socket, 'close');
@@ -409,7 +409,7 @@ test('throws when acesssing `socket` after session destruction', wrapper, async 
 test('doesn\'t close custom sessions', wrapper, (t, server) => {
 	const h2session = connect(`${server.options.protocol}//${server.options.hostname}:${server.options.port}`);
 	const request = makeRequest({...server.options, h2session});
-	request.abort();
+	request.destroy();
 
 	t.false(h2session.destroyed);
 	h2session.close();
@@ -526,7 +526,7 @@ test('`.destroy()` before ending the request', wrapper, async (t, server) => {
 
 test('destroyed session causes no request errors', wrapper, (t, server) => {
 	const request = makeRequest(server.options);
-	request.abort();
+	request.destroy();
 	t.notThrows(() => request.end());
 });
 
@@ -588,7 +588,7 @@ test('`.setNoDelay()` doesn\'t throw', wrapper, (t, server) => {
 
 	t.notThrows(() => request.setNoDelay());
 
-	request.abort();
+	request.destroy();
 });
 
 test('`.setSocketKeepAlive()` doesn\'t throw', wrapper, (t, server) => {
@@ -597,7 +597,7 @@ test('`.setSocketKeepAlive()` doesn\'t throw', wrapper, (t, server) => {
 
 	t.notThrows(() => request.setSocketKeepAlive());
 
-	request.abort();
+	request.destroy();
 });
 
 test('`.maxHeadersCount` - getter', wrapper, async (t, server) => {
@@ -609,7 +609,7 @@ test('`.maxHeadersCount` - getter', wrapper, async (t, server) => {
 
 	t.true(is.number(request.maxHeadersCount));
 
-	request.abort();
+	request.destroy();
 });
 
 test('`.maxHeadersCount` - empty setter', wrapper, async (t, server) => {
@@ -623,7 +623,7 @@ test('`.maxHeadersCount` - empty setter', wrapper, async (t, server) => {
 	request.maxHeadersCount = undefined;
 	t.true(is.number(request.maxHeadersCount));
 
-	request.abort();
+	request.destroy();
 });
 
 test('throws if making a request using a closed session', wrapper, async (t, server) => {
@@ -644,7 +644,7 @@ test('`.path` returns the pseudo path header', t => {
 			[constants.HTTP2_HEADER_PATH]: '/foobar'
 		}
 	});
-	request.abort();
+	request.destroy();
 
 	t.is(request.path, '/foobar');
 });
@@ -662,14 +662,14 @@ test('uses `globalAgent` if `agent` is `null`', t => {
 	const request = makeRequest({agent: null});
 	t.is(request.agent, globalAgent);
 
-	request.abort();
+	request.destroy();
 });
 
 test('uses `globalAgent` if `agent` is `undefined`', t => {
 	const request = makeRequest({agent: undefined});
 	t.is(request.agent, globalAgent);
 
-	request.abort();
+	request.destroy();
 });
 
 test('the `createConnection` option works', wrapper, async (t, server) => {
@@ -684,7 +684,7 @@ test('the `createConnection` option works', wrapper, async (t, server) => {
 	request.end();
 
 	await pEvent(request, 'response');
-	request.abort();
+	request.destroy();
 
 	t.true(called);
 
@@ -724,7 +724,7 @@ test('pipeline works', wrapper, async (t, server) => {
 	t.false(request.aborted);
 	t.false(request.destroyed);
 
-	request.abort();
+	request.destroy();
 });
 
 test('endStream is true', wrapper, async (t, server) => {
@@ -759,7 +759,7 @@ test('finish event for GET', wrapper, async (t, server) => {
 	request.end();
 
 	await pEvent(request, 'finish');
-	request.abort();
+	request.destroy();
 
 	t.pass();
 });
@@ -773,7 +773,7 @@ test('finish event for POST', wrapper, async (t, server) => {
 	request.end();
 
 	await pEvent(request, 'finish');
-	request.abort();
+	request.destroy();
 
 	t.pass();
 });
@@ -799,7 +799,7 @@ test('throws when writing using GET, HEAD or DELETE', wrapper, async (t, server)
 			t.is(error.message, message);
 		}
 
-		request.abort();
+		request.destroy();
 	}
 });
 
@@ -829,7 +829,7 @@ test('.connection is .socket', wrapper, async (t, server) => {
 	request.connection = 123;
 	t.is(request.socket, 123);
 
-	request.abort();
+	request.destroy();
 });
 
 test('throws when server aborts the request', wrapper, async (t, server) => {
