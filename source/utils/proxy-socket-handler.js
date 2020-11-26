@@ -4,9 +4,6 @@ const {ERR_HTTP2_NO_SOCKET_MANIPULATION} = require('./errors');
 /* istanbul ignore file */
 /* https://github.com/nodejs/node/blob/6eec858f34a40ffa489c1ec54bb24da72a28c781/lib/internal/http2/compat.js#L195-L272 */
 
-const functionPrototypeBind = Function.prototype.bind;
-const reflectGetPrototypeOf = Reflect.getPrototypeOf;
-
 const proxySocketHandler = {
 	has(stream, property) {
 		// Replaced [kSocket] with .socket
@@ -21,7 +18,7 @@ const proxySocketHandler = {
 			case 'end':
 			case 'emit':
 			case 'destroy':
-				return functionPrototypeBind(stream[property], stream);
+				return stream[property].bind(stream);
 			case 'writable':
 			case 'destroyed':
 				return stream[property];
@@ -34,10 +31,10 @@ const proxySocketHandler = {
 			case 'setTimeout': {
 				const {session} = stream;
 				if (session !== undefined) {
-					return functionPrototypeBind(session.setTimeout, session);
+					return session.setTimeout.bind(session);
 				}
 
-				return functionPrototypeBind(stream.setTimeout, stream);
+				return stream.setTimeout.bind(stream);
 			}
 
 			case 'write':
@@ -50,7 +47,7 @@ const proxySocketHandler = {
 				const reference = stream.session === undefined ? stream : stream.session.socket;
 				const value = reference[property];
 
-				return typeof value === 'function' ? functionPrototypeBind(value, reference) : value;
+				return typeof value === 'function' ? value.bind(reference) : value;
 			}
 		}
 	},
@@ -58,10 +55,10 @@ const proxySocketHandler = {
 	getPrototypeOf(stream) {
 		if (stream.session !== undefined) {
 			// Replaced [kSocket] with .socket
-			return reflectGetPrototypeOf(stream.session.socket);
+			return Reflect.getPrototypeOf(stream.session.socket);
 		}
 
-		return reflectGetPrototypeOf(stream);
+		return Reflect.getPrototypeOf(stream);
 	},
 
 	set(stream, property, value) {

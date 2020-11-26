@@ -401,7 +401,9 @@ class ClientRequest extends Writable {
 			try {
 				onStream(this[kSession].request(this[kHeaders]));
 			} catch (error) {
-				this.emit('error', error);
+				process.nextTick(() => {
+					this.emit('error', error);
+				});
 			}
 		} else {
 			this.reusedSocket = true;
