@@ -622,47 +622,6 @@ test.serial('does not reuse if agent is false', async t => {
 	request.once('error', () => {});
 });
 
-test.serial('creates a new socket on early socket close by the server', async t => {
-	http2.auto.protocolCache.clear();
-
-	const server = await createServer();
-	await server.listen();
-
-	server.get('/', (request, response) => {
-		response.end('hello world');
-	});
-
-	let count = 0;
-
-	let first = true;
-	server.on('connection', socket => {
-		count++;
-
-		if (first) {
-			socket.end();
-
-			first = false;
-		}
-	});
-
-	const request = await http2.auto(server.url);
-
-	await new Promise(resolve => {
-		setTimeout(resolve, 10);
-	});
-
-	request.end();
-
-	const response = await pEvent(request, 'response');
-	response.resume();
-
-	t.is(count, 2);
-
-	http2.globalAgent.destroy();
-
-	await server.close();
-});
-
 {
 	const [major, minor] = process.versions.node.split('.').map(v => Number(v));
 	const supportsCreateConnection = (major === 15 && minor >= 3) || major > 15;
@@ -741,6 +700,47 @@ test.serial('creates a new socket on early socket close by the server', async t 
 				});
 			});
 		});
+
+		await server.close();
+	});
+
+	testFn('creates a new socket on early socket close by the server', async t => {
+		http2.auto.protocolCache.clear();
+
+		const server = await createServer();
+		await server.listen();
+
+		server.get('/', (request, response) => {
+			response.end('hello world');
+		});
+
+		let count = 0;
+
+		let first = true;
+		server.on('connection', socket => {
+			count++;
+
+			if (first) {
+				socket.end();
+
+				first = false;
+			}
+		});
+
+		const request = await http2.auto(server.url);
+
+		await new Promise(resolve => {
+			setTimeout(resolve, 10);
+		});
+
+		request.end();
+
+		const response = await pEvent(request, 'response');
+		response.resume();
+
+		t.is(count, 2);
+
+		http2.globalAgent.destroy();
 
 		await server.close();
 	});
