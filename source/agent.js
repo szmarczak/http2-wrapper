@@ -709,7 +709,17 @@ class Agent extends EventEmitter {
 			options.servername = host;
 		}
 
-		return tls.connect(port, host, options);
+		const socket = tls.connect(port, host, options);
+
+		if (options.socket) {
+			socket._peername = {
+				family: undefined,
+				address: undefined,
+				port
+			};
+		}
+
+		return socket;
 	}
 
 	closeFreeSessions(maxCount = Number.POSITIVE_INFINITY) {

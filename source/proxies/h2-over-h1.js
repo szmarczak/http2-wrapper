@@ -85,7 +85,7 @@ class Http2OverHttp extends Agent {
 					socket._handle.getpeername = out => {
 						out.family = undefined;
 						out.address = undefined;
-						out.port = origin.port || undefined;
+						out.port = origin.port || 443;
 					};
 
 					return socket;
