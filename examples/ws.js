@@ -6,7 +6,7 @@ const connect = url => {
 	const ws = new WebSocket(null);
 
 	const destroy = error => {
-		ws.readyState = WebSocket.CLOSING;
+		ws._readyState = WebSocket.CLOSING;
 
 		ws.emit('error', error);
 	};
@@ -54,6 +54,5 @@ ws.once('message', message => {
 });
 
 ws.once('error', error => {
-	console.error('ERROR!');
 	console.error(error);
 });
