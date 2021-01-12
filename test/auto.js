@@ -797,7 +797,7 @@ test.serial('does not reuse if agent is false', async t => {
 		const server = await createServer();
 		await server.listen();
 
-		server.on('connection', socket => {
+		server.on('secureConnection', socket => {
 			socket.setTimeout(100);
 
 			socket.once('timeout', () => {
