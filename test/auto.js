@@ -450,13 +450,10 @@ test.serial('reuses HTTP/1.1 TLS sockets', async t => {
 		const response = await pEvent(request, 'response');
 		response.resume();
 
-		await pEvent(response, 'end');
+		const endPromise = pEvent(response, 'end');
 
-		await new Promise(resolve => {
-			setTimeout(resolve, 40);
-		});
-
-		t.is(Object.keys(agent.freeSockets).length, 0);
+		await pEvent(agent, 'free');
+		await endPromise;
 	});
 }
 
