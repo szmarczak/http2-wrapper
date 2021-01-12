@@ -15,7 +15,7 @@ const getStream = request => new Promise((resolve, reject) => {
 			return;
 		}
 
-		if (head.length !== 0) {
+		if (head.length > 0) {
 			reject(new Error(`Unexpected data: ${head}`));
 			return;
 		}

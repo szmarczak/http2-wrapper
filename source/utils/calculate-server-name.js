@@ -9,11 +9,7 @@ module.exports = options => {
 	if (hostHeader) {
 		if (hostHeader.startsWith('[')) {
 			const index = hostHeader.indexOf(']');
-			if (index === -1) {
-				servername = hostHeader;
-			} else {
-				servername = hostHeader.slice(1, -1);
-			}
+			servername = index === -1 ? hostHeader : hostHeader.slice(1, -1);
 		} else {
 			servername = hostHeader.split(':', 1)[0];
 		}

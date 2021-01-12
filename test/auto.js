@@ -1,7 +1,7 @@
 const tls = require('tls');
 const https = require('https');
 const http = require('http');
-const util = require('util');
+const {promisify} = require('util');
 // eslint-disable-next-line ava/use-test
 const {serial: test, afterEach} = require('ava');
 const pEvent = require('p-event');
@@ -24,8 +24,8 @@ const createH1Server = () => {
 		response.end('http/1.1');
 	});
 
-	server.listen = util.promisify(server.listen);
-	server.close = util.promisify(server.close);
+	server.listen = promisify(server.listen);
+	server.close = promisify(server.close);
 
 	return server;
 };
@@ -361,8 +361,8 @@ test('defaults to HTTP1 if no ALPN protocol', async t => {
 		socket.end('HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhttps');
 	});
 
-	server.listen = util.promisify(server.listen);
-	server.close = util.promisify(server.close);
+	server.listen = promisify(server.listen);
+	server.close = promisify(server.close);
 
 	await server.listen();
 

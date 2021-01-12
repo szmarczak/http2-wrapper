@@ -18,8 +18,8 @@ export interface PromiseListeners {
 }
 
 export class Agent extends EventEmitter {
-	freeSessions: {[key: string]: http2.ClientHttp2Stream[]};
-	busySessions: {[key: string]: http2.ClientHttp2Stream[]};
+	freeSessions: Record<string, http2.ClientHttp2Stream[]>;
+	busySessions: Record<string, http2.ClientHttp2Stream[]>;
 
 	constructor(options: AgentOptions);
 

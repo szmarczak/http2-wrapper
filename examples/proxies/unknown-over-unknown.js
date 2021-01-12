@@ -39,6 +39,7 @@ const {
 				rejectUnauthorized: false
 			});
 
+			// eslint-disable-next-line unicorn/prefer-ternary
 			if (alpnProtocol === 'h2') {
 				agent = {
 					http: new HttpOverHttp2(proxy),

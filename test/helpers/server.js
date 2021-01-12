@@ -1,7 +1,7 @@
 'use strict';
 const net = require('net');
 const http2 = require('http2');
-const util = require('util');
+const {promisify} = require('util');
 const lolex = require('lolex');
 const {key, cert} = require('./certs.js');
 
@@ -12,8 +12,8 @@ const createPlainServer = async (options, handler) => {
 
 	const server = http2.createSecureServer({cert, key, allowHTTP1: true, ...options}, handler);
 
-	server.listen = util.promisify(server.listen);
-	server.close = util.promisify(server.close);
+	server.listen = promisify(server.listen);
+	server.close = promisify(server.close);
 
 	server.options = {
 		hostname: 'localhost',

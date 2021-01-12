@@ -487,8 +487,8 @@ test('`.destroy(reason)` after ending the request', wrapper, async (t, server) =
 	await pEvent(request, 'response');
 	request.destroy(new Error(error));
 
-	const err = await pEvent(request, 'error');
-	t.is(err.message, error);
+	const {message} = await pEvent(request, 'error');
+	t.is(message, error);
 	t.true(request._request.destroyed);
 	t.is(request.destroyed, true);
 });
@@ -500,8 +500,8 @@ test('`.destroy(reason)` before ending the request', wrapper, async (t, server) 
 	request.destroy(new Error(error));
 	request.end();
 
-	const err = await pEvent(request, 'error');
-	t.is(err.message, error);
+	const {message} = await pEvent(request, 'error');
+	t.is(message, error);
 	t.is(request._request, undefined);
 	t.is(request.destroyed, true);
 });

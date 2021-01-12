@@ -141,7 +141,7 @@ const getSessions = ({agent, isFree}) => {
 			return isFree ? result : !result;
 		});
 
-		if (filtered.length !== 0) {
+		if (filtered.length > 0) {
 			result[normalizedOptions] = filtered;
 		}
 	}
@@ -158,7 +158,7 @@ const gracefullyClose = session => {
 };
 
 class Agent extends EventEmitter {
-	constructor({timeout = 60000, maxSessions = Infinity, maxFreeSessions = 10, maxCachedTlsSessions = 100} = {}) {
+	constructor({timeout = 60000, maxSessions = Number.POSITIVE_INFINITY, maxFreeSessions = 10, maxCachedTlsSessions = 100} = {}) {
 		super();
 
 		// A session is considered busy when its current streams count
@@ -246,7 +246,7 @@ class Agent extends EventEmitter {
 
 	getSession(origin, options, listeners) {
 		return new Promise((resolve, reject) => {
-			if (Array.isArray(listeners) && listeners.length !== 0) {
+			if (Array.isArray(listeners) && listeners.length > 0) {
 				listeners = [...listeners];
 
 				// Resolve the current promise ASAP, we're just moving the listeners.
@@ -468,7 +468,7 @@ class Agent extends EventEmitter {
 								const {listeners} = this.queue[normalizedOptions][origin];
 
 								// Prevents session overloading.
-								while (listeners.length !== 0 && isFree()) {
+								while (listeners.length > 0 && isFree()) {
 									// We assume `resolve(...)` calls `request(...)` *directly*,
 									// otherwise the session will get overloaded.
 									listeners.shift().resolve(session);
@@ -567,7 +567,7 @@ class Agent extends EventEmitter {
 						}
 
 						// Check if we haven't managed to execute all listeners.
-						if (listeners.length !== 0) {
+						if (listeners.length > 0) {
 							// Request for a new session with predefined listeners.
 							this.getSession(normalizedOrigin, options, listeners);
 							listeners.length = 0;
@@ -712,7 +712,7 @@ class Agent extends EventEmitter {
 		return tls.connect(port, host, options);
 	}
 
-	closeFreeSessions(maxCount = Infinity) {
+	closeFreeSessions(maxCount = Number.POSITIVE_INFINITY) {
 		let success = false;
 
 		for (const sessions of Object.values(this.sessions)) {

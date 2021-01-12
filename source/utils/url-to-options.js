@@ -13,7 +13,7 @@ module.exports = url => {
 		path: `${url.pathname || ''}${url.search || ''}`
 	};
 
-	if (typeof url.port === 'string' && url.port.length !== 0) {
+	if (typeof url.port === 'string' && url.port.length > 0) {
 		options.port = Number(url.port);
 	}
 
