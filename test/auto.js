@@ -417,7 +417,7 @@ test.serial('reuses HTTP/1.1 TLS sockets', async t => {
 									(major === 12 && minor > 16) ||
 									(major > 12);
 
-	const testFn = supportsAgentTimeout ? test.serial : test.skip;
+	const testFn = supportsAgentTimeout ? test.serial : test.serial.skip;
 
 	testFn('sets agent timeout on reused HTTP/1.1 TLS sockets', async t => {
 		http2.auto.protocolCache.clear();
@@ -453,7 +453,7 @@ test.serial('reuses HTTP/1.1 TLS sockets', async t => {
 		await pEvent(response, 'end');
 
 		await new Promise(resolve => {
-			setTimeout(resolve, 20);
+			setTimeout(resolve, 40);
 		});
 
 		t.is(Object.keys(agent.freeSockets).length, 0);
