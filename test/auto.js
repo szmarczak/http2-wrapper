@@ -766,7 +766,7 @@ test.serial('does not reuse if agent is false', async t => {
 		let count = 0;
 
 		let first = true;
-		server.on('connection', socket => {
+		server.on('secureConnection', socket => {
 			count++;
 
 			if (first) {
