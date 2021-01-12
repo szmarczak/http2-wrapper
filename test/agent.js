@@ -767,7 +767,7 @@ test('`maxFreeSessions` set to 0 causes to close the session after running throu
 {
 	// See https://github.com/nodejs/node/issues/36883
 	const [major, minor] = process.versions.node.split('.');
-	const testFn = major === 12 && minor >= 20 ? test.serial.failing : test.serial;
+	const testFn = major === 12 && minor >= 20 ? test.serial.skip : test.serial;
 
 	testFn('respects `.maxFreeSessions` changes', singleRequestWrapper, async (t, server) => {
 		const agent = new Agent({
