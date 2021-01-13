@@ -46,6 +46,6 @@ jobs:
         sudo apt-get install h2o
         npm install
         npm run build --if-present
-        h2o -c h2o.conf &
+        h2o -c h2o.conf -log_level FATAL &
         node benchmark.js
         pkill h2o
