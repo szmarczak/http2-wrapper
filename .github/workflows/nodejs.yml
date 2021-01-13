@@ -41,11 +41,16 @@ jobs:
       uses: actions/setup-node@v1
       with:
         node-version: ${{ matrix.node-version }}
-    - name: npm install, build, and test
+    - name: Install h2o
       run: |
         sudo apt-get install h2o
+    - name: npm install, build, and test
+      run: |
         npm install
         npm run build --if-present
+    - name: Run benchmark
+      run: |
         h2o -c h2o.conf -log_level FATAL &
+        sleep 1
         node benchmark.js
         pkill h2o
