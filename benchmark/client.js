@@ -3,8 +3,8 @@ const http2 = require('http2');
 const https = require('https');
 const http = require('http');
 const Benchmark = require('benchmark');
-const urlToOptions = require('./source/utils/url-to-options');
-const wrapper = require('./source');
+const urlToOptions = require('../source/utils/url-to-options');
+const wrapper = require('../source');
 
 // Configuration
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -120,12 +120,10 @@ suite.add('http2-wrapper', {
 		});
 	}
 }).on('cycle', event => {
-	console.log(String(event.target));
+	const parts = String(event.target).split('x');
+	console.log(`${parts[0].padEnd(38, ' ')}x${parts[1]}`);
 }).on('complete', function () {
 	console.log(`Fastest is ${this.filter('fastest').map('name')}`);
 
-	// eslint-disable-next-line unicorn/no-process-exit
-	process.exit(0);
-}).run({
-	async: false
-});
+	process.exit();
+}).run();
