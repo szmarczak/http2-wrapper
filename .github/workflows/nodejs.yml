@@ -48,9 +48,9 @@ jobs:
       run: |
         npm install
         npm run build --if-present
-    - name: Run benchmark
+    - name: Start server
       run: |
         h2o -c h2o.conf &
         sleep 1
-        node benchmark.js
-        pkill h2o
+    - name: Run benchmark
+      run: node benchmark.js
