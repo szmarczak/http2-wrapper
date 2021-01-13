@@ -44,13 +44,13 @@ jobs:
     - name: Install h2o
       run: |
         sudo apt-get install h2o
-    - name: npm install, build, and test
+    - name: Build project
       run: |
         npm install
         npm run build --if-present
     - name: Run benchmark
       run: |
-        h2o -c h2o.conf -log_level FATAL &
+        h2o -c h2o.conf &
         sleep 1
         node benchmark.js
         pkill h2o
