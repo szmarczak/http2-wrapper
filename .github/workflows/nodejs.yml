@@ -25,3 +25,27 @@ jobs:
         npm test
     - name: Codecov
       uses: codecov/codecov-action@v1
+
+  benchmark:
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        node-version: [15.x]
+        os: [ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    - name: npm install, build, and test
+      run: |
+        apt-get install h2o
+        npm install
+        npm run build --if-present
+        h2o -c h2o.conf &
+        node benchmark.js
+        pkill h2o
