@@ -28,7 +28,13 @@ const get = (url, options, callback) => {
 	return req;
 };
 
-module.exports = {
+const [major, minor] = process.versions.node.split('.').map(x => Number(x));
+
+/* istanbul ignore next: fallback to native http2 module on Node.js <15.5 */
+const isStable = major === 15 ? minor === 5 : major > 15;
+
+/* istanbul ignore next: fallback to native http2 module on Node.js <15.5 */
+module.exports = isStable ? {
 	...http2,
 	ClientRequest,
 	IncomingMessage,
@@ -45,4 +51,4 @@ module.exports = {
 	},
 	validateHeaderName,
 	validateHeaderValue
-};
+} : http2;

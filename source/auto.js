@@ -73,9 +73,6 @@ const resolveProtocol = async options => {
 		try {
 			const result = await resultPromise;
 
-			// https://github.com/nodejs/node/pull/34859
-			result.socket.secureConnecting = false;
-
 			cache.set(name, result.alpnProtocol);
 			queue.delete(name);
 

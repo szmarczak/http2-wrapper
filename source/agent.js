@@ -13,12 +13,6 @@ const kRequest = Symbol('request');
 const kOriginSet = Symbol('cachedOriginSet');
 const kGracefullyClosing = Symbol('gracefullyClosing');
 
-// TODO: Should we keep `localAddress`?
-//       This may make using multiple interfaces a bit harder.
-//       getSession('https://example.com')
-//         will always give different result than
-//       getSession('https://example.com', {localAddress: '1.2.3.4'})
-
 const nameKeys = [
 	// `http2.connect()` options
 	'maxDeflateDynamicTableSize',
@@ -417,7 +411,6 @@ class Agent extends EventEmitter {
 
 					session.setTimeout(this.timeout, () => {
 						// Terminates all streams owned by this session.
-						// TODO: Maybe the streams should have a "Session timed out" error?
 						session.destroy();
 					});
 

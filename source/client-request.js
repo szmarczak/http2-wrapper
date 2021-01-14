@@ -255,10 +255,7 @@ class ClientRequest extends Writable {
 		}
 
 		if (this._request) {
-			// TODO: Remove this when https://github.com/nodejs/node/issues/35306 gets fixed
-			process.nextTick(() => {
-				this._request.destroy();
-			});
+			this._request.destroy();
 		} else {
 			process.nextTick(() => {
 				this.emit('close');
@@ -357,9 +354,7 @@ class ClientRequest extends Writable {
 					});
 
 					stream.once('end', () => {
-						// TODO: Remove the second condition
-						// See https://github.com/nodejs/node/issues/35304
-						if (!this.aborted && !this.res.aborted) {
+						if (!this.aborted) {
 							response.push(null);
 						}
 					});

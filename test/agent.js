@@ -9,8 +9,6 @@ const {createWrapper, createServer} = require('./helpers/server');
 const setImmediateAsync = require('./helpers/set-immediate-async');
 const {key, cert} = require('./helpers/certs.js');
 
-const supportsTlsSessions = process.versions.node.split('.')[0] >= 11;
-
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const wrapper = createWrapper();
@@ -216,13 +214,9 @@ test('doesn\'t break on session `close` event', singleRequestWrapper, async (t, 
 	session.close();
 
 	await requestPromise;
-	if (process.versions.node.split('.')[0] < 12) {
-		// Session `close` event is emitted before its streams send `close` event
-		t.pass();
-	} else {
-		// Session `close` event is emitted after its streams send `close` event
-		t.plan(1);
-	}
+
+	// Session `close` event is emitted after its streams send `close` event
+	t.plan(1);
 
 	agent.destroy();
 });
@@ -484,54 +478,50 @@ test('`.settings` property', wrapper, async (t, server) => {
 	agent.destroy();
 });
 
-{
-	const testFn = supportsTlsSessions ? test : test.skip;
+test.serial('caches a TLS session when successfully connected', wrapper, async (t, server) => {
+	const agent = new Agent();
 
-	testFn('caches a TLS session when successfully connected', wrapper, async (t, server) => {
-		const agent = new Agent();
+	await agent.getSession(server.url);
+	await setImmediateAsync();
 
-		await agent.getSession(server.url);
-		await setImmediateAsync();
+	t.true(is.buffer(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
+	agent.destroy();
+});
 
-		agent.destroy();
-	});
+test.serial('reuses a TLS session', wrapper, async (t, server) => {
+	const agent = new Agent();
+	const session = await agent.getSession(server.url);
+	await setImmediateAsync();
 
-	testFn('reuses a TLS session', wrapper, async (t, server) => {
-		const agent = new Agent();
-		const session = await agent.getSession(server.url);
-		await setImmediateAsync();
+	const tlsSession = agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`);
 
-		const tlsSession = agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`);
+	session.close();
+	await pEvent(session, 'close');
 
-		session.close();
-		await pEvent(session, 'close');
+	const secondSession = await agent.getSession(server.url);
 
-		const secondSession = await agent.getSession(server.url);
+	t.deepEqual(secondSession.socket.getSession(), tlsSession);
+	t.true(is.buffer(tlsSession));
 
-		t.deepEqual(secondSession.socket.getSession(), tlsSession);
-		t.true(is.buffer(tlsSession));
+	agent.destroy();
+});
 
-		agent.destroy();
-	});
+test.serial('purges the TLS session cache on session error', wrapper, async (t, server) => {
+	const agent = new Agent();
 
-	testFn('purges the TLS session cache on session error', wrapper, async (t, server) => {
-		const agent = new Agent();
+	const session = await agent.getSession(server.url);
+	await setImmediateAsync();
 
-		const session = await agent.getSession(server.url);
-		await setImmediateAsync();
+	t.true(is.buffer(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
 
-		t.true(is.buffer(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
+	session.destroy(new Error(message));
+	await pEvent(session, 'close', {rejectionEvents: []});
 
-		session.destroy(new Error(message));
-		await pEvent(session, 'close', {rejectionEvents: []});
+	t.true(is.undefined(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
 
-		t.true(is.undefined(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
-
-		agent.destroy();
-	});
-}
+	agent.destroy();
+});
 
 // eslint-disable-next-line ava/no-skip-test
 test.skip('throws on invalid usage', wrapper, async (t, server) => {
@@ -764,39 +754,33 @@ test('`maxFreeSessions` set to 0 causes to close the session after running throu
 	agent.destroy();
 });
 
-{
-	// See https://github.com/nodejs/node/issues/36883
-	const [major, minor] = process.versions.node.split('.').map(x => Number(x));
-	const testFn = major === 12 && minor >= 20 ? test.serial.skip : test.serial;
-
-	testFn('respects `.maxFreeSessions` changes', singleRequestWrapper, async (t, server) => {
-		const agent = new Agent({
-			maxFreeSessions: 2
-		});
-
-		let count = 0;
-		agent.createConnection = (...args) => {
-			count++;
-
-			return Agent.connect(...args);
-		};
-
-		const stream = await agent.request(server.url, {}, {}, {endStream: false});
-		const streamSession = stream.session;
-
-		agent.maxFreeSessions = 1;
-		stream.close();
-
-		const session = await agent.getSession(server.url);
-		t.is(session, streamSession);
-		t.is(count, 2);
-
-		const lateSession = await pEvent(server, 'session');
-		await pEvent(lateSession, 'close');
-
-		agent.destroy();
+test.serial('respects `.maxFreeSessions` changes', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent({
+		maxFreeSessions: 2
 	});
-}
+
+	let count = 0;
+	agent.createConnection = (...args) => {
+		count++;
+
+		return Agent.connect(...args);
+	};
+
+	const stream = await agent.request(server.url, {}, {}, {endStream: false});
+	const streamSession = stream.session;
+
+	agent.maxFreeSessions = 1;
+	stream.close();
+
+	const session = await agent.getSession(server.url);
+	t.is(session, streamSession);
+	t.is(count, 2);
+
+	const lateSession = await pEvent(server, 'session');
+	await pEvent(lateSession, 'close');
+
+	agent.destroy();
+});
 
 test('destroying causes pending sessions to throw', wrapper, async (t, server) => {
 	const agent = new Agent();

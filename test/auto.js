@@ -10,8 +10,6 @@ const http2 = require('../source');
 const {createServer} = require('./helpers/server');
 const {key, cert} = require('./helpers/certs.js');
 
-const [major, minor, patch] = process.versions.node.split('.').map(v => Number(v));
-
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 test.serial = test;
@@ -412,50 +410,42 @@ test.serial('reuses HTTP/1.1 TLS sockets', async t => {
 	request.once('error', () => {});
 });
 
-{
-	const supportsAgentTimeout = (major === 12 && minor === 16 && patch >= 3) ||
-									(major === 12 && minor > 16) ||
-									(major > 12);
+test.serial('sets agent timeout on reused HTTP/1.1 TLS sockets', async t => {
+	http2.auto.protocolCache.clear();
 
-	const testFn = supportsAgentTimeout ? test.serial : test.serial.skip;
-
-	testFn('sets agent timeout on reused HTTP/1.1 TLS sockets', async t => {
-		http2.auto.protocolCache.clear();
-
-		const agent = new https.Agent({
-			keepAlive: true,
-			timeout: 10
-		});
-
-		agent.createSocket = () => {
-			throw new Error('Socket not reused');
-		};
-
-		agent.prependOnceListener('free', socket => {
-			t.true(socket._httpMessage.shouldKeepAlive);
-		});
-
-		const options = {
-			agent: {
-				https: agent
-			},
-			ALPNProtocols: ['http/1.1']
-		};
-
-		const request = await http2.auto(h2s.url, options);
-
-		await pEvent(request, 'timeout');
-		request.end();
-
-		const response = await pEvent(request, 'response');
-		response.resume();
-
-		const endPromise = pEvent(response, 'end');
-
-		await pEvent(agent, 'free');
-		await endPromise;
+	const agent = new https.Agent({
+		keepAlive: true,
+		timeout: 10
 	});
-}
+
+	agent.createSocket = () => {
+		throw new Error('Socket not reused');
+	};
+
+	agent.prependOnceListener('free', socket => {
+		t.true(socket._httpMessage.shouldKeepAlive);
+	});
+
+	const options = {
+		agent: {
+			https: agent
+		},
+		ALPNProtocols: ['http/1.1']
+	};
+
+	const request = await http2.auto(h2s.url, options);
+
+	await pEvent(request, 'timeout');
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	const endPromise = pEvent(response, 'end');
+
+	await pEvent(agent, 'free');
+	await endPromise;
+});
 
 test.serial('reuses HTTP/1.1 TLS sockets - agentRemove works', async t => {
 	http2.auto.protocolCache.clear();
@@ -669,159 +659,154 @@ test.serial('does not reuse if agent is false', async t => {
 	request.once('error', () => {});
 });
 
-{
-	const supportsCreateConnection = (major === 15 && minor >= 3) || major > 15;
-	const testFn = supportsCreateConnection ? test.serial : test.skip;
+test.serial('reuses HTTP/2 TLS sockets', async t => {
+	http2.auto.protocolCache.clear();
 
-	testFn('reuses HTTP/2 TLS sockets', async t => {
-		http2.auto.protocolCache.clear();
+	const agent = new http2.Agent();
 
-		const agent = new http2.Agent();
+	let counter = 0;
 
-		let counter = 0;
+	tls._connect = tls.connect;
+	tls.connect = (...args) => {
+		counter++;
+		return tls._connect(...args);
+	};
 
-		tls._connect = tls.connect;
-		tls.connect = (...args) => {
-			counter++;
-			return tls._connect(...args);
-		};
+	const options = {
+		agent: {
+			http2: agent
+		},
+		ALPNProtocols: ['h2']
+	};
 
-		const options = {
-			agent: {
-				http2: agent
-			},
-			ALPNProtocols: ['h2']
-		};
+	const request = await http2.auto(h2s.url, options);
+	request.end();
 
-		const request = await http2.auto(h2s.url, options);
-		request.end();
+	const response = await pEvent(request, 'response');
+	const body = await getStream(response);
 
-		const response = await pEvent(request, 'response');
-		const body = await getStream(response);
+	t.is(body, 'h2');
 
-		t.is(body, 'h2');
+	tls.connect = tls._connect;
+	delete tls._connect;
 
-		tls.connect = tls._connect;
-		delete tls._connect;
+	agent.destroy();
 
-		agent.destroy();
+	t.is(counter, 1);
+	t.pass();
+});
 
-		t.is(counter, 1);
-		t.pass();
-	});
+test.serial('Node.js native - HTTP/2 - reuse a socket that has already buffered some data', async t => {
+	t.plan(1);
 
-	testFn('Node.js native - HTTP/2 - reuse a socket that has already buffered some data', async t => {
-		t.plan(1);
+	const server = await createServer();
+	await server.listen();
 
-		const server = await createServer();
-		await server.listen();
+	const options = {
+		ALPNProtocols: ['h2'],
+		host: '127.0.0.1',
+		servername: 'localhost',
+		port: server.options.port
+	};
 
-		const options = {
-			ALPNProtocols: ['h2'],
-			host: '127.0.0.1',
-			servername: 'localhost',
-			port: server.options.port
-		};
+	await new Promise(resolve => {
+		const socket = tls.connect(options, async () => {
+			await new Promise(resolve => {
+				setTimeout(resolve, 1000);
+			});
 
-		await new Promise(resolve => {
-			const socket = tls.connect(options, async () => {
-				await new Promise(resolve => {
-					setTimeout(resolve, 1000);
-				});
+			const session = http2.connect(`https://localhost:${server.options.port}`, {
+				createConnection: () => socket
+			});
 
-				const session = http2.connect(`https://localhost:${server.options.port}`, {
-					createConnection: () => socket
-				});
+			session.once('remoteSettings', () => {
+				t.pass();
+				resolve();
 
-				session.once('remoteSettings', () => {
-					t.pass();
-					resolve();
+				session.close();
+			});
 
-					session.close();
-				});
-
-				session.once('error', () => {
-					t.fail('Session errored');
-					resolve();
-				});
+			session.once('error', () => {
+				t.fail('Session errored');
+				resolve();
 			});
 		});
-
-		await server.close();
 	});
 
-	testFn('creates a new socket on early socket close by the server', async t => {
-		http2.auto.protocolCache.clear();
+	await server.close();
+});
 
-		const server = await createServer();
-		await server.listen();
+test.serial('creates a new socket on early socket close by the server', async t => {
+	http2.auto.protocolCache.clear();
 
-		server.get('/', (request, response) => {
-			response.end('hello world');
-		});
+	const server = await createServer();
+	await server.listen();
 
-		let count = 0;
-
-		let first = true;
-		server.on('secureConnection', socket => {
-			count++;
-
-			if (first) {
-				socket.end();
-
-				first = false;
-			}
-		});
-
-		const request = await http2.auto(server.url);
-
-		await new Promise(resolve => {
-			setTimeout(resolve, 10);
-		});
-
-		request.end();
-
-		const response = await pEvent(request, 'response');
-		response.resume();
-
-		t.is(count, 2);
-
-		http2.globalAgent.destroy();
-
-		await server.close();
+	server.get('/', (request, response) => {
+		response.end('hello world');
 	});
 
-	testFn('creates a new socket on early socket close by the server 2', async t => {
-		http2.auto.protocolCache.clear();
+	let count = 0;
 
-		const server = await createServer();
-		await server.listen();
+	let first = true;
+	server.on('secureConnection', socket => {
+		count++;
 
-		server.on('secureConnection', socket => {
-			socket.setTimeout(100);
+		if (first) {
+			socket.end();
 
-			socket.once('timeout', () => {
-				socket.destroy();
-			});
-		});
-
-		server.get('/', (request, response) => {
-			response.end('hello world');
-		});
-
-		const request = await http2.auto(server.url);
-		await new Promise(resolve => {
-			setTimeout(resolve, 200);
-		});
-		request.end();
-
-		const response = await pEvent(request, 'response');
-		response.resume();
-
-		t.pass();
-
-		http2.globalAgent.destroy();
-
-		await server.close();
+			first = false;
+		}
 	});
-}
+
+	const request = await http2.auto(server.url);
+
+	await new Promise(resolve => {
+		setTimeout(resolve, 10);
+	});
+
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	t.is(count, 2);
+
+	http2.globalAgent.destroy();
+
+	await server.close();
+});
+
+test.serial('creates a new socket on early socket close by the server 2', async t => {
+	http2.auto.protocolCache.clear();
+
+	const server = await createServer();
+	await server.listen();
+
+	server.on('secureConnection', socket => {
+		socket.setTimeout(100);
+
+		socket.once('timeout', () => {
+			socket.destroy();
+		});
+	});
+
+	server.get('/', (request, response) => {
+		response.end('hello world');
+	});
+
+	const request = await http2.auto(server.url);
+	await new Promise(resolve => {
+		setTimeout(resolve, 200);
+	});
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	t.pass();
+
+	http2.globalAgent.destroy();
+
+	await server.close();
+});
