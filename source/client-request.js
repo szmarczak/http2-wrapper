@@ -32,9 +32,6 @@ const kFlushedHeaders = Symbol('flushedHeaders');
 const kJobs = Symbol('jobs');
 const kPendingAgentPromise = Symbol('pendingAgentPromise');
 
-const [major, minor] = process.versions.node.split('.').map(v => Number(v));
-const supportsSocketWithData = (major === 15 && minor >= 3) || major > 15;
-
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
 		super({
@@ -135,19 +132,15 @@ class ClientRequest extends Writable {
 		// A socket is being reused
 		const reuseSocket = options._reuseSocket;
 		if (reuseSocket) {
-			if (supportsSocketWithData) {
-				options.createConnection = (...args) => {
-					if (reuseSocket.destroyed) {
-						return this.agent.createConnection(...args);
-					}
+			options.createConnection = (...args) => {
+				if (reuseSocket.destroyed) {
+					return this.agent.createConnection(...args);
+				}
 
-					return reuseSocket;
-				};
+				return reuseSocket;
+			};
 
-				this.agent.getSession(this[kOrigin], this[kOptions]).catch(() => {});
-			} else {
-				reuseSocket.destroy();
-			}
+			this.agent.getSession(this[kOrigin], this[kOptions]).catch(() => {});
 		}
 
 		if (timeout) {
