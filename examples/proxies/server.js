@@ -115,11 +115,19 @@ const connect = (source, headers, url, head) => {
 };
 
 server.on('stream', (stream, headers) => {
-	connect(stream, headers, stream.url);
+	try {
+		connect(stream, headers, stream.url);
+	} catch {
+		sendStatus(stream, 500);
+	}
 });
 
 server.on('connect', (request, socket, head) => {
-	connect(socket, request.headers, request.url, head);
+	try {
+		connect(socket, request.headers, request.url, head);
+	} catch {
+		sendStatus(socket, 500);
+	}
 });
 
 server.listen(8000, error => {
