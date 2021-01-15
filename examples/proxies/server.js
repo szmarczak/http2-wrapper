@@ -67,7 +67,7 @@ const connect = (source, headers, url, head) => {
 		return;
 	}
 
-	if (validateCredentials(headers) === false) {
+	if (validateCredentials(headers, source) === false) {
 		sendStatus(source, 403);
 		return;
 	}
