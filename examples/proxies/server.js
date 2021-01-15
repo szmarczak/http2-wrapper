@@ -1,6 +1,7 @@
 'use strict';
 const net = require('net');
 const tls = require('tls');
+const {STATUS_CODES} = require('http');
 const http2 = require('../../source'); // Note: using the local version
 const {key, cert} = require('../../test/helpers/certs');
 
@@ -19,8 +20,6 @@ const readAlpn = header => {
 
 	return undefined;
 };
-
-const BAD_REQUEST = 'HTTP/1.1 400 Bad Request\r\n\r\n';
 
 const server = http2.createSecureServer({
 	key,
@@ -48,101 +47,85 @@ const validateCredentials = headers => {
 	}
 };
 
+const sendStatus = (source, statusCode) => {
+	if ('rstCode' in source) {
+		source.respond({':status': statusCode});
+		source.end();
+	} else {
+		source.end(`HTTP/1.1 ${statusCode} ${STATUS_CODES[statusCode]}\r\n\r\n`);
+	}
+};
+
+const connect = (source, headers, url, head) => {
+	const isHttp2 = 'rstCode' in source;
+
+	if (isHttp2 && headers[':method'] !== 'CONNECT') {
+		if (server.listenerCount('request') === 0) {
+			sendStatus(source, 501);
+		}
+
+		return;
+	}
+
+	if (validateCredentials(headers) === false) {
+		sendStatus(source, 403);
+		return;
+	}
+
+	if (url.startsWith('/') || url.includes('/')) {
+		sendStatus(source, 400);
+		return;
+	}
+
+	const ALPNProtocols = readAlpn(headers['alpn-protocols']);
+	const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${url}`);
+
+	if (target === undefined || target.port === '') {
+		sendStatus(source, 400);
+		return;
+	}
+
+	const network = target.protocol === 'tls:' ? tls : net;
+
+	const socket = network.connect(target.port, target.hostname, {ALPNProtocols}, () => {
+		if (isHttp2) {
+			source.respond();
+		} else {
+			socket.write(head);
+
+			const headers = network === tls ? `alpn-protocol: ${socket.alpnProtocol}\r\n` : '';
+			source.write(`HTTP/1.1 200 Connection Established\r\n${headers}\r\n`);
+		}
+
+		socket.pipe(source);
+		source.pipe(socket);
+	});
+
+	socket.on('error', () => {
+		if (isHttp2) {
+			source.close(http2.constants.NGHTTP2_CONNECT_ERROR);
+		} else {
+			source.destroy();
+		}
+	});
+
+	source.once('error', () => {
+		socket.destroy();
+	});
+};
+
+server.on('stream', (stream, headers) => {
+	connect(stream, headers, stream.url);
+});
+
+server.on('connect', (request, socket, head) => {
+	connect(socket, request.headers, request.url, head);
+});
+
 server.listen(8000, error => {
 	if (error) {
 		throw error;
 	}
-
-	server.on('stream', (stream, headers) => {
-		if (headers[':method'] !== 'CONNECT') {
-			if (server.listenerCount('request') === 0) {
-				stream.respond({':status': '501'});
-				stream.end();
-			}
-
-			return;
-		}
-
-		if (validateCredentials(headers) === false) {
-			stream.respond({':status': '403'});
-			stream.end();
-			return;
-		}
-
-		const {url} = request;
-		if (url.startsWith('/') || url.includes('/')) {
-			stream.respond({':status': '400'});
-			stream.end();
-			return;
-		}
-
-		const ALPNProtocols = readAlpn(headers['alpn-protocols']);
-		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${url}`);
-
-		if (target === undefined || target.port === '') {
-			stream.respond({':status': '400'});
-			stream.end();
-			return;
-		}
-
-		const network = target.protocol === 'tls:' ? tls : net;
-
-		const socket = network.connect(target.port, target.hostname, {ALPNProtocols}, () => {
-			stream.respond();
-
-			socket.pipe(stream);
-			stream.pipe(socket);
-		});
-
-		socket.on('error', () => {
-			stream.close(http2.constants.NGHTTP2_CONNECT_ERROR);
-		});
-
-		stream.once('error', () => {
-			socket.destroy();
-		});
-	});
-
-	server.on('connect', (request, requestSocket, head) => {
-		if (validateCredentials(request.headers) === false) {
-			requestSocket.end('HTTP/1.1 403 Unauthorized\r\n\r\n');
-			return;
-		}
-
-		const {url} = request;
-		if (url.startsWith('/') || url.includes('/')) {
-			requestSocket.end(BAD_REQUEST);
-			return;
-		}
-
-		const ALPNProtocols = readAlpn(request.headers['alpn-protocols']);
-		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${request.url}`);
-
-		if (target === undefined || target.port === '') {
-			requestSocket.end(BAD_REQUEST);
-			return;
-		}
-
-		const network = target.protocol === 'tls:' ? tls : net;
-
-		const socket = network.connect(target.port, target.hostname, {ALPNProtocols}, () => {
-			const headers = network === tls ? `alpn-protocol: ${socket.alpnProtocol}\r\n` : '';
-
-			requestSocket.write(`HTTP/1.1 200 Connection Established\r\n${headers}\r\n`);
-			socket.write(head);
-
-			socket.pipe(requestSocket);
-			requestSocket.pipe(socket);
-		});
-
-		socket.once('error', () => {
-			requestSocket.destroy();
-		});
-
-		requestSocket.once('error', () => {
-			socket.destroy();
-		});
-	});
 
 	console.log(`Listening on port ${server.address().port}`);
 });
