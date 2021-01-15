@@ -784,7 +784,7 @@ test.serial('creates a new socket on early socket close by the server 2', async 
 	await server.listen();
 
 	server.on('secureConnection', socket => {
-		socket.setTimeout(100);
+		socket.setTimeout(50);
 
 		socket.once('timeout', () => {
 			socket.destroy();
