@@ -20,9 +20,7 @@ const readAlpn = header => {
 	return undefined;
 };
 
-const badRequest = socket => {
-	socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
-};
+const BAD_REQUEST = 'HTTP/1.1 400 Bad Request\r\n\r\n';
 
 const server = http2.createSecureServer({
 	key,
@@ -71,8 +69,15 @@ server.listen(8000, error => {
 			return;
 		}
 
+		const {url} = request;
+		if (url.startsWith('/') || url.includes('/')) {
+			stream.respond({':status': '400'});
+			stream.end();
+			return;
+		}
+
 		const ALPNProtocols = readAlpn(headers['alpn-protocols']);
-		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${stream.url}`);
+		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${url}`);
 
 		if (target === undefined || target.port === '') {
 			stream.respond({':status': '400'});
@@ -104,8 +109,9 @@ server.listen(8000, error => {
 			return;
 		}
 
-		if (request.url.startsWith('/') || request.url.includes('/')) {
-			badRequest(requestSocket);
+		const {url} = request;
+		if (url.startsWith('/') || url.includes('/')) {
+			requestSocket.end(BAD_REQUEST);
 			return;
 		}
 
@@ -113,7 +119,7 @@ server.listen(8000, error => {
 		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${request.url}`);
 
 		if (target === undefined || target.port === '') {
-			badRequest(requestSocket);
+			requestSocket.end(BAD_REQUEST);
 			return;
 		}
 
