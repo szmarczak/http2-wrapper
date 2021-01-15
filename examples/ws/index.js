@@ -2,21 +2,25 @@
 const http2 = require('..');
 const WebSocket = require('ws');
 
-const connect = url => {
-	const ws = new WebSocket(null);
+const head = Buffer.from('');
 
-	const destroy = error => {
+const connect = (url, options) => {
+	const ws = new WebSocket(null);
+	ws._isServer = false;
+
+	const destroy = async error => {
 		ws._readyState = WebSocket.CLOSING;
 
+		await Promise.resolve();
 		ws.emit('error', error);
 	};
 
 	(async () => {
 		try {
-			const stream = await http2.globalAgent.request(url, undefined, {
+			const stream = await http2.globalAgent.request(url, options, {
+				...options,
 				':method': 'CONNECT',
 				':protocol': 'websocket',
-				'sec-websocket-version': 13,
 				origin: (new URL(url)).origin
 			});
 
@@ -25,7 +29,8 @@ const connect = url => {
 			stream.once('response', headers => {
 				stream.off('error', destroy);
 
-				ws.setSocket(stream, headers, 100 * 1024 * 1024);
+				stream.setNoDelay = () => {};
+				ws.setSocket(stream, head, 100 * 1024 * 1024);
 			});
 		} catch (error) {
 			destroy(error);
@@ -35,7 +40,10 @@ const connect = url => {
 	return ws;
 };
 
-const ws = connect('https://example.com');
+const ws = connect('https://localhost:3000', {
+	// For demo purposes only!
+	rejectUnauthorized: false
+});
 
 ws.once('open', () => {
 	console.log('CONNECTED!');
