@@ -1,3 +1,4 @@
+'use strict';
 const http2 = require('../../source'); // Note: using the local version
 
 const agent = new http2.proxies.Http2OverHttps({
