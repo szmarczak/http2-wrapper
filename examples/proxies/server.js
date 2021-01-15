@@ -4,6 +4,26 @@ const tls = require('tls');
 const http2 = require('../../source'); // Note: using the local version
 const {key, cert} = require('../../test/helpers/certs');
 
+const safeUrl = (...args) => {
+	try {
+		return new URL(...args);
+	} catch {
+		return undefined;
+	}
+};
+
+const readAlpn = header => {
+	if (header) {
+		return header.split(',').map(x => x.trim());
+	}
+
+	return undefined;
+};
+
+const badRequest = socket => {
+	socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+};
+
 const server = http2.createSecureServer({
 	key,
 	cert,
@@ -13,31 +33,20 @@ const server = http2.createSecureServer({
 	allowHTTP1: true
 });
 
-const validateCredentials = request => {
-	const proxyAuthorization = request.headers['proxy-authorization'] || request.headers.authorization;
+const validateCredentials = headers => {
+	const proxyAuthorization = headers['proxy-authorization'] || headers.authorization;
 	if (!proxyAuthorization) {
-		const error = new Error('Unauthorized.');
-		error.statusCode = 403;
-
-		throw error;
+		return false;
 	}
 
 	const [authorization, encryptedCredentials] = proxyAuthorization.split(' ');
 	if (authorization.toLocaleLowerCase() !== 'basic') {
-		const error = new Error(`Unsupported authorization method: ${authorization}`);
-		error.statusCode = 403;
-		error.authorization = authorization;
-
-		throw error;
+		return false;
 	}
 
 	const plainCredentials = Buffer.from(encryptedCredentials, 'base64').toString();
 	if (plainCredentials !== 'username:password') {
-		const error = new Error('Incorrect username or password');
-		error.statusCode = 403;
-		error.plainCredentials = plainCredentials;
-
-		throw error;
+		return false;
 	}
 };
 
@@ -47,42 +56,34 @@ server.listen(8000, error => {
 	}
 
 	server.on('stream', (stream, headers) => {
-		try {
-			validateCredentials({headers});
-		} catch (error) {
-			console.error(error);
-			stream.respond({':status': error.statusCode});
-			stream.end(error.stack);
-			return;
-		}
-
 		if (headers[':method'] !== 'CONNECT') {
-			stream.close(http2.constants.NGHTTP2_REFUSED_STREAM);
+			if (server.listenerCount('request') == 0) {
+				stream.respond({':status': '501'});
+				stream.end();
+			}
+
 			return;
 		}
 
-		let defaultProtocol;
-
-		let ALPNProtocols = [];
-		if (headers.alpnprotocols) {
-			ALPNProtocols = headers.alpnprotocols.split(', ').join(',').split(',');
-			defaultProtocol = 'tls:';
-		} else {
-			defaultProtocol = 'tcp:';
+		if (validateCredentials(headers) === false) {
+			stream.respond({':status': '403'});
+			stream.end();
+			return;
 		}
 
-		let protocol = headers[':protocol'] || defaultProtocol;
-		if (!protocol.endsWith(':')) {
-			protocol += ':';
+		const ALPNProtocols = readAlpn(headers['alpn-protocols']);
+		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${request.url}`);
+
+		if (target === undefined || target.port === '') {
+			badRequest(requestSocket);
+			return;
 		}
 
-		const auth = new URL(`${protocol}//${headers[':authority']}`);
+		const network = target.protocol === 'tls:' ? tls : net;
 
-		const network = protocol === 'tls:' ? tls : net;
-		const defaultPort = protocol === 'tls:' ? 443 : 80;
-
-		const socket = network.connect(auth.port || defaultPort, auth.hostname, {ALPNProtocols}, () => {
+		const socket = network.connect(target.port, target.hostname, {ALPNProtocols}, () => {
 			stream.respond();
+
 			socket.pipe(stream);
 			stream.pipe(socket);
 		});
@@ -96,53 +97,40 @@ server.listen(8000, error => {
 		});
 	});
 
-	server.on('connect', (request, stream, head) => {
-		try {
-			validateCredentials(request);
-		} catch (error) {
-			console.error(error);
-			stream.end('HTTP/1.1 403 Unauthorized\r\n\r\n');
+	server.on('connect', (request, requestSocket, head) => {
+		if (validateCredentials(request.headers) === false) {
+			requestSocket.end('HTTP/1.1 403 Unauthorized\r\n\r\n');
 			return;
 		}
 
-		if (request.url.startsWith('/')) {
-			stream.end('HTTP/1.1 406 Leading Slash\r\n\r\n');
+		if (request.url.startsWith('/') || request.url.includes('/')) {
+			badRequest(requestSocket);
 			return;
 		}
 
-		let defaultProtocol;
+		const ALPNProtocols = readAlpn(request.headers['alpn-protocols']);
+		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${request.url}`);
 
-		let ALPNProtocols = [];
-		if (request.headers.alpnprotocols) {
-			ALPNProtocols = request.headers.alpnprotocols.split(', ');
-			defaultProtocol = 'tls:';
-		} else {
-			defaultProtocol = 'tcp:';
+		if (target === undefined || target.port === '') {
+			badRequest(requestSocket);
+			return;
 		}
 
-		let protocol = defaultProtocol;
-		if (!protocol.endsWith(':')) {
-			protocol += ':';
-		}
+		const network = target.protocol === 'tls:' ? tls : net;
 
-		const auth = new URL(`${protocol}//${request.url}`);
-
-		const network = auth.protocol === 'tls:' ? tls : net;
-		const defaultPort = auth.protocol === 'tls:' ? 443 : 80;
-
-		const socket = network.connect(auth.port || defaultPort, auth.hostname, {ALPNProtocols}, () => {
-			stream.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+		const socket = network.connect(target.port, target.hostname, {ALPNProtocols}, () => {
+			requestSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
 			socket.write(head);
 
-			socket.pipe(stream);
-			stream.pipe(socket);
+			socket.pipe(requestSocket);
+			requestSocket.pipe(socket);
 		});
 
 		socket.once('error', () => {
-			stream.destroy();
+			requestSocket.destroy();
 		});
 
-		stream.once('error', () => {
+		requestSocket.once('error', () => {
 			socket.destroy();
 		});
 	});
