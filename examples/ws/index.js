@@ -1,5 +1,5 @@
 'use strict';
-const http2 = require('..');
+const http2 = require('../..');
 const WebSocket = require('ws');
 
 const head = Buffer.from('');
@@ -26,7 +26,7 @@ const connect = (url, options) => {
 
 			stream.once('error', destroy);
 
-			stream.once('response', headers => {
+			stream.once('response', _headers => {
 				stream.off('error', destroy);
 
 				stream.setNoDelay = () => {};

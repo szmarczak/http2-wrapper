@@ -1,7 +1,7 @@
 'use strict';
 const http2 = require('http2');
 const WebSocket = require('ws');
-const {key, cert} = require('../test/helpers/certs');
+const {key, cert} = require('../../test/helpers/certs');
 
 const head = Buffer.from('');
 
@@ -25,7 +25,7 @@ server.on('stream', (stream, headers) => {
 			ws.send(data);
 		});
 	} else {
-		stream.respond()
+		stream.respond();
 		stream.end('ok');
 	}
 });
