@@ -205,10 +205,6 @@ class ClientRequest extends Writable {
 	}
 
 	_final(callback) {
-		if (this.destroyed) {
-			return;
-		}
-
 		this.flushHeaders();
 
 		const callEnd = () => {

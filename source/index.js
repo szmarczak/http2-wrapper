@@ -31,7 +31,7 @@ const get = (url, options, callback) => {
 const [major, minor] = process.versions.node.split('.').map(x => Number(x));
 
 /* istanbul ignore next: fallback to native http2 module on Node.js <15.5 */
-const isStable = major === 15 ? minor >= 5 : major > 15;
+const isStable = major === 15 ? minor >= 6 : major > 15;
 
 /* istanbul ignore next: fallback to native http2 module on Node.js <15.5 */
 module.exports = isStable ? {
