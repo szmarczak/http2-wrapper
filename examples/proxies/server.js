@@ -57,7 +57,7 @@ server.listen(8000, error => {
 
 	server.on('stream', (stream, headers) => {
 		if (headers[':method'] !== 'CONNECT') {
-			if (server.listenerCount('request') == 0) {
+			if (server.listenerCount('request') === 0) {
 				stream.respond({':status': '501'});
 				stream.end();
 			}
@@ -72,10 +72,11 @@ server.listen(8000, error => {
 		}
 
 		const ALPNProtocols = readAlpn(headers['alpn-protocols']);
-		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${request.url}`);
+		const target = safeUrl(`${ALPNProtocols ? 'tls:' : 'tcp:'}//${stream.url}`);
 
 		if (target === undefined || target.port === '') {
-			badRequest(requestSocket);
+			stream.respond({':status': '400'});
+			stream.end();
 			return;
 		}
 
@@ -119,7 +120,9 @@ server.listen(8000, error => {
 		const network = target.protocol === 'tls:' ? tls : net;
 
 		const socket = network.connect(target.port, target.hostname, {ALPNProtocols}, () => {
-			requestSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+			const headers = network === tls ? `alpn-protocol: ${socket.alpnProtocol}\r\n` : '';
+
+			requestSocket.write(`HTTP/1.1 200 Connection Established\r\n${headers}\r\n`);
 			socket.write(head);
 
 			socket.pipe(requestSocket);
