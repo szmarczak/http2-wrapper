@@ -35,7 +35,9 @@ class Http2OverHttp extends Agent {
 		this.origin = new URL(url);
 		this.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
 
-		if (typeof proxyOptions.raw !== 'boolean') {
+		if (proxyOptions.raw === undefined) {
+			this.proxyOptions.raw = true;
+		} else if (typeof proxyOptions.raw !== 'boolean') {
 			throw new TypeError(`Expected 'proxyOptions.raw' to be a boolean, got ${typeof proxyOptions.raw}`);
 		}
 

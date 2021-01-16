@@ -6,10 +6,9 @@ const {
 	HttpOverHttp2,
 	HttpsOverHttp2,
 	Http2OverHttp2,
-	Http2OverHttps
+	Http2OverHttps,
+	Http2OverHttp
 } = http2.proxies;
-
-/* eslint-disable capitalized-comments */
 
 (async () => {
 	const proxy = {
@@ -54,13 +53,15 @@ const {
 				};
 			}
 		} else {
-			throw new Error('Not implemented');
-
-			// agent = {
-			// 	http: new HttpOverHttp(proxy),
-			// 	https: new HttpsOverHttp(proxy),
-			// 	http2: new Http2OverHttp(proxy),
-			// };
+			agent = {
+				http: () => {
+					throw new Error('Not implemented');
+				},
+				https: () => {
+					throw new Error('Not implemented');
+				},
+				http2: new Http2OverHttp(proxy)
+			};
 		}
 	} catch (error) {
 		console.error(`Could not retrieve the ALPN protocol of ${proxyUrl.origin} - ${error.message}`);
@@ -72,8 +73,12 @@ const {
 			method: 'POST',
 			agent
 		}, response => {
+			const isSecure = response.req.agent.protocol === 'https:';
+			const protocol = isSecure ? `http/${response.httpVersion} with TLS` : 'http/1.1 without TLS';
+
 			console.log('statusCode:', response.statusCode);
 			console.log('headers:', response.headers);
+			console.log('protocol:', protocol);
 
 			const body = [];
 			response.on('data', chunk => {
@@ -92,5 +97,3 @@ const {
 		console.error(error);
 	}
 })();
-
-/* eslint-enable capitalized-comments */

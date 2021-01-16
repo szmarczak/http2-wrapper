@@ -12,7 +12,9 @@ const initialize = (self, {url, proxyOptions = {}}) => {
 	self.origin = new URL(url);
 	self.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
 
-	if (typeof proxyOptions.raw !== 'boolean') {
+	if (proxyOptions.raw === undefined) {
+		self.proxyOptions.raw = true;
+	} else if (typeof proxyOptions.raw !== 'boolean') {
 		throw new TypeError(`Expected 'proxyOptions.raw' to be a boolean, got ${typeof proxyOptions.raw}`);
 	}
 
