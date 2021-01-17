@@ -288,11 +288,11 @@ class Agent extends EventEmitter {
 				// We could just do this.sessions[normalizedOptions].find(...) but that isn't optimal.
 				// Additionally, we are looking for session which has biggest current pending streams count.
 				//
-				// |------------| |------------| |------------|
-				// | Session: A | | Session: B | | Session: C |
-				// | Pending: 5 |-| Pending: 8 |-| Pending: 4 |
-				// | Max:    10 | | Max:    10 | | Max:     5 |
-				// |------------| |------------| |------------|
+				// |------------| |------------| |------------| |------------|
+				// | Session: A | | Session: B | | Session: C | | Session: D |
+				// | Pending: 5 |-| Pending: 8 |-| Pending: 9 |-| Pending: 4 |
+				// | Max:    10 | | Max:    10 | | Max:     9 | | Max:     5 |
+				// |------------| |------------| |------------| |------------|
 				//                     ^
 				//                     |
 				//     pick this one  --
@@ -378,17 +378,27 @@ class Agent extends EventEmitter {
 			};
 
 			// The main logic is here
-			const entry = () => {
+			const entry = async () => {
+				this._sessionsCount++;
+				this._freeSessionsCount++;
+
 				const name = `${normalizedOrigin}:${normalizedOptions}`;
 				let receivedSettings = false;
+				let socket;
 
 				try {
-					const session = http2.connect(origin, {
+					const computedOptions = {
 						createConnection: this.createConnection,
 						settings: this.settings,
 						session: this.tlsSessionCache.get(name),
 						...options
-					});
+					};
+
+					// A hacky workaround to enable async `createConnection`
+					socket = await this.createConnection(origin, computedOptions);
+					computedOptions.createConnection = () => socket;
+
+					const session = http2.connect(origin, computedOptions);
 					session[kCurrentStreamsCount] = 0;
 					session[kGracefullyClosing] = false;
 
@@ -415,17 +425,17 @@ class Agent extends EventEmitter {
 					});
 
 					session.once('close', () => {
+						this._sessionsCount--;
+
+						// 1. If it wasn't free then no need to decrease because
+						//    it has been decreased already in session.request().
+						// 2. `stream.once('close')` won't increment the count
+						//    because the session is already closed.
+						if (wasFree) {
+							this._freeSessionsCount--;
+						}
+
 						if (receivedSettings) {
-							// 1. If it wasn't free then no need to decrease because
-							//    it has been decreased already in session.request().
-							// 2. `stream.once('close')` won't increment the count
-							//    because the session is already closed.
-							if (wasFree) {
-								this._freeSessionsCount--;
-							}
-
-							this._sessionsCount--;
-
 							// This cannot be moved to the stream logic,
 							// because there may be a session that hadn't made a single request.
 							const where = this.sessions[normalizedOptions];
@@ -507,8 +517,6 @@ class Agent extends EventEmitter {
 						session.ref();
 						session.unref();
 
-						this._sessionsCount++;
-
 						// The Agent could have been destroyed already.
 						if (entry.destroyed) {
 							const error = new Error('Agent has been destroyed');
@@ -546,7 +554,6 @@ class Agent extends EventEmitter {
 							}
 						}
 
-						this._freeSessionsCount += 1;
 						receivedSettings = true;
 
 						this.emit('session', session);
@@ -641,6 +648,11 @@ class Agent extends EventEmitter {
 						return stream;
 					};
 				} catch (error) {
+					this._sessionsCount--;
+					this._freeSessionsCount--;
+
+					socket.destroy();
+
 					for (const listener of listeners) {
 						listener.reject(error);
 					}
