@@ -2,6 +2,7 @@
 const http = require('http');
 const https = require('https');
 const Http2OverHttpX = require('./h2-over-hx');
+const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
 
 const getStream = request => new Promise((resolve, reject) => {
 	const onConnect = (response, socket, head) => {
