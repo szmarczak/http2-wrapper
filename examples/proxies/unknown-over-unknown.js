@@ -12,17 +12,15 @@ const {
 
 (async () => {
 	const proxy = {
-		url: new URL('https://username:password@localhost:8000'),
 		proxyOptions: {
-			// If the proxy doesn't process TLS sockets automatically, set this to `true`.
-			raw: true,
+			url: new URL('https://username:password@localhost:8000'),
 
 			// For demo purposes only!
 			rejectUnauthorized: false
 		}
 	};
 
-	const proxyUrl = proxy.url;
+	const proxyUrl = proxy.proxyOptions.url;
 
 	let agent;
 
@@ -47,8 +45,8 @@ const {
 				};
 			} else {
 				agent = {
-					http: new HttpsProxyAgent(proxy.url.href),
-					https: new HttpsProxyAgent(proxy.url.href),
+					http: new HttpsProxyAgent(proxyUrl.href),
+					https: new HttpsProxyAgent(proxyUrl.href),
 					http2: new Http2OverHttps(proxy)
 				};
 			}

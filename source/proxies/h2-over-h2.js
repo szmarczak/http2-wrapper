@@ -1,6 +1,7 @@
 'use strict';
 const {globalAgent} = require('../agent');
 const Http2OverHttpX = require('./h2-over-hx');
+const getAuthorizationHeaders = require('./get-auth-headers');
 
 const getStatusCode = stream => new Promise((resolve, reject) => {
 	stream.once('error', reject);
@@ -12,12 +13,16 @@ const getStatusCode = stream => new Promise((resolve, reject) => {
 
 class Http2OverHttp2 extends Http2OverHttpX {
 	async _getProxyStream(authority) {
-		const stream = await globalAgent.request(this.origin, this.proxyOptions, {
-			':method': 'CONNECT',
-			':authority': authority,
-			...this.proxyOptions.headers
-		});
+		const {proxyOptions} = this;
 
+		const headers = {
+			...getAuthorizationHeaders(this),
+			...proxyOptions.headers,
+			':method': 'CONNECT',
+			':authority': authority
+		};
+
+		const stream = await globalAgent.request(proxyOptions.url, proxyOptions, headers);
 		const statusCode = await getStatusCode(stream);
 
 		return [stream, statusCode];

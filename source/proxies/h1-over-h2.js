@@ -1,37 +1,23 @@
 'use strict';
-// See https://github.com/facebook/jest/issues/2549
-// eslint-disable-next-line node/prefer-global/url
-const {URL} = require('url');
 const tls = require('tls');
 const http = require('http');
 const https = require('https');
 const {globalAgent} = require('../agent');
 const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
-
-const initialize = (self, {url, proxyOptions = {}}) => {
-	self.origin = new URL(url);
-	self.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
-
-	if (proxyOptions.raw === undefined) {
-		self.proxyOptions.raw = true;
-	} else if (typeof proxyOptions.raw !== 'boolean') {
-		throw new TypeError(`Expected 'proxyOptions.raw' to be a boolean, got ${typeof proxyOptions.raw}`);
-	}
-
-	const {username, password} = self.origin;
-	if (username || password) {
-		const data = `${username}:${password}`;
-		self.proxyOptions.headers['proxy-authorization'] = `Basic ${Buffer.from(data).toString('base64')}`;
-	}
-};
+const initialize = require('./initialize');
+const getAuthorizationHeaders = require('./get-auth-headers');
 
 const createConnection = (self, options, callback) => {
-	(async () => {
+	void (async () => {
 		try {
-			const stream = await globalAgent.request(self.origin, self.proxyOptions, {
+			const {proxyOptions} = self;
+			const {url, headers, raw} = proxyOptions;
+
+			const stream = await globalAgent.request(url, proxyOptions, {
+				...getAuthorizationHeaders(self),
+				...headers,
 				':method': 'CONNECT',
-				':authority': `${options.host}:${options.port}`,
-				...self.proxyOptions.headers
+				':authority': `${options.host}:${options.port}`
 			});
 
 			stream.once('error', callback);
@@ -42,7 +28,7 @@ const createConnection = (self, options, callback) => {
 					callback(new UnexpectedStatusCodeError(statusCode));
 				}
 
-				if (self.proxyOptions.raw && self instanceof https.Agent) {
+				if (raw && self instanceof https.Agent) {
 					const secureStream = tls.connect(stream, options);
 
 					secureStream.once('close', () => {
@@ -61,10 +47,10 @@ const createConnection = (self, options, callback) => {
 };
 
 class HttpOverHttp2 extends http.Agent {
-	constructor(args) {
-		super(args.agentOptions);
+	constructor(options) {
+		super(options);
 
-		initialize(this, args);
+		initialize(this, options.proxyOptions);
 	}
 
 	createConnection(options, callback) {
@@ -73,10 +59,10 @@ class HttpOverHttp2 extends http.Agent {
 }
 
 class HttpsOverHttp2 extends https.Agent {
-	constructor(args) {
-		super(args.agentOptions);
+	constructor(options) {
+		super(options);
 
-		initialize(this, args);
+		initialize(this, options.proxyOptions);
 	}
 
 	createConnection(options, callback) {

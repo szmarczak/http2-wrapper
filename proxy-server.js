@@ -97,7 +97,7 @@ module.exports = (options = {}) => {
 			source.pipe(socket);
 		});
 
-		socket.on('error', () => {
+		socket.once('error', () => {
 			if (isHttp2) {
 				source.close(http2.constants.NGHTTP2_CONNECT_ERROR);
 			} else {
@@ -105,7 +105,15 @@ module.exports = (options = {}) => {
 			}
 		});
 
+		socket.once('close', () => {
+			source.destroy();
+		});
+
 		source.once('error', () => {
+			socket.destroy();
+		});
+
+		source.once('close', () => {
 			socket.destroy();
 		});
 	};
@@ -123,6 +131,11 @@ module.exports = (options = {}) => {
 	});
 
 	server.on('connect', (request, socket, head) => {
+		if (request.stream) {
+			// Node.js bugs... Node.js bugs everywhere...
+			return;
+		}
+
 		try {
 			connect(socket, request.headers, request.url, head);
 		} catch {

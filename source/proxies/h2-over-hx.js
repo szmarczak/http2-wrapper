@@ -5,28 +5,13 @@ const {URL} = require('url');
 const {Agent} = require('../agent');
 const JSStreamSocket = require('../utils/js-stream-socket');
 const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
+const initialize = require('./initialize');
 
 class Http2OverHttpX extends Agent {
-	constructor({url, proxyOptions = {}, agentOptions}) {
-		super(agentOptions);
+	constructor(options) {
+		super(options);
 
-		this.origin = new URL(url);
-		this.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
-
-		if (proxyOptions.raw === undefined) {
-			this.proxyOptions.raw = true;
-		} else if (typeof proxyOptions.raw !== 'boolean') {
-			throw new TypeError(`Expected 'proxyOptions.raw' to be a boolean, got ${typeof proxyOptions.raw}`);
-		}
-
-		const {username, password} = this.origin;
-		if (username || password) {
-			const data = `${username}:${password}`;
-			this.proxyOptions.headers['proxy-authorization'] = `Basic ${Buffer.from(data).toString('base64')}`;
-		}
-
-		this.origin.username = '';
-		this.origin.password = '';
+		initialize(this, options.proxyOptions);
 	}
 
 	async getSession(origin, options = {}, listeners = []) {

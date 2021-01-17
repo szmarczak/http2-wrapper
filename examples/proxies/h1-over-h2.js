@@ -3,10 +3,8 @@ const https = require('https');
 const http2 = require('../../source'); // Note: using the local version
 
 const agent = new http2.proxies.HttpsOverHttp2({
-	url: 'https://username:password@localhost:8000',
 	proxyOptions: {
-		// If the proxy doesn't process TLS sockets automatically, set this to `true`.
-		raw: true,
+		url: 'https://username:password@localhost:8000',
 
 		// For demo purposes only!
 		rejectUnauthorized: false
