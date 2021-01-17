@@ -1,12 +1,7 @@
 'use strict';
-// See https://github.com/facebook/jest/issues/2549
-// eslint-disable-next-line node/prefer-global/url
-const {URL} = require('url');
 const http = require('http');
 const https = require('https');
-const {Agent} = require('../agent');
-const JSStreamSocket = require('../utils/js-stream-socket');
-const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
+const Http2OverHttpX = require('./h2-over-hx');
 
 const getStream = request => new Promise((resolve, reject) => {
 	const onConnect = (response, socket, head) => {
@@ -28,35 +23,8 @@ const getStream = request => new Promise((resolve, reject) => {
 	request.once('connect', onConnect);
 });
 
-class Http2OverHttp extends Agent {
-	constructor({url, proxyOptions = {}, agentOptions}) {
-		super(agentOptions);
-
-		this.origin = new URL(url);
-		this.proxyOptions = {...proxyOptions, headers: {...proxyOptions.headers}};
-
-		if (proxyOptions.raw === undefined) {
-			this.proxyOptions.raw = true;
-		} else if (typeof proxyOptions.raw !== 'boolean') {
-			throw new TypeError(`Expected 'proxyOptions.raw' to be a boolean, got ${typeof proxyOptions.raw}`);
-		}
-
-		const {username, password} = this.origin;
-		if (username || password) {
-			const data = `${username}:${password}`;
-
-			this.proxyOptions.headers['proxy-authorization'] = `Basic ${Buffer.from(data).toString('base64')}`;
-		}
-
-		this.origin.username = '';
-		this.origin.password = '';
-	}
-
-	async getSession(origin, options = {}, listeners = []) {
-		if (!(origin instanceof URL)) {
-			origin = new URL(origin);
-		}
-
+class Http2OverHttp extends Http2OverHttpX {
+	async _getProxyStream(authority) {
 		const network = this.origin.protocol === 'https:' ? https : http;
 
 		// `new URL('https://localhost/httpbin.org:443')` results in
@@ -64,48 +32,18 @@ class Http2OverHttp extends Agent {
 		const request = network.request({
 			hostname: this.origin.hostname,
 			port: this.origin.port,
-			path: `${origin.hostname}:${origin.port || 443}`,
+			path: authority,
 			...this.proxyOptions,
 			headers: {
 				...this.proxyOptions.headers,
-				host: `${origin.hostname}:${origin.port || 443}`
+				host: authority
 			},
 			method: 'CONNECT'
 		}).end();
 
-		try {
-			const stream = await getStream(request);
+		const stream = await getStream(request);
 
-			if (this.proxyOptions.raw) {
-				options.socket = stream;
-			} else {
-				options.createConnection = () => {
-					const socket = new JSStreamSocket(stream);
-					socket.encrypted = true;
-					socket.alpnProtocol = 'h2';
-					socket.servername = origin.hostname;
-					socket._handle.getpeername = out => {
-						out.family = undefined;
-						out.address = undefined;
-						out.port = origin.port || 443;
-					};
-
-					return socket;
-				};
-			}
-
-			return super.getSession(origin, options, listeners);
-		} catch (error) {
-			request.destroy();
-
-			if (listeners.length === 0) {
-				throw error;
-			}
-
-			for (const {reject} of listeners) {
-				reject(error);
-			}
-		}
+		return [stream, 200];
 	}
 }
 

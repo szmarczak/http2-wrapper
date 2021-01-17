@@ -48,7 +48,7 @@ module.exports = (options = {}) => {
 
 		const [type, credentials] = proxyAuthorization.split(' ');
 
-		return authorize(type, credentials);
+		return authorize(type.toLowerCase(), credentials);
 	};
 
 	const sendStatus = (source, statusCode) => {

@@ -3,7 +3,7 @@ const {key, cert} = require('../../test/helpers/certs');
 const createProxyServer = require('../../proxy-server');
 
 const authorize = (type, credentials) => {
-	if (type !== 'Basic') {
+	if (type !== 'basic') {
 		return false;
 	}
 
