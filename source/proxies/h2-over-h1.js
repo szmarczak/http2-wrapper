@@ -2,22 +2,16 @@
 const http = require('http');
 const https = require('https');
 const Http2OverHttpX = require('./h2-over-hx');
-const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
 
 const getStream = request => new Promise((resolve, reject) => {
 	const onConnect = (response, socket, head) => {
-		if (response.statusCode !== 200) {
-			reject(new UnexpectedStatusCodeError(response.statusCode));
-			return;
-		}
-
 		if (head.length > 0) {
 			reject(new Error(`Unexpected data: ${head}`));
 			return;
 		}
 
 		request.off('error', reject);
-		resolve(socket);
+		resolve([socket, response.statusCode]);
 	};
 
 	request.once('error', reject);
@@ -42,9 +36,7 @@ class Http2OverHttp extends Http2OverHttpX {
 			method: 'CONNECT'
 		}).end();
 
-		const stream = await getStream(request);
-
-		return [stream, 200];
+		return getStream(request);
 	}
 }
 
