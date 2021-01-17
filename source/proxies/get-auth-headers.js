@@ -9,7 +9,7 @@ module.exports = self => {
 
 		return {
 			'proxy-authorization': authorization,
-			'authorization': authorization
+			authorization
 		};
 	}
 

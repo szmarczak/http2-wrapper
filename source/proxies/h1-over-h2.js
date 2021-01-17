@@ -8,7 +8,7 @@ const initialize = require('./initialize');
 const getAuthorizationHeaders = require('./get-auth-headers');
 
 const createConnection = (self, options, callback) => {
-	void (async () => {
+	(async () => {
 		try {
 			const {proxyOptions} = self;
 			const {url, headers, raw} = proxyOptions;
