@@ -111,9 +111,10 @@ class ClientRequest extends Writable {
 		this.aborted = false;
 		this.reusedSocket = false;
 
-		if (options.headers) {
-			for (const [header, value] of Object.entries(options.headers)) {
-				this.setHeader(header, value);
+		const {headers} = options;
+		if (headers) {
+			for (const header in headers) {
+				this.setHeader(header, headers[header]);
 			}
 		}
 

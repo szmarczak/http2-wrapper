@@ -2,13 +2,13 @@
 // See https://github.com/facebook/jest/issues/2549
 // eslint-disable-next-line node/prefer-global/url
 const {URL} = require('url');
-const {setImmediate} = require('timers');
 const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
 const QuickLRU = require('quick-lru');
+const delayAsyncDestroy = require('./utils/delay-async-destroy');
 
-const kCurrentStreamsCount = Symbol('currentStreamsCount');
+const kCurrentStreamCount = Symbol('currentStreamCount');
 const kRequest = Symbol('request');
 const kOriginSet = Symbol('cachedOriginSet');
 const kGracefullyClosing = Symbol('gracefullyClosing');
@@ -101,7 +101,7 @@ const closeCoveredSessions = (where, session) => {
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
 
 			// Makes sure that the session can handle all requests from the covered session.
-			(coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount]) <= session.remoteSettings.maxConcurrentStreams
+			(coveredSession[kCurrentStreamCount] + session[kCurrentStreamCount]) <= session.remoteSettings.maxConcurrentStreams
 		) {
 			// This allows pending requests to finish and prevents making new requests.
 			gracefullyClose(coveredSession);
@@ -115,25 +115,25 @@ const closeSessionIfCovered = (where, coveredSession) => {
 		if (
 			coveredSession[kOriginSet].length < session[kOriginSet].length &&
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
-			(coveredSession[kCurrentStreamsCount] + session[kCurrentStreamsCount]) <= session.remoteSettings.maxConcurrentStreams
+			(coveredSession[kCurrentStreamCount] + session[kCurrentStreamCount]) <= session.remoteSettings.maxConcurrentStreams
 		) {
 			gracefullyClose(coveredSession);
+
+			return true;
 		}
 	}
+
+	return false;
 };
 
-const getSessions = ({agent, isFree}) => {
+const getSessions = (agent, filter) => {
 	const result = {};
 
 	// eslint-disable-next-line guard-for-in
 	for (const normalizedOptions in agent.sessions) {
 		const sessions = agent.sessions[normalizedOptions];
 
-		const filtered = sessions.filter(session => {
-			const result = session[Agent.kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams;
-
-			return isFree ? result : !result;
-		});
+		const filtered = sessions.filter(filter);
 
 		if (filtered.length > 0) {
 			result[normalizedOptions] = filtered;
@@ -146,20 +146,14 @@ const getSessions = ({agent, isFree}) => {
 const gracefullyClose = session => {
 	session[kGracefullyClosing] = true;
 
-	if (session[kCurrentStreamsCount] === 0) {
+	if (session[kCurrentStreamCount] === 0) {
 		session.close();
 	}
 };
 
 class Agent extends EventEmitter {
-	constructor({timeout = 60000, maxSessions = Number.POSITIVE_INFINITY, maxFreeSessions = 10, maxCachedTlsSessions = 100} = {}) {
+	constructor({timeout = 0, maxSessions = Number.POSITIVE_INFINITY, maxEmptySessions = 10, maxCachedTlsSessions = 100} = {}) {
 		super();
-
-		// A session is considered busy when its current streams count
-		// is equal to or greater than the `maxConcurrentStreams` value.
-
-		// A session is considered free when its current streams count
-		// is less than the `maxConcurrentStreams` value.
 
 		// SESSIONS[NORMALIZED_OPTIONS] = [];
 		this.sessions = {};
@@ -179,12 +173,11 @@ class Agent extends EventEmitter {
 		// Max sessions in total
 		this.maxSessions = maxSessions;
 
-		// Max free sessions in total
-		// TODO: decreasing `maxFreeSessions` should close some sessions
-		this.maxFreeSessions = maxFreeSessions;
+		// Max empty sessions in total
+		this.maxEmptySessions = maxEmptySessions;
 
-		this._freeSessionsCount = 0;
-		this._sessionsCount = 0;
+		this._emptySessionCount = 0;
+		this._sessionCount = 0;
 
 		// We don't support push streams by default.
 		this.settings = {
@@ -214,18 +207,15 @@ class Agent extends EventEmitter {
 	}
 
 	_processQueue() {
+		if (this._sessionCount >= this.maxSessions) {
+			this.closeFreeSessions(this.maxSessions - this._sessionCount + 1);
+			return;
+		}
+
 		// eslint-disable-next-line guard-for-in
 		for (const normalizedOptions in this.queue) {
 			// eslint-disable-next-line guard-for-in
 			for (const normalizedOrigin in this.queue[normalizedOptions]) {
-				if (this._sessionsCount >= this.maxSessions) {
-					if (this.closeFreeSessions(1)) {
-						setImmediate(() => this._processQueue());
-					}
-
-					return;
-				}
-
 				const item = this.queue[normalizedOptions][normalizedOrigin];
 
 				// The entry function can be run only once.
@@ -235,6 +225,23 @@ class Agent extends EventEmitter {
 					item();
 				}
 			}
+		}
+	}
+
+	_isBetterSession(thisStreamCount, thatStreamCount) {
+		return thisStreamCount > thatStreamCount;
+	}
+
+	_accept(session, listeners, normalizedOrigin, options) {
+		while (listeners.length > 0 && session[kCurrentStreamCount] < session.remoteSettings.maxConcurrentStreams) {
+			// We assume `resolve(...)` calls `request(...)` *directly*,
+			// otherwise the session will get overloaded.
+			listeners.shift().resolve(session);
+		}
+
+		if (listeners.length > 0) {
+			this.getSession(normalizedOrigin, options, listeners);
+			listeners.length = 0;
 		}
 	}
 
@@ -254,7 +261,6 @@ class Agent extends EventEmitter {
 				// Parse origin
 				if (typeof origin === 'string') {
 					origin = new URL(origin);
-					origin.href = origin.origin;
 				} else if (!(origin instanceof URL)) {
 					throw new TypeError('The `origin` argument needs to be a string or an URL object');
 				}
@@ -308,7 +314,7 @@ class Agent extends EventEmitter {
 						continue;
 					}
 
-					const sessionCurrentStreamsCount = session[kCurrentStreamsCount];
+					const sessionCurrentStreamsCount = session[kCurrentStreamCount];
 
 					if (
 						sessionCurrentStreamsCount >= sessionMaxConcurrentStreams ||
@@ -325,30 +331,15 @@ class Agent extends EventEmitter {
 						maxConcurrentStreams = sessionMaxConcurrentStreams;
 					}
 
-					// We're looking for the session which has biggest current pending stream count,
-					// in order to minimalize the amount of active sessions.
-					if (sessionCurrentStreamsCount > currentStreamsCount) {
+					// Either get the session which has biggest current stream count or the lowest.
+					if (this._isBetterSession(sessionCurrentStreamsCount, currentStreamsCount)) {
 						optimalSession = session;
 						currentStreamsCount = sessionCurrentStreamsCount;
 					}
 				}
 
 				if (optimalSession) {
-					/* istanbul ignore next: safety check */
-					if (listeners.length !== 1) {
-						const error = new Error(
-							`Expected the length of listeners to be 1, got ${listeners.length}.\n` +
-							'Please report this to https://github.com/szmarczak/http2-wrapper/'
-						);
-
-						for (const {reject} of listeners) {
-							reject(error);
-						}
-
-						return;
-					}
-
-					listeners[0].resolve(optimalSession);
+					this._accept(optimalSession, listeners, normalizedOrigin, options);
 					return;
 				}
 			}
@@ -367,20 +358,16 @@ class Agent extends EventEmitter {
 			// 1. the session connects successfully,
 			// 2. an error occurs.
 			const removeFromQueue = () => {
-				// Our entry can be replaced. We cannot remove the new one.
-				if (normalizedOptions in this.queue && this.queue[normalizedOptions][normalizedOrigin] === entry) {
+				if (Object.keys(this.queue[normalizedOptions]).length === 1) {
+					delete this.queue[normalizedOptions];
+				} else {
 					delete this.queue[normalizedOptions][normalizedOrigin];
-
-					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
-						delete this.queue[normalizedOptions];
-					}
 				}
 			};
 
 			// The main logic is here
 			const entry = async () => {
-				this._sessionsCount++;
-				this._freeSessionsCount++;
+				this._sessionCount++;
 
 				const name = `${normalizedOrigin}:${normalizedOptions}`;
 				let receivedSettings = false;
@@ -395,15 +382,14 @@ class Agent extends EventEmitter {
 					};
 
 					// A hacky workaround to enable async `createConnection`
-					socket = await this.createConnection(origin, computedOptions);
+					socket = await computedOptions.createConnection(origin, computedOptions);
 					computedOptions.createConnection = () => socket;
 
 					const session = http2.connect(origin, computedOptions);
-					session[kCurrentStreamsCount] = 0;
+					session[kCurrentStreamCount] = 0;
 					session[kGracefullyClosing] = false;
 
-					const isFree = () => session[kCurrentStreamsCount] < session.remoteSettings.maxConcurrentStreams;
-					let wasFree = true;
+					const isFree = () => session[kCurrentStreamCount] < session.remoteSettings.maxConcurrentStreams;
 
 					session.socket.once('session', tlsSession => {
 						this.tlsSessionCache.set(name, tlsSession);
@@ -425,35 +411,31 @@ class Agent extends EventEmitter {
 					});
 
 					session.once('close', () => {
-						this._sessionsCount--;
-
-						// 1. If it wasn't free then no need to decrease because
-						//    it has been decreased already in session.request().
-						// 2. `stream.once('close')` won't increment the count
-						//    because the session is already closed.
-						if (wasFree) {
-							this._freeSessionsCount--;
-						}
+						this._sessionCount--;
 
 						if (receivedSettings) {
+							// Assumes session `close` is emitted after request `close`
+							this._emptySessionCount--;
+
 							// This cannot be moved to the stream logic,
 							// because there may be a session that hadn't made a single request.
 							const where = this.sessions[normalizedOptions];
-							where.splice(where.indexOf(session), 1);
 
-							if (where.length === 0) {
+							if (where.length === 1) {
 								delete this.sessions[normalizedOptions];
+							} else {
+								where.splice(where.indexOf(session), 1);
 							}
 						} else {
 							// Broken connection
+							removeFromQueue();
+
 							const error = new Error('Session closed without receiving a SETTINGS frame');
 							error.code = 'HTTP2WRAPPER_NOSETTINGS';
 
 							for (const {reject} of listeners) {
 								reject(error);
 							}
-
-							removeFromQueue();
 						}
 
 						// There may be another session awaiting.
@@ -462,13 +444,14 @@ class Agent extends EventEmitter {
 
 					// Iterates over the queue and processes listeners.
 					const processListeners = () => {
-						if (!(normalizedOptions in this.queue)) {
+						const queue = this.queue[normalizedOptions];
+						if (!queue) {
 							return;
 						}
 
 						for (const origin of session[kOriginSet]) {
-							if (origin in this.queue[normalizedOptions]) {
-								const {listeners} = this.queue[normalizedOptions][origin];
+							if (origin in queue) {
+								const {listeners} = queue[origin];
 
 								// Prevents session overloading.
 								while (listeners.length > 0 && isFree()) {
@@ -477,7 +460,7 @@ class Agent extends EventEmitter {
 									listeners.shift().resolve(session);
 								}
 
-								const where = this.queue[normalizedOptions];
+								const where = queue;
 								if (where[origin].listeners.length === 0) {
 									delete where[origin];
 
@@ -501,8 +484,7 @@ class Agent extends EventEmitter {
 						session[kGracefullyClosing] = false;
 						closeSessionIfCovered(this.sessions[normalizedOptions], session);
 
-						if (!isFree()) {
-							// The session is full.
+						if (session[kGracefullyClosing] || !isFree()) {
 							return;
 						}
 
@@ -528,6 +510,8 @@ class Agent extends EventEmitter {
 							session.destroy();
 							return;
 						}
+
+						removeFromQueue();
 
 						session[kOriginSet] = session.originSet;
 
@@ -555,22 +539,14 @@ class Agent extends EventEmitter {
 						}
 
 						receivedSettings = true;
+						this._emptySessionCount++;
 
 						this.emit('session', session);
 
-						processListeners();
-						removeFromQueue();
+						this._accept(session, listeners, normalizedOrigin, options);
 
-						// TODO: Close last recently used (or least used?) session
-						if (session[kCurrentStreamsCount] === 0 && this._freeSessionsCount > this.maxFreeSessions) {
-							session.close();
-						}
-
-						// Check if we haven't managed to execute all listeners.
-						if (listeners.length > 0) {
-							// Request for a new session with predefined listeners.
-							this.getSession(normalizedOrigin, options, listeners);
-							listeners.length = 0;
+						if (session[kCurrentStreamCount] === 0 && this._emptySessionCount > this.maxFreeSessions) {
+							this.closeFreeSessions(this._emptySessionCount - this.maxFreeSessions);
 						}
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
@@ -580,6 +556,10 @@ class Agent extends EventEmitter {
 							}
 
 							processListeners();
+
+							if (!isFree()) {
+								return;
+							}
 
 							// In case the Origin Set changes
 							closeCoveredSessions(this.sessions[normalizedOptions], session);
@@ -598,48 +578,28 @@ class Agent extends EventEmitter {
 						// The process won't exit until the session is closed or all requests are gone.
 						session.ref();
 
-						++session[kCurrentStreamsCount];
-
-						if (session[kCurrentStreamsCount] === session.remoteSettings.maxConcurrentStreams) {
-							this._freeSessionsCount--;
+						if (session[kCurrentStreamCount]++ === 0) {
+							this._emptySessionCount--;
 						}
 
 						stream.once('close', () => {
-							wasFree = isFree();
+							if (--session[kCurrentStreamCount] === 0) {
+								this._emptySessionCount++;
+								session.unref();
 
-							--session[kCurrentStreamsCount];
+								if (this._emptySessionCount > this.maxFreeSessions || session[kGracefullyClosing]) {
+									session.close();
+									return;
+								}
+							}
 
 							if (!session.destroyed && !session.closed) {
-								closeSessionIfCovered(this.sessions[normalizedOptions], session);
+								if (isFree() && !closeSessionIfCovered(this.sessions[normalizedOptions], session)) {
+									closeCoveredSessions(this.sessions[normalizedOptions], session);
+									processListeners();
 
-								if (isFree() && !session.closed) {
-									if (!wasFree) {
-										this._freeSessionsCount++;
-
-										wasFree = true;
-									}
-
-									const isEmpty = () => session[kCurrentStreamsCount] === 0;
-
-									if (isEmpty()) {
-										session.unref();
-									}
-
-									if (
-										isEmpty() &&
-										(
-											this._freeSessionsCount > this.maxFreeSessions ||
-											session[kGracefullyClosing]
-										)
-									) {
-										session.close();
-									} else {
-										closeCoveredSessions(this.sessions[normalizedOptions], session);
-										processListeners();
-
-										if (isEmpty()) {
-											this._processQueue();
-										}
+									if (session[kCurrentStreamCount] === 0) {
+										this._processQueue();
 									}
 								}
 							}
@@ -648,16 +608,14 @@ class Agent extends EventEmitter {
 						return stream;
 					};
 				} catch (error) {
-					this._sessionsCount--;
-					this._freeSessionsCount--;
+					removeFromQueue();
+					this._sessionCount--;
 
 					socket.destroy();
 
 					for (const listener of listeners) {
 						listener.reject(error);
 					}
-
-					removeFromQueue();
 				}
 			};
 
@@ -679,17 +637,7 @@ class Agent extends EventEmitter {
 						const stream = session.request(headers, streamOptions);
 
 						// Do not throw before `request(...)` has been awaited
-						// TODO: test this somehow.
-						stream.__destroy = stream._destroy;
-						stream._destroy = async (...args) => {
-							const callback = args.pop();
-
-							const next = Promise.resolve();
-							stream.__destroy(...args, async error => {
-								await next;
-								callback(error);
-							});
-						};
+						delayAsyncDestroy(stream);
 
 						resolve(stream);
 					} catch (error) {
@@ -728,35 +676,40 @@ class Agent extends EventEmitter {
 	}
 
 	closeFreeSessions(maxCount = Number.POSITIVE_INFINITY) {
-		let success = false;
+		let closedCount = 0;
 
-		for (const sessions of Object.values(this.sessions)) {
-			for (const session of sessions) {
-				if (session[kCurrentStreamsCount] === 0) {
+		const {sessions} = this;
+
+		for (const key of sessions) {
+			for (const session of sessions[key]) {
+				if (session[kCurrentStreamCount] === 0) {
+					closedCount++;
 					session.close();
 
-					success = true;
-
-					if (--maxCount <= 0) {
-						return true;
+					if (closedCount >= maxCount) {
+						return closedCount;
 					}
 				}
 			}
 		}
 
-		return success;
+		return closedCount;
 	}
 
 	destroy(reason) {
-		for (const sessions of Object.values(this.sessions)) {
-			for (const session of sessions) {
+		const {sessions, queue} = this;
+
+		for (const key in sessions) {
+			for (const session of sessions[key]) {
 				session.destroy(reason);
 			}
 		}
 
-		for (const entriesOfAuthority of Object.values(this.queue)) {
-			for (const entry of Object.values(entriesOfAuthority)) {
-				entry.destroyed = true;
+		for (const normalizedOptions in queue) {
+			const entries = queue[normalizedOptions];
+
+			for (const normalizedOrigin in entries) {
+				entries[normalizedOrigin].destroyed = true;
 			}
 		}
 
@@ -764,16 +717,20 @@ class Agent extends EventEmitter {
 		this.queue = {};
 	}
 
-	get freeSessions() {
-		return getSessions({agent: this, isFree: true});
+	get emptySessions() {
+		return getSessions(this, session => session[kCurrentStreamCount] === 0);
+	}
+
+	get pendingSessions() {
+		return getSessions(this, session => session[kCurrentStreamCount] !== 0);
 	}
 
 	get busySessions() {
-		return getSessions({agent: this, isFree: false});
+		return getSessions(this, session => session[kCurrentStreamCount] >= session.remoteSettings.maxConcurrentStreams);
 	}
 }
 
-Agent.kCurrentStreamsCount = kCurrentStreamsCount;
+Agent.kCurrentStreamCount = kCurrentStreamCount;
 Agent.kGracefullyClosing = kGracefullyClosing;
 
 module.exports = {

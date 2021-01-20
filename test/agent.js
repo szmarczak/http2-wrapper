@@ -1431,3 +1431,23 @@ test('can process different sessions on session close', wrapper, async (t, serve
 
 	await secondServer.close();
 });
+
+test.only('session becomes free on remoteSettings maxConcurrentStreams update', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent();
+
+	server.on('session', session => {
+		session.settings({
+			maxConcurrentStreams: 2
+		});
+	});
+
+	const session = await agent.getSession(server.url);
+	const request = session.request({}, {endStream: false});
+
+	t.is(agent._freeSessionsCount, 0);
+	await pEvent(session, 'remoteSettings');
+	t.is(agent._freeSessionsCount, 1);
+
+	request.close();
+	agent.destroy();
+});
