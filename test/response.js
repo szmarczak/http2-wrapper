@@ -66,6 +66,7 @@ test('`.destroy()` works', wrapper, async (t, server) => {
 	response.destroy(new Error(message));
 
 	const error = await pEvent(request, 'error');
+	t.true(response.aborted);
 	t.is(error.message, message);
 	t.true(response.req._request.destroyed);
 });
