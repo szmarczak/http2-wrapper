@@ -42,7 +42,9 @@ class IncomingMessage extends Readable {
 		// See https://github.com/nodejs/node/issues/35303
 		callback();
 
-		this.req._request.destroy(error);
+		if (this.aborted) {
+			this.req._request.destroy(error);
+		}
 	}
 
 	setTimeout(ms, callback) {
