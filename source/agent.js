@@ -668,7 +668,7 @@ class Agent extends EventEmitter {
 
 		const {sessions} = this;
 
-		for (const key of sessions) {
+		for (const key in sessions) {
 			for (const session of sessions[key]) {
 				if (session[kCurrentStreamCount] === 0) {
 					closedCount++;
@@ -711,6 +711,10 @@ class Agent extends EventEmitter {
 
 	get pendingSessionCount() {
 		return this._sessionCount - this._emptySessionCount;
+	}
+
+	get sessionCount() {
+		return this._sessionCount;
 	}
 }
 

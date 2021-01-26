@@ -63,22 +63,6 @@ test('sessions are not busy if still can make requests', wrapper, async (t, serv
 	agent.destroy();
 });
 
-test('sessions are busy when cannot make requests', singleRequestWrapper, async (t, server) => {
-	const agent = new Agent();
-	const request = await agent.request(server.url);
-	request.end().resume();
-
-	t.is(Object.values(agent.busySessions)[0].length, 1);
-	t.is(Object.values(agent.freeSessions).length, 0);
-
-	await pEvent(request, 'close');
-
-	t.is(Object.values(agent.busySessions).length, 0);
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
-
-	agent.destroy();
-});
-
 test('gives free sessions if available', wrapper, async (t, server) => {
 	const agent = new Agent();
 	const first = await agent.getSession(server.url);
@@ -119,49 +103,32 @@ test('gives the queued session if exists', wrapper, async (t, server) => {
 	agent.destroy();
 });
 
-test.serial('`timeout` option', wrapper.lolex, async (t, server, clock) => {
-	{
-		// Patch global `setImmediate`
-		const fn = global.setImmediate;
-		global.setImmediate = (...args) => {
-			fn(...args);
-
-			global.setImmediate = fn;
-			clock.runAll();
-		};
-	}
-
+test('`timeout` option', wrapper, async (t, server) => {
 	const timeout = 500;
 	const agent = new Agent({timeout});
 
 	const started = Date.now();
 	const session = await agent.getSession(server.url);
 
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
-
-	clock.tick(timeout);
+	t.is(agent.emptySessionCount, 1);
 
 	await pEvent(session, 'close');
 	const now = Date.now();
 	const difference = now - started;
 
-	t.is(Object.values(agent.freeSessions).length, 0);
+	t.is(agent.sessionCount, 0);
 	t.true(difference >= timeout, `Timeout did not exceed ${timeout}ms (${difference}ms)`);
 
 	agent.destroy();
 });
 
-test.serial('`timeout` option - endless response', singleRequestWrapper.lolex, async (t, server, clock) => {
+test('`timeout` option - endless response', singleRequestWrapper, async (t, server) => {
 	const timeout = 1000;
 	const agent = new Agent({timeout});
 
 	const secondStream = await agent.request(server.url, {}, {}, {endStream: false});
 
-	const promise = pEvent(secondStream, 'close');
-
-	clock.tick(timeout);
-
-	await promise;
+	await pEvent(secondStream, 'close');
 	t.pass();
 
 	agent.destroy();
@@ -226,12 +193,12 @@ test('can destroy free sessions', wrapper, async (t, server) => {
 	const agent = new Agent();
 	const session = await agent.getSession(server.url);
 
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
+	t.is(agent.emptySessionCount, 1);
 
 	agent.destroy();
 	await pEvent(session, 'close');
 
-	t.is(Object.values(agent.freeSessions).length, 0);
+	t.is(agent.sessionCount, 0);
 });
 
 test('creates new session if there are no free sessions', singleRequestWrapper, async (t, server) => {
@@ -239,31 +206,21 @@ test('creates new session if there are no free sessions', singleRequestWrapper, 
 
 	const agent = new Agent();
 
-	t.is(Object.values(agent.freeSessions).length, 0);
-	t.is(Object.values(agent.busySessions).length, 0);
-
 	const first = await agent.request(server.url, server.options, {
 		':path': '/infinite'
 	});
-
-	t.is(Object.values(agent.freeSessions).length, 0);
-	t.is(Object.values(agent.busySessions)[0].length, 1);
 
 	const second = await agent.request(server.url, server.options, {
 		':path': '/infinite'
 	});
 
-	const closeEvents = [pEvent(first.session, 'close'), pEvent(second.session, 'close')];
+	t.not(first.session, second.session);
 
-	t.is(Object.values(agent.freeSessions).length, 0);
-	t.is(Object.values(agent.busySessions)[0].length, 2);
+	const closeEvents = [pEvent(first.session, 'close'), pEvent(second.session, 'close')];
 
 	agent.destroy();
 
 	await Promise.all(closeEvents);
-
-	t.is(Object.values(agent.freeSessions).length, 0);
-	t.is(Object.values(agent.busySessions).length, 0);
 });
 
 test('can destroy busy sessions', singleRequestWrapper, async (t, server) => {
@@ -479,21 +436,19 @@ test('`.settings` property', wrapper, async (t, server) => {
 	agent.destroy();
 });
 
-test.serial('caches a TLS session when successfully connected', wrapper, async (t, server) => {
+test('caches a TLS session when successfully connected', wrapper, async (t, server) => {
 	const agent = new Agent();
 
 	await agent.getSession(server.url);
-	await setImmediateAsync();
 
 	t.true(is.buffer(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
 
 	agent.destroy();
 });
 
-test.serial('reuses a TLS session', wrapper, async (t, server) => {
+test('reuses a TLS session', wrapper, async (t, server) => {
 	const agent = new Agent();
 	const session = await agent.getSession(server.url);
-	await setImmediateAsync();
 
 	const tlsSession = agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`);
 
@@ -508,11 +463,10 @@ test.serial('reuses a TLS session', wrapper, async (t, server) => {
 	agent.destroy();
 });
 
-test.serial('purges the TLS session cache on session error', wrapper, async (t, server) => {
+test('purges the TLS session cache on session error', wrapper, async (t, server) => {
 	const agent = new Agent();
 
 	const session = await agent.getSession(server.url);
-	await setImmediateAsync();
 
 	t.true(is.buffer(agent.tlsSessionCache.get(`${server.url}:${agent.normalizeOptions()}`)));
 
@@ -731,11 +685,11 @@ test('`.freeSessions` may contain closed sessions', wrapper, async (t, server) =
 	agent.destroy();
 });
 
-test('`maxFreeSessions` set to 0 causes to close the session after running through the queue', wrapper, async (t, server) => {
+test('`maxEmptySessions` set to 0 causes to close the session after running through the queue', wrapper, async (t, server) => {
 	const agent = new Agent();
 	const sessionPromise = agent.getSession(server.url);
 
-	agent.maxFreeSessions = 0;
+	agent.maxEmptySessions = 0;
 
 	const session = await sessionPromise;
 	await setImmediateAsync();
@@ -745,9 +699,9 @@ test('`maxFreeSessions` set to 0 causes to close the session after running throu
 	agent.destroy();
 });
 
-test.serial('respects `.maxFreeSessions` changes', singleRequestWrapper, async (t, server) => {
+test('respects `.maxEmptySessions` changes', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent({
-		maxFreeSessions: 2
+		maxEmptySessions: 2
 	});
 
 	let count = 0;
@@ -760,7 +714,7 @@ test.serial('respects `.maxFreeSessions` changes', singleRequestWrapper, async (
 	const stream = await agent.request(server.url, {}, {}, {endStream: false});
 	const streamSession = stream.session;
 
-	agent.maxFreeSessions = 1;
+	agent.maxEmptySessions = 1;
 	stream.close();
 
 	const session = await agent.getSession(server.url);
@@ -1058,7 +1012,7 @@ test('properly calculates session count #2', wrapper, async (t, server) => {
 	const {session} = await agent.request(server.url);
 
 	t.is(agent.sessionCount, 1);
-	t.is(agent.emptySessionCount, 1);
+	t.is(agent.emptySessionCount, 0);
 
 	agent.destroy();
 
@@ -1112,7 +1066,7 @@ test('properly calculates session count #4', singleRequestWrapper, async (t, ser
 	await pEvent(request, 'close');
 
 	t.is(agent.sessionCount, 1);
-	t.is(agent.emptySessionCount, 0);
+	t.is(agent.emptySessionCount, 1);
 
 	await pEvent(session, 'close');
 
