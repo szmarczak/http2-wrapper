@@ -61,15 +61,9 @@ class ClientRequest extends Writable {
 
 			this.protocol = this[kSession].socket.encrypted ? 'https:' : 'http:';
 		} else if (options.agent === false) {
-			this.agent = new Agent({maxFreeSessions: 0});
+			this.agent = new Agent({maxEmptySessions: 0});
 		} else if (typeof options.agent === 'undefined' || options.agent === null) {
-			if (typeof options.createConnection === 'function') {
-				// This is a workaround - we don't have to create the session on our own.
-				this.agent = new Agent({maxFreeSessions: 0});
-				this.agent.createConnection = options.createConnection;
-			} else {
-				this.agent = globalAgent;
-			}
+			this.agent = globalAgent;
 		} else if (typeof options.agent.request === 'function') {
 			this.agent = options.agent;
 		} else {

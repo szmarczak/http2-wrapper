@@ -126,23 +126,6 @@ const closeSessionIfCovered = (where, coveredSession) => {
 	return false;
 };
 
-const getSessions = (agent, filter) => {
-	const result = {};
-
-	// eslint-disable-next-line guard-for-in
-	for (const normalizedOptions in agent.sessions) {
-		const sessions = agent.sessions[normalizedOptions];
-
-		const filtered = sessions.filter(filter);
-
-		if (filtered.length > 0) {
-			result[normalizedOptions] = filtered;
-		}
-	}
-
-	return result;
-};
-
 const gracefullyClose = session => {
 	session[kGracefullyClosing] = true;
 
@@ -358,10 +341,13 @@ class Agent extends EventEmitter {
 			// 1. the session connects successfully,
 			// 2. an error occurs.
 			const removeFromQueue = () => {
-				if (Object.keys(this.queue[normalizedOptions]).length === 1) {
-					delete this.queue[normalizedOptions];
-				} else {
+				// Our entry can be replaced. We cannot remove the new one.
+				if (normalizedOptions in this.queue && this.queue[normalizedOptions][normalizedOrigin] === entry) {
 					delete this.queue[normalizedOptions][normalizedOrigin];
+
+					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+						delete this.queue[normalizedOptions];
+					}
 				}
 			};
 
@@ -511,8 +497,6 @@ class Agent extends EventEmitter {
 							return;
 						}
 
-						removeFromQueue();
-
 						session[kOriginSet] = session.originSet;
 
 						const mainOrigin = session[kOriginSet][0];
@@ -526,6 +510,8 @@ class Agent extends EventEmitter {
 							session.destroy();
 							return;
 						}
+
+						removeFromQueue();
 
 						{
 							const where = this.sessions;
@@ -545,8 +531,8 @@ class Agent extends EventEmitter {
 
 						this._accept(session, listeners, normalizedOrigin, options);
 
-						if (session[kCurrentStreamCount] === 0 && this._emptySessionCount > this.maxFreeSessions) {
-							this.closeFreeSessions(this._emptySessionCount - this.maxFreeSessions);
+						if (session[kCurrentStreamCount] === 0 && this._emptySessionCount > this.maxEmptySessions) {
+							this.closeFreeSessions(this._emptySessionCount - this.maxEmptySessions);
 						}
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
@@ -587,7 +573,7 @@ class Agent extends EventEmitter {
 								this._emptySessionCount++;
 								session.unref();
 
-								if (this._emptySessionCount > this.maxFreeSessions || session[kGracefullyClosing]) {
+								if (this._emptySessionCount > this.maxEmptySessions || session[kGracefullyClosing]) {
 									session.close();
 									return;
 								}
@@ -611,7 +597,9 @@ class Agent extends EventEmitter {
 					removeFromQueue();
 					this._sessionCount--;
 
-					socket.destroy();
+					if (socket) {
+						socket.destroy();
+					}
 
 					for (const listener of listeners) {
 						listener.reject(error);
@@ -717,16 +705,12 @@ class Agent extends EventEmitter {
 		this.queue = {};
 	}
 
-	get emptySessions() {
-		return getSessions(this, session => session[kCurrentStreamCount] === 0);
+	get emptySessionCount() {
+		return this._emptySessionCount;
 	}
 
-	get pendingSessions() {
-		return getSessions(this, session => session[kCurrentStreamCount] !== 0);
-	}
-
-	get busySessions() {
-		return getSessions(this, session => session[kCurrentStreamCount] >= session.remoteSettings.maxConcurrentStreams);
+	get pendingSessionCount() {
+		return this._sessionCount - this._emptySessionCount;
 	}
 }
 

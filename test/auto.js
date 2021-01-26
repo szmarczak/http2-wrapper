@@ -83,7 +83,7 @@ test('http2 agent', async t => {
 	const response = await pEvent(request, 'response');
 	const data = await getStream(response);
 	t.is(data, 'h2');
-	t.is(Object.keys(agent.freeSessions).length, 1);
+	t.is(agent.pendingSessionCount, 1);
 
 	agent.destroy();
 });
