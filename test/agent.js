@@ -1,3 +1,4 @@
+const {EventEmitter} = require('events');
 const {promisify} = require('util');
 const tls = require('tls');
 const test = require('ava');
@@ -523,16 +524,6 @@ test.serial('purges the TLS session cache on session error', wrapper, async (t, 
 	agent.destroy();
 });
 
-// eslint-disable-next-line ava/no-skip-test
-test.skip('throws on invalid usage', wrapper, async (t, server) => {
-	const agent = new Agent();
-	const session = await agent.getSession(server.url);
-
-	t.throws(() => session.request(), 'Invalid usage. Use `await agent.request(authority, options, headers)` instead.');
-
-	agent.destroy();
-});
-
 test('doesn\'t create a new session if there exists an authoritive one', wrapper, async (t, server) => {
 	server.on('session', session => {
 		session.origin('https://example.com');
@@ -1035,98 +1026,98 @@ test('no negative session count', async t => {
 	const agent = new Agent();
 	await t.throwsAsync(agent.getSession('https://localhost'));
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 });
 
 test('properly calculates session count #1', wrapper, async (t, server) => {
 	const agent = new Agent();
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 
 	const session = await agent.getSession(server.url);
 
-	t.is(agent._sessionsCount, 1);
-	t.is(agent._freeSessionsCount, 1);
+	t.is(agent.sessionCount, 1);
+	t.is(agent.emptySessionCount, 1);
 
 	agent.destroy();
 
 	await pEvent(session, 'close');
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 });
 
 test('properly calculates session count #2', wrapper, async (t, server) => {
 	const agent = new Agent();
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 
 	const {session} = await agent.request(server.url);
 
-	t.is(agent._sessionsCount, 1);
-	t.is(agent._freeSessionsCount, 1);
+	t.is(agent.sessionCount, 1);
+	t.is(agent.emptySessionCount, 1);
 
 	agent.destroy();
 
 	await pEvent(session, 'close');
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 });
 
 test('properly calculates session count #3', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 
 	const request = await agent.request(server.url);
 	const {session} = request;
 
-	t.is(agent._sessionsCount, 1);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 1);
+	t.is(agent.emptySessionCount, 0);
 
 	request.close();
 
 	await pEvent(request, 'close');
 
-	t.is(agent._sessionsCount, 1);
-	t.is(agent._freeSessionsCount, 1);
+	t.is(agent.sessionCount, 1);
+	t.is(agent.emptySessionCount, 1);
 
 	session.close();
 
 	await pEvent(session, 'close');
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 });
 
 test('properly calculates session count #4', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 
 	const request = await agent.request(server.url);
 	const {session} = request;
 
-	t.is(agent._sessionsCount, 1);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 1);
+	t.is(agent.emptySessionCount, 0);
 
 	session.destroy();
 
 	await pEvent(request, 'close');
 
-	t.is(agent._sessionsCount, 1);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 1);
+	t.is(agent.emptySessionCount, 0);
 
 	await pEvent(session, 'close');
 
-	t.is(agent._sessionsCount, 0);
-	t.is(agent._freeSessionsCount, 0);
+	t.is(agent.sessionCount, 0);
+	t.is(agent.emptySessionCount, 0);
 });
 
 test('catches session.request() errors', wrapper, async (t, server) => {
@@ -1349,32 +1340,6 @@ test('sessions are sorted highest to lowest capacity', tripleRequestWrapper, asy
 	await secondServer.close();
 });
 
-// eslint-disable-next-line ava/no-skip-test
-test.skip('supports custom hosts', async t => {
-	const server = await createServer({
-		origins: ['https://example.com']
-	});
-
-	server.get('/', (request, response) => {
-		response.end('ok');
-	});
-
-	await server.listen();
-
-	const agent = new Agent();
-
-	await agent.getSession('https://example.com', {host: 'localhost', port: server.options.port});
-
-	const stream = await agent.request('https://example.com');
-	const body = await getStream(stream);
-
-	t.is(body, 'ok');
-
-	agent.destroy();
-
-	await server.close();
-});
-
 test('no infinity loop', wrapper, async (t, server) => {
 	server.get('/', (request, response) => {
 		response.end('ok');
@@ -1432,21 +1397,30 @@ test('can process different sessions on session close', wrapper, async (t, serve
 	await secondServer.close();
 });
 
-test.only('session becomes free on remoteSettings maxConcurrentStreams update', singleRequestWrapper, async (t, server) => {
+test('session becomes free on remoteSettings maxConcurrentStreams update', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
+	const emitter = new EventEmitter();
 
-	server.on('session', session => {
+	server.on('session', async session => {
+		await pEvent(emitter, 'ack');
+
 		session.settings({
 			maxConcurrentStreams: 2
 		});
 	});
 
-	const session = await agent.getSession(server.url);
-	const request = session.request({}, {endStream: false});
+	const a = await agent.getSession(server.url);
+	const request = a.request({}, {endStream: false});
 
-	t.is(agent._freeSessionsCount, 0);
-	await pEvent(session, 'remoteSettings');
-	t.is(agent._freeSessionsCount, 1);
+	const b = await agent.getSession(server.url);
+	emitter.emit('ack');
+
+	await pEvent(a, 'remoteSettings');
+
+	const c = await agent.getSession(server.url);
+
+	t.is(a, c);
+	t.not(a, b);
 
 	request.close();
 	agent.destroy();
