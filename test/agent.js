@@ -253,7 +253,8 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 		t.false(session[Agent.kGracefullyClosing]);
 		await pEvent(session, 'close');
 
-		t.is(Object.values(agent.freeSessions).length, 0);
+		t.is(agent.emptySessionCount, 0);
+		t.is(agent.pendingSessionCount, 0);
 
 		agent.destroy();
 	}
@@ -267,7 +268,9 @@ test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrappe
 
 		t.false(session.closed);
 		t.false(session[Agent.kGracefullyClosing]);
-		t.is(Object.values(agent.freeSessions).length, 1);
+
+		t.is(agent.emptySessionCount, 0);
+		t.is(agent.pendingSessionCount, 1);
 
 		agent.destroy();
 	}
@@ -656,28 +659,28 @@ test('uses sessions which are more loaded to use fewer connections', tripleReque
 	agent.destroy();
 });
 
-test('`.freeSessions` may contain destroyed sessions', wrapper, async (t, server) => {
+test('`.sessions` may contain destroyed sessions', wrapper, async (t, server) => {
 	const agent = new Agent();
 	const session = await agent.getSession(server.url);
 	session.destroy();
 
-	t.is(Object.values(agent.freeSessions).length, 1);
-	t.is(Object.values(Object.values(agent.freeSessions)[0]).length, 1);
+	t.is(Object.values(agent.sessions).length, 1);
 
-	t.true(Object.values(Object.values(agent.freeSessions)[0])[0].destroyed);
+	const that = Object.values(agent.sessions)[0][0];
+
+	t.true(that.destroyed);
 
 	agent.destroy();
 });
 
-test('`.freeSessions` may contain closed sessions', wrapper, async (t, server) => {
+test('`.sessions` may contain closed sessions', wrapper, async (t, server) => {
 	const agent = new Agent();
 	const session = await agent.getSession(server.url);
 	session.close();
 
-	t.is(Object.values(agent.freeSessions).length, 1);
-	t.is(Object.values(Object.values(agent.freeSessions)[0]).length, 1);
+	t.is(Object.values(agent.sessions).length, 1);
 
-	const that = Object.values(Object.values(agent.freeSessions)[0])[0];
+	const that = Object.values(agent.sessions)[0][0];
 
 	t.true(that.closed);
 	t.false(that[Agent.kGracefullyClosing]);
