@@ -18,7 +18,6 @@ const {
 } = require('./proxies/h2-over-h1');
 const validateHeaderName = require('./utils/validate-header-name');
 const validateHeaderValue = require('./utils/validate-header-value');
-const optional = require('./utils/optional-for-nodejs');
 
 const request = (url, options, callback) => {
 	return new ClientRequest(url, options, callback);
@@ -32,7 +31,8 @@ const get = (url, options, callback) => {
 	return req;
 };
 
-module.exports = optional(http2, {
+module.exports = {
+	...http2,
 	ClientRequest,
 	IncomingMessage,
 	Agent,
@@ -49,4 +49,4 @@ module.exports = optional(http2, {
 	},
 	validateHeaderName,
 	validateHeaderValue
-}, '15.7.0');
+};

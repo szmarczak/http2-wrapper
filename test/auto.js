@@ -620,7 +620,7 @@ test('http2 works (Internet connection)', async t => {
 
 test('throws when ALPNProtocols is invalid', async t => {
 	await t.throwsAsync(http2.auto({
-		ALPNProtocols: undefined
+		ALPNProtocols: 1
 	}), {
 		message: 'The `ALPNProtocols` option must be an Array with at least one entry'
 	});
