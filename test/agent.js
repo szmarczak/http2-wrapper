@@ -319,10 +319,24 @@ test('throws on servername mismatch', wrapper, async (t, server) => {
 	});
 });
 
-test('appends to freeSessions after the stream has ended', singleRequestWrapper, async (t, server) => {
+test('prevents session overloading #1', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent();
+
+	const requestPromises = Promise.all([
+		agent.request(server.url, {}, {}, {endStream: false}),
+		agent.request(server.url, {}, {}, {endStream: false})
+	]);
+
+	const requests = await requestPromises;
+	t.not(requests[0].session, requests[1].session);
+
+	agent.destroy();
+});
+
+test('prevents session overloading #2', singleRequestWrapper, async (t, server) => {
 	server.get('/', () => {});
 
-	const agent = new Agent({maxFreeSessions: 2});
+	const agent = new Agent();
 
 	const firstRequest = await agent.request(server.url, {}, {}, {endStream: false});
 	const secondRequest = await agent.request(server.url, {}, {}, {endStream: false});
@@ -339,28 +353,7 @@ test('appends to freeSessions after the stream has ended', singleRequestWrapper,
 	thirdRequest.close();
 	await pEvent(thirdRequest, 'close');
 
-	await setImmediateAsync();
-
-	t.is(Object.values(agent.freeSessions).length, 1);
-
-	// The following is needed for Node.js >= 14,
-	// as the session may be in the middle of the destroy process.
-	const filtered = Object.values(agent.freeSessions)[0].filter(session => !session.destroyed);
-	t.is(filtered.length, 2);
-
-	agent.destroy();
-});
-
-test('prevents overloading sessions', singleRequestWrapper, async (t, server) => {
-	const agent = new Agent();
-
-	const requestPromises = Promise.all([
-		agent.request(server.url, {}, {}, {endStream: false}),
-		agent.request(server.url, {}, {}, {endStream: false})
-	]);
-
-	const requests = await requestPromises;
-	t.not(requests[0].session, requests[1].session);
+	t.is(agent.sessionCount, 2);
 
 	agent.destroy();
 });
@@ -401,28 +394,6 @@ test('sessions can be manually overloaded', singleRequestWrapper, async (t, serv
 	];
 
 	t.is(requests[0].session, requests[1].session);
-
-	agent.destroy();
-});
-
-test('sessions can be manually overloaded #2', singleRequestWrapper, async (t, server) => {
-	server.get('/', (request, response) => {
-		response.end();
-	});
-
-	const agent = new Agent();
-
-	const session = await agent.getSession(server.url);
-	const requests = [
-		session.request({}, {endStream: false}),
-		session.request({}, {endStream: false})
-	];
-
-	requests[0].end();
-
-	await pEvent(requests[0], 'close');
-
-	t.pass();
 
 	agent.destroy();
 });
@@ -927,9 +898,7 @@ test('prevents overloading sessions #4', tripleRequestWrapper, async (t, server)
 });
 
 test('a session can cover other session by increasing its streams count limit', singleRequestWrapper, async (t, server) => {
-	const agent = new Agent({
-		maxFreeSessions: 2
-	});
+	const agent = new Agent();
 
 	const serverSessionAPromise = pEvent(server, 'session');
 	const sessionA = await agent.getSession(server.url);
@@ -1318,7 +1287,7 @@ test('no infinity loop', wrapper, async (t, server) => {
 	});
 });
 
-test('closes free sessions automatically', wrapper, async (t, server) => {
+test('closes empty sessions automatically', wrapper, async (t, server) => {
 	const secondServer = await createServer();
 	await secondServer.listen();
 
@@ -1335,7 +1304,7 @@ test('closes free sessions automatically', wrapper, async (t, server) => {
 	await secondServer.close();
 });
 
-test('can process different sessions on session close', wrapper, async (t, server) => {
+test('can process another sessions on session close', wrapper, async (t, server) => {
 	const secondServer = await createServer();
 	await secondServer.listen();
 
