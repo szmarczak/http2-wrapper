@@ -17,6 +17,6 @@ module.exports = (self, proxyOptions = {}) => {
 		...proxyOptions,
 		headers: {...proxyOptions.headers},
 		url,
-		raw: Boolean(raw === undefined ? true : raw)
+		raw: raw === undefined ? true : Boolean(raw)
 	};
 };
