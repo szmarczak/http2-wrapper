@@ -1,12 +1,11 @@
 'use strict';
 // See https://github.com/facebook/jest/issues/2549
 // eslint-disable-next-line node/prefer-global/url
-const {URL} = require('url');
+const {URL, urlToHttpOptions} = require('url');
 const http2 = require('http2');
 const {Writable} = require('stream');
 const {Agent, globalAgent} = require('./agent');
 const IncomingMessage = require('./incoming-message');
-const urlToOptions = require('./utils/url-to-options');
 const proxyEvents = require('./utils/proxy-events');
 const {
 	ERR_INVALID_ARG_TYPE,
@@ -38,18 +37,21 @@ class ClientRequest extends Writable {
 			autoDestroy: false
 		});
 
-		const hasInput = typeof input === 'string' || input instanceof URL;
-		if (hasInput) {
-			input = urlToOptions(input instanceof URL ? input : new URL(input));
+		if (typeof input === 'string') {
+			input = urlToHttpOptions(new URL(input));
+		} else if (input instanceof URL) {
+			input = urlToHttpOptions(input);
+		} else {
+			input = {...input};
 		}
 
 		if (typeof options === 'function' || options === undefined) {
 			// (options, callback)
 			callback = options;
-			options = hasInput ? input : {...input};
+			options = input;
 		} else {
 			// (input, options, callback)
-			options = {...input, ...options};
+			options = Object.assign(input, options);
 		}
 
 		if (options.h2session) {

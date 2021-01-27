@@ -1,6 +1,9 @@
 'use strict';
 const http2 = require('http2');
-const agent = require('./agent');
+const {
+	Agent,
+	globalAgent
+} = require('./agent');
 const ClientRequest = require('./client-request');
 const IncomingMessage = require('./incoming-message');
 const auto = require('./auto');
@@ -15,6 +18,7 @@ const {
 } = require('./proxies/h2-over-h1');
 const validateHeaderName = require('./utils/validate-header-name');
 const validateHeaderValue = require('./utils/validate-header-value');
+const optional = require('./utils/optional-for-nodejs');
 
 const request = (url, options, callback) => {
 	return new ClientRequest(url, options, callback);
@@ -28,17 +32,11 @@ const get = (url, options, callback) => {
 	return req;
 };
 
-const [major, minor] = process.versions.node.split('.').map(x => Number(x));
-
-/* istanbul ignore next: fallback to native http2 module on Node.js <15.6 */
-const isStable = major === 15 ? minor >= 6 : major > 15;
-
-/* istanbul ignore next: fallback to native http2 module on Node.js <15.6 */
-module.exports = isStable ? {
-	...http2,
+module.exports = optional(http2, {
 	ClientRequest,
 	IncomingMessage,
-	...agent,
+	Agent,
+	globalAgent,
 	request,
 	get,
 	auto,
@@ -51,4 +49,4 @@ module.exports = isStable ? {
 	},
 	validateHeaderName,
 	validateHeaderValue
-} : http2;
+}, '15.7.0');
