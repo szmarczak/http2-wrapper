@@ -315,9 +315,9 @@ test('respects the `maxSessions` option', singleRequestWrapper, async (t, server
 	const requestPromise = agent.request(server.url, server.options, {}, {endStream: false});
 
 	t.is(typeof Object.values(Object.values(agent.queue)[0])[0], 'function');
-	t.is(Object.values(agent.freeSessions).length, 0);
-	t.is(Object.values(agent.busySessions).length, 1);
-	t.is(Object.values(agent.busySessions)[0].length, 1);
+	t.is(agent.emptySessionCount, 0);
+	t.is(agent.pendingSessionCount, 1);
+	t.is(agent.sessionCount, 1);
 
 	session.destroy();
 
@@ -1018,11 +1018,11 @@ test('gives free sessions if available', wrapper, async (t, server) => {
 	const agent = new Agent();
 	const first = await agent.getSession(server.url);
 
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
+	t.is(agent.emptySessionCount, 1);
 
 	const second = await agent.getSession(server.url);
 
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
+	t.is(agent.emptySessionCount, 1);
 	t.is(first, second);
 
 	agent.destroy();
@@ -1276,14 +1276,14 @@ test('`agent.destroy()` destroys busy sessions', singleRequestWrapper, async (t,
 		':path': '/infinite'
 	});
 
-	t.is(Object.values(agent.busySessions)[0].length, 1);
+	t.is(agent.pendingSessionCount, 1);
 
 	agent.destroy(new Error(message));
 
 	const error = await pEvent(request, 'error');
 	t.is(error.message, message);
 
-	t.is(Object.values(agent.busySessions).length, 0);
+	t.is(agent.pendingSessionCount, 0);
 });
 
 test('`agent.destroy()` makes pending sessions throw', wrapper, async (t, server) => {
