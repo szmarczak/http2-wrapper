@@ -390,6 +390,50 @@ test('respects the `maxSessions` option', singleRequestWrapper, async (t, server
 	agent.destroy();
 });
 
+test('respects the `maxSessions` option #2', singleRequestWrapper, async (t, server) => {
+	const secondServer = await createServer();
+
+	await secondServer.listen();
+
+	const agent = new Agent({
+		maxSessions: 1
+	});
+
+	const ssp = pEvent(server, 'session');
+
+	const a = await agent.request(server.url);
+
+	const onSession = () => {
+		t.fail('A new session was created');
+	};
+
+	agent.once('session', onSession);
+
+	const bp = agent.request(server.url);
+	const sp = agent.getSession(secondServer.url);
+
+	const ss = await ssp;
+
+	ss.settings({
+		maxConcurrentStreams: 2
+	});
+
+	agent.off('session', onSession);
+
+	const b = await bp;
+
+	a.close();
+	b.close();
+
+	await sp;
+
+	t.pass();
+
+	agent.destroy();
+
+	await secondServer.close();
+});
+
 test('creates new session if there are no free sessions', singleRequestWrapper, async (t, server) => {
 	server.get('/infinite', () => {});
 
@@ -1310,6 +1354,24 @@ test('processes session queue on session close', wrapper, async (t, server) => {
 	secondSession.close();
 
 	t.pass();
+
+	await secondServer.close();
+});
+
+test('multiple entries in the queue', wrapper, async (t, server) => {
+	const secondServer = await createServer();
+	await secondServer.listen();
+
+	const agent = new Agent();
+
+	const sessions = await Promise.all([
+		agent.getSession(server.url),
+		agent.getSession(secondServer.url)
+	]);
+
+	t.not(sessions[0], sessions[1]);
+
+	agent.destroy();
 
 	await secondServer.close();
 });
