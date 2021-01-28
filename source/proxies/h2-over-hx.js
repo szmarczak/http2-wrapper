@@ -1,7 +1,5 @@
 'use strict';
 // See https://github.com/facebook/jest/issues/2549
-// eslint-disable-next-line node/prefer-global/url
-const {URL} = require('url');
 const {Agent} = require('../agent');
 const JSStreamSocket = require('../utils/js-stream-socket');
 const UnexpectedStatusCodeError = require('./unexpected-status-code-error');

@@ -1197,7 +1197,7 @@ test('`maxEmptySessions` set to 0 causes to close the session after running thro
 		maxEmptySessions: 0
 	});
 
-	const session = await agent.getSession(server.url);;
+	const session = await agent.getSession(server.url);
 
 	t.true(session.destroyed);
 

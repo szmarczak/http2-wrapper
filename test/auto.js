@@ -158,7 +158,16 @@ test('http agent', async t => {
 	agent.destroy();
 });
 
-test('accepts string as URL', async t => {
+test('accepts a URL instance as input', async t => {
+	const request = await http2.auto(new URL(h2s.url));
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	const data = await getStream(response);
+	t.is(data, 'h2');
+});
+
+test('accepts string as input', async t => {
 	const request = await http2.auto(h2s.url);
 	request.end();
 

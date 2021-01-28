@@ -579,14 +579,16 @@ class Agent extends EventEmitter {
 								}
 							}
 
-							if (!session.destroyed && !session.closed) {
-								if (isFree() && !closeSessionIfCovered(this.sessions[normalizedOptions], session)) {
-									closeCoveredSessions(this.sessions[normalizedOptions], session);
-									processListeners();
+							if (session.destroyed || session.closed) {
+								return;
+							}
 
-									if (session[kCurrentStreamCount] === 0) {
-										this._processQueue();
-									}
+							if (isFree() && !closeSessionIfCovered(this.sessions[normalizedOptions], session)) {
+								closeCoveredSessions(this.sessions[normalizedOptions], session);
+								processListeners();
+
+								if (session[kCurrentStreamCount] === 0) {
+									this._processQueue();
 								}
 							}
 						});
@@ -668,6 +670,7 @@ class Agent extends EventEmitter {
 
 		const {sessions} = this;
 
+		// eslint-disable-next-line guard-for-in
 		for (const key in sessions) {
 			for (const session of sessions[key]) {
 				if (session[kCurrentStreamCount] === 0) {
@@ -687,15 +690,18 @@ class Agent extends EventEmitter {
 	destroy(reason) {
 		const {sessions, queue} = this;
 
+		// eslint-disable-next-line guard-for-in
 		for (const key in sessions) {
 			for (const session of sessions[key]) {
 				session.destroy(reason);
 			}
 		}
 
+		// eslint-disable-next-line guard-for-in
 		for (const normalizedOptions in queue) {
 			const entries = queue[normalizedOptions];
 
+			// eslint-disable-next-line guard-for-in
 			for (const normalizedOrigin in entries) {
 				entries[normalizedOrigin].destroyed = true;
 			}

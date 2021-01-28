@@ -109,6 +109,7 @@ class ClientRequest extends Writable {
 
 		const {headers} = options;
 		if (headers) {
+			// eslint-disable-next-line guard-for-in
 			for (const header in headers) {
 				this.setHeader(header, headers[header]);
 			}
