@@ -802,8 +802,6 @@ test('uses sessions which are more loaded to use fewer connections', tripleReque
 	// Third session: pending 0 requests / 3
 	sessions[2].closeRequests(3);
 
-	await setImmediateAsync();
-
 	const request = await agent.request(server.url, {}, {}, {endStream: false});
 	t.is(request.session, sessions[0].session);
 

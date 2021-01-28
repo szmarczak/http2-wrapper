@@ -10,7 +10,6 @@ const tempy = require('tempy');
 const is = require('@sindresorhus/is');
 const {request: makeRequest, get, constants, connect, Agent, globalAgent, createServer: createUnsecureServer} = require('../source');
 const {createWrapper, createServer, createProxyServer} = require('./helpers/server');
-const setImmediateAsync = require('./helpers/set-immediate-async');
 
 const delay = ms => new Promise(resolve => {
 	setTimeout(resolve, ms);
@@ -702,7 +701,6 @@ test('sets proper `:authority` header', wrapper, async (t, server) => {
 
 	const agent = new Agent();
 	await agent.getSession(server.url);
-	await setImmediateAsync();
 
 	const request = makeRequest('https://example.com', {agent}).end();
 	const response = await pEvent(request, 'response');
