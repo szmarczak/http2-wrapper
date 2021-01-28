@@ -1,9 +1,9 @@
 'use strict';
+const {urlToHttpOptions} = require('url');
 const http2 = require('http2');
 const https = require('https');
 const http = require('http');
 const Benchmark = require('benchmark');
-const urlToOptions = require('./source/utils/url-to-options');
 const wrapper = require('./source');
 
 // Configuration
@@ -17,12 +17,12 @@ const suite = new Benchmark.Suite();
 const session = http2.connect(destination);
 const wrapperSession = http2.connect(destination);
 
-const destinationOptions = urlToOptions(destination);
+const destinationOptions = urlToHttpOptions(destination);
 const destinationOptionsWithSession = {
 	...destinationOptions,
 	h2session: wrapperSession
 };
-const destinationHTTPOptions = urlToOptions(destinationHTTP);
+const destinationHTTPOptions = urlToHttpOptions(destinationHTTP);
 
 const httpsKeepAlive = {
 	agent: new https.Agent({keepAlive: true})
