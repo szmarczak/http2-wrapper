@@ -28,387 +28,7 @@ const tripleRequestWrapper = createWrapper({
 
 const message = 'Simple error';
 
-test('getSession() - passing string as `origin`', wrapper, async (t, server) => {
-	const agent = new Agent();
-	await t.notThrowsAsync(agent.getSession(server.url));
-
-	agent.destroy();
-});
-
-test('getSession() - passing URL as `origin`', wrapper, async (t, server) => {
-	const agent = new Agent();
-
-	await t.notThrowsAsync(agent.getSession(new URL(server.url)));
-
-	await t.throwsAsync(agent.getSession({}), {
-		message: 'The `origin` argument needs to be a string or an URL object'
-	});
-
-	agent.destroy();
-});
-
-test('sessions are not busy if still can make requests', wrapper, async (t, server) => {
-	const agent = new Agent();
-	const request = await agent.request(server.url);
-	request.end().resume();
-
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
-	t.is(Object.values(agent.busySessions).length, 0);
-
-	await pEvent(request, 'close');
-
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
-	t.is(Object.values(agent.busySessions).length, 0);
-
-	agent.destroy();
-});
-
-test('gives free sessions if available', wrapper, async (t, server) => {
-	const agent = new Agent();
-	const first = await agent.getSession(server.url);
-
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
-
-	const second = await agent.getSession(server.url);
-
-	t.is(Object.values(agent.freeSessions)[0].length, 1);
-	t.is(first, second);
-
-	agent.destroy();
-});
-
-test('gives the queued session if exists', wrapper, async (t, server) => {
-	server.get('/infinite', () => {});
-
-	const agent = new Agent({
-		maxSessions: 1
-	});
-
-	const firstPromise = agent.getSession(server.url, {});
-
-	t.is(Object.values(agent.queue).length, 1);
-	t.is(Object.values(Object.values(agent.queue)[0]).length, 1);
-
-	const queued = Object.values(Object.values(agent.queue)[0])[0];
-	t.is(typeof queued, 'function');
-
-	const secondPromise = agent.getSession(server.url, {});
-
-	t.is(Object.values(agent.queue).length, 1);
-	t.is(Object.values(Object.values(agent.queue)[0]).length, 1);
-
-	t.is(Object.values(Object.values(agent.queue)[0])[0], queued);
-	t.is(await firstPromise, await secondPromise);
-
-	agent.destroy();
-});
-
-test('`timeout` option', wrapper, async (t, server) => {
-	const timeout = 500;
-	const agent = new Agent({timeout});
-
-	const started = Date.now();
-	const session = await agent.getSession(server.url);
-
-	t.is(agent.emptySessionCount, 1);
-
-	await pEvent(session, 'close');
-	const now = Date.now();
-	const difference = now - started;
-
-	t.is(agent.sessionCount, 0);
-	t.true(difference >= timeout, `Timeout did not exceed ${timeout}ms (${difference}ms)`);
-
-	agent.destroy();
-});
-
-test('`timeout` option - endless response', singleRequestWrapper, async (t, server) => {
-	const timeout = 1000;
-	const agent = new Agent({timeout});
-
-	const secondStream = await agent.request(server.url, {}, {}, {endStream: false});
-
-	await pEvent(secondStream, 'close');
-	t.pass();
-
-	agent.destroy();
-});
-
-test('respects the `maxSessions` option', singleRequestWrapper, async (t, server) => {
-	server.get('/', (request, response) => {
-		process.nextTick(() => {
-			response.end();
-		});
-	});
-
-	const agent = new Agent({
-		maxSessions: 1
-	});
-
-	const {session} = (await agent.request(server.url, server.options, {}, {endStream: false})).end();
-	const requestPromise = agent.request(server.url, server.options, {}, {endStream: false});
-
-	t.is(typeof Object.values(Object.values(agent.queue)[0])[0], 'function');
-	t.is(Object.values(agent.freeSessions).length, 0);
-	t.is(Object.values(agent.busySessions).length, 1);
-	t.is(Object.values(agent.busySessions)[0].length, 1);
-
-	session.destroy();
-
-	const request = await requestPromise;
-	request.close();
-
-	agent.destroy();
-});
-
-test('doesn\'t break on session `close` event', singleRequestWrapper, async (t, server) => {
-	server.get('/', () => {});
-
-	const agent = new Agent();
-	const request = await agent.request(server.url);
-	const {session} = request;
-
-	const requestPromise = agent.request(server.url, {}, {}, {endStream: false});
-
-	const emit = request.emit.bind(request);
-	request.emit = (event, ...args) => {
-		if (event === 'error') {
-			t.pass();
-		} else {
-			emit(event, ...args);
-		}
-	};
-
-	session.close();
-
-	await requestPromise;
-
-	// Session `close` event is emitted after its streams send `close` event
-	t.plan(1);
-
-	agent.destroy();
-});
-
-test('can destroy free sessions', wrapper, async (t, server) => {
-	const agent = new Agent();
-	const session = await agent.getSession(server.url);
-
-	t.is(agent.emptySessionCount, 1);
-
-	agent.destroy();
-	await pEvent(session, 'close');
-
-	t.is(agent.sessionCount, 0);
-});
-
-test('creates new session if there are no free sessions', singleRequestWrapper, async (t, server) => {
-	server.get('/infinite', () => {});
-
-	const agent = new Agent();
-
-	const first = await agent.request(server.url, server.options, {
-		':path': '/infinite'
-	});
-
-	const second = await agent.request(server.url, server.options, {
-		':path': '/infinite'
-	});
-
-	t.not(first.session, second.session);
-
-	const closeEvents = [pEvent(first.session, 'close'), pEvent(second.session, 'close')];
-
-	agent.destroy();
-
-	await Promise.all(closeEvents);
-});
-
-test('can destroy busy sessions', singleRequestWrapper, async (t, server) => {
-	server.get('/infinite', () => {});
-
-	const agent = new Agent();
-
-	const request = await agent.request(server.url, server.options, {
-		':path': '/infinite'
-	});
-
-	t.is(Object.values(agent.busySessions)[0].length, 1);
-
-	agent.destroy(new Error(message));
-
-	const error = await pEvent(request, 'error');
-	t.is(error.message, message);
-
-	t.is(Object.values(agent.busySessions).length, 0);
-});
-
-test('`closeFreeSessions()` closes sessions with 0 pending streams only', wrapper, async (t, server) => {
-	{
-		const agent = new Agent();
-		const session = await agent.getSession(server.url);
-
-		agent.closeFreeSessions();
-
-		t.true(session.closed);
-		t.false(session[Agent.kGracefullyClosing]);
-		await pEvent(session, 'close');
-
-		t.is(agent.emptySessionCount, 0);
-		t.is(agent.pendingSessionCount, 0);
-
-		agent.destroy();
-	}
-
-	{
-		const agent = new Agent();
-		const session = await agent.getSession(server.url);
-		await agent.request(server.url);
-
-		agent.closeFreeSessions();
-
-		t.false(session.closed);
-		t.false(session[Agent.kGracefullyClosing]);
-
-		t.is(agent.emptySessionCount, 0);
-		t.is(agent.pendingSessionCount, 1);
-
-		agent.destroy();
-	}
-});
-
-test('throws if session is closed before receiving a SETTINGS frame', async t => {
-	const server = tls.createServer({key, cert, ALPNProtocols: ['h2']}, socket => {
-		socket.end();
-	});
-
-	server.listen = promisify(server.listen.bind(server));
-	server.close = promisify(server.close.bind(server));
-
-	await server.listen();
-
-	const agent = new Agent();
-
-	await t.throwsAsync(
-		agent.request(`https://localhost:${server.address().port}`, {}, {}, {endStream: false}),
-		{
-			message: 'Session closed without receiving a SETTINGS frame'
-		}
-	);
-
-	await server.close();
-});
-
-test('sessions are grouped into authorities and options`', wrapper, async (t, server) => {
-	const agent = new Agent();
-
-	const firstSession = await agent.getSession(server.url);
-	const secondSession = await agent.getSession(server.url, {
-		maxSessionMemory: 1
-	});
-
-	t.not(firstSession, secondSession);
-
-	agent.destroy();
-});
-
-test('throws on servername mismatch', wrapper, async (t, server) => {
-	const agent = new Agent();
-
-	await t.throwsAsync(agent.getSession(server.url, {servername: 'foobar'}), {
-		message: 'Origin localhost differs from servername foobar'
-	});
-});
-
-test('prevents session overloading #1', singleRequestWrapper, async (t, server) => {
-	const agent = new Agent();
-
-	const requestPromises = Promise.all([
-		agent.request(server.url, {}, {}, {endStream: false}),
-		agent.request(server.url, {}, {}, {endStream: false})
-	]);
-
-	const requests = await requestPromises;
-	t.not(requests[0].session, requests[1].session);
-
-	agent.destroy();
-});
-
-test('prevents session overloading #2', singleRequestWrapper, async (t, server) => {
-	server.get('/', () => {});
-
-	const agent = new Agent();
-
-	const firstRequest = await agent.request(server.url, {}, {}, {endStream: false});
-	const secondRequest = await agent.request(server.url, {}, {}, {endStream: false});
-	const thirdRequest = await agent.request(server.url, {}, {}, {endStream: false});
-
-	firstRequest.close();
-	secondRequest.close();
-
-	await Promise.all([
-		pEvent(firstRequest, 'close'),
-		pEvent(secondRequest, 'close')
-	]);
-
-	thirdRequest.close();
-	await pEvent(thirdRequest, 'close');
-
-	t.is(agent.sessionCount, 2);
-
-	agent.destroy();
-});
-
-test('prevents session overloading #3', singleRequestWrapper, async (t, server) => {
-	t.timeout(1000);
-
-	const agent = new Agent({
-		maxSessions: 1
-	});
-
-	const serverSessionAPromise = pEvent(server, 'session');
-	const sessionA = await agent.getSession(server.url);
-	const serverSessionA = await serverSessionAPromise;
-
-	sessionA.request({}, {endStream: false});
-
-	const sessionBPromise = agent.getSession(server.url);
-
-	serverSessionA.settings({
-		maxConcurrentStreams: 2
-	});
-
-	const sessionB = await sessionBPromise;
-
-	t.is(sessionA, sessionB);
-
-	agent.destroy();
-});
-
-test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
-	const agent = new Agent();
-
-	const session = await agent.getSession(server.url);
-	const requests = [
-		session.request({}, {endStream: false}),
-		session.request({}, {endStream: false})
-	];
-
-	t.is(requests[0].session, requests[1].session);
-
-	agent.destroy();
-});
-
-test('`.settings` property', wrapper, async (t, server) => {
-	const agent = new Agent();
-	agent.settings.maxHeaderListSize = 100;
-
-	const session = await agent.getSession(server.url);
-	await pEvent(session, 'localSettings');
-
-	t.is(session.localSettings.maxHeaderListSize, 100);
-
-	agent.destroy();
-});
+// ====================== TLS SESSIONS ======================
 
 test('caches a TLS session when successfully connected', wrapper, async (t, server) => {
 	const agent = new Agent();
@@ -452,182 +72,90 @@ test('purges the TLS session cache on session error', wrapper, async (t, server)
 	agent.destroy();
 });
 
-test('doesn\'t create a new session if there exists an authoritive one', wrapper, async (t, server) => {
-	server.on('session', session => {
-		session.origin('https://example.com');
+// ====================== CONSTRUCTOR ======================
+
+test('getSession() - passing string as `origin`', wrapper, async (t, server) => {
+	const agent = new Agent();
+	await t.notThrowsAsync(agent.getSession(server.url));
+
+	agent.destroy();
+});
+
+test('getSession() - passing URL as `origin`', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	await t.notThrowsAsync(agent.getSession(new URL(server.url)));
+
+	await t.throwsAsync(agent.getSession({}), {
+		message: 'The `origin` argument needs to be a string or an URL object'
 	});
 
+	agent.destroy();
+});
+
+test('`timeout` option', wrapper, async (t, server) => {
+	const timeout = 500;
+	const agent = new Agent({timeout});
+
+	const started = Date.now();
+	const session = await agent.getSession(server.url);
+
+	t.is(agent.emptySessionCount, 1);
+
+	await pEvent(session, 'close');
+	const now = Date.now();
+	const difference = now - started;
+
+	t.is(agent.sessionCount, 0);
+	t.true(difference >= timeout, `Timeout did not exceed ${timeout}ms (${difference}ms)`);
+
+	agent.destroy();
+});
+
+test('`timeout` option - endless response', singleRequestWrapper, async (t, server) => {
+	const timeout = 1000;
+	const agent = new Agent({timeout});
+
+	const secondStream = await agent.request(server.url, {}, {}, {endStream: false});
+
+	await pEvent(secondStream, 'close');
+	t.pass();
+
+	agent.destroy();
+});
+
+test('`.settings` property', wrapper, async (t, server) => {
 	const agent = new Agent();
+	agent.settings.maxHeaderListSize = 100;
 
 	const session = await agent.getSession(server.url);
-	await pEvent(session, 'origin');
+	await pEvent(session, 'localSettings');
 
-	t.is(await agent.getSession('https://example.com'), session);
+	t.is(session.localSettings.maxHeaderListSize, 100);
 
 	agent.destroy();
 });
 
-test('closes covered sessions - `origin` event', wrapper, async (t, server) => {
-	const secondServer = await createServer();
+test('`session` event', wrapper, async (t, server) => {
 	const agent = new Agent();
 
-	secondServer.on('session', session => {
-		session.origin(server.url);
+	let called = false;
+	agent.once('session', session => {
+		called = true;
+
+		t.false(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
 	});
-	await secondServer.listen();
 
-	const firstSession = await agent.getSession(server.url);
-	const secondSession = await agent.getSession(secondServer.url);
-	await pEvent(secondSession, 'origin');
-
-	t.true(firstSession.closed);
-	t.false(secondSession[Agent.kGracefullyClosing]);
-	t.false(secondSession.closed);
-	t.false(secondSession[Agent.kGracefullyClosing]);
-
-	t.true(firstSession.destroyed);
-	t.false(secondSession.destroyed);
+	await agent.getSession(server.url);
+	t.true(called);
 
 	agent.destroy();
-
-	await secondServer.close();
 });
 
-test('closes covered sessions - session no longer busy', singleRequestWrapper, async (t, server) => {
-	const secondServer = await createServer();
+test('`protocol` property', t => {
 	const agent = new Agent();
-
-	secondServer.on('session', session => {
-		session.origin(server.url);
-	});
-	await secondServer.listen();
-
-	const firstSession = await agent.getSession(server.url);
-	const request = await agent.request(server.url, {}, {}, {endStream: false});
-
-	const secondSession = await agent.getSession(secondServer.url);
-	await pEvent(secondSession, 'origin');
-
-	t.false(firstSession.closed);
-	t.true(firstSession[Agent.kGracefullyClosing]);
-	t.false(secondSession.closed);
-	t.false(secondSession[Agent.kGracefullyClosing]);
-
-	t.false(firstSession.destroyed);
-	t.false(firstSession.destroyed);
-
-	request.close();
-
-	await setImmediateAsync();
-
-	t.true(firstSession.destroyed);
-	t.false(secondSession.destroyed);
-
-	agent.destroy();
-
-	await secondServer.close();
-});
-
-test('doesn\'t close covered sessions if the current one is full', singleRequestWrapper, async (t, server) => {
-	const secondServer = await createServer();
-	const agent = new Agent();
-
-	await secondServer.listen();
-	server.on('session', session => {
-		session.origin(secondServer.url);
-	});
-
-	const request = await agent.request(server.url, {}, {}, {endStream: false});
-	const secondRequest = await agent.request(secondServer.url, {}, {}, {endStream: false});
-	const {session} = request;
-	const secondSession = secondRequest.session;
-
-	t.not(session, secondSession);
-	t.false(session.closed);
-	t.false(session[Agent.kGracefullyClosing]);
-	t.false(session.destroyed);
-	t.false(secondSession.closed);
-	t.false(secondSession[Agent.kGracefullyClosing]);
-	t.false(secondSession.destroyed);
-
-	request.close();
-
-	await setImmediateAsync();
-
-	t.false(session.closed);
-	t.false(session[Agent.kGracefullyClosing]);
-	t.false(session.destroyed);
-	t.false(secondSession.closed);
-	t.true(secondSession[Agent.kGracefullyClosing]);
-	t.false(secondSession.destroyed);
-
-	secondRequest.close();
-
-	agent.destroy();
-
-	await secondServer.close();
-});
-
-test('uses sessions which are more loaded to use fewer connections', tripleRequestWrapper, async (t, server) => {
-	const SESSIONS_COUNT = 3;
-
-	const agent = new Agent({maxFreeSessions: SESSIONS_COUNT});
-	const generateRequests = (session, count) => {
-		const requests = [];
-
-		for (let i = 0; i < count; i++) {
-			requests.push(session.request({}, {endStream: false}));
-		}
-
-		return requests;
-	};
-
-	// Prepare busy sessions
-	const sessions = [];
-	for (let i = 0; i < SESSIONS_COUNT; i++) {
-		// eslint-disable-next-line no-await-in-loop
-		const session = await agent.getSession(server.url);
-
-		sessions.push({
-			session,
-			requests: generateRequests(session, session.remoteSettings.maxConcurrentStreams),
-			closeRequests(count) {
-				if (!count) {
-					count = this.requests.length;
-				}
-
-				for (let i = 0; i < count; i++) {
-					this.requests.shift().close();
-				}
-			}
-		});
-	}
-
-	// First session: pending 2 requests / 3
-	sessions[0].closeRequests(1);
-
-	// Second session: pending 1 request / 3
-	sessions[1].closeRequests(2);
-
-	// Third session: pending 0 requests / 3
-	sessions[2].closeRequests(3);
-
-	await setImmediateAsync();
-
-	// Node.js 10 fails without this
-	await setImmediateAsync();
-
-	const request = await agent.request(server.url, {}, {}, {endStream: false});
-	t.is(request.session, sessions[0].session);
-
-	// Cleanup
-	request.close();
-
-	for (let i = 0; i < SESSIONS_COUNT; i++) {
-		sessions[i].closeRequests();
-	}
-
-	agent.destroy();
+	t.is(agent.protocol, 'https:');
 });
 
 test('`.sessions` may contain destroyed sessions', wrapper, async (t, server) => {
@@ -659,71 +187,169 @@ test('`.sessions` may contain closed sessions', wrapper, async (t, server) => {
 	agent.destroy();
 });
 
-test('`maxEmptySessions` set to 0 causes to close the session after running through the queue', wrapper, async (t, server) => {
+test('sessions are grouped into options and authorities`', wrapper, async (t, server) => {
 	const agent = new Agent();
-	const sessionPromise = agent.getSession(server.url);
 
-	agent.maxEmptySessions = 0;
+	const firstSession = await agent.getSession(server.url);
+	const secondSession = await agent.getSession(server.url, {
+		maxSessionMemory: 1
+	});
 
-	const session = await sessionPromise;
-	await setImmediateAsync();
-
-	t.true(session.destroyed);
+	t.not(firstSession, secondSession);
 
 	agent.destroy();
 });
 
-test('respects `.maxEmptySessions` changes', singleRequestWrapper, async (t, server) => {
+// ====================== SESSION OVERLOADING ======================
+
+test('prevents session overloading #1', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent();
+
+	const requestPromises = Promise.all([
+		agent.request(server.url, {}, {}, {endStream: false}),
+		agent.request(server.url, {}, {}, {endStream: false})
+	]);
+
+	const requests = await requestPromises;
+	t.not(requests[0].session, requests[1].session);
+
+	agent.destroy();
+});
+
+test('prevents session overloading #2', singleRequestWrapper, async (t, server) => {
+	t.timeout(1000);
+
 	const agent = new Agent({
-		maxEmptySessions: 2
+		maxSessions: 1
 	});
 
-	let count = 0;
-	agent.createConnection = (...args) => {
-		count++;
+	const serverSessionAPromise = pEvent(server, 'session');
+	const sessionA = await agent.getSession(server.url);
+	const serverSessionA = await serverSessionAPromise;
 
-		return Agent.connect(...args);
-	};
+	sessionA.request({}, {endStream: false});
 
-	const stream = await agent.request(server.url, {}, {}, {endStream: false});
-	const streamSession = stream.session;
+	const sessionBPromise = agent.getSession(server.url);
 
-	agent.maxEmptySessions = 1;
-	stream.close();
+	serverSessionA.settings({
+		maxConcurrentStreams: 2
+	});
+
+	const sessionB = await sessionBPromise;
+
+	t.is(sessionA, sessionB);
+
+	agent.destroy();
+});
+
+test('prevents session overloading #3', tripleRequestWrapper, async (t, server) => {
+	const agent = new Agent({
+		maxSessions: 2
+	});
+
+	const sessions = {};
+
+	{
+		const session = await agent.getSession(server.url);
+
+		sessions.a = session;
+		sessions.a.requests = [
+			session.request({}, {endStream: false}),
+			session.request({}, {endStream: false}),
+			session.request({}, {endStream: false})
+		];
+	}
+
+	{
+		const serverSessionPromise = pEvent(server, 'session');
+		const session = await agent.getSession(server.url);
+		const serverSession = await serverSessionPromise;
+
+		sessions.b = session;
+		sessions.b.requests = [
+			session.request({}, {endStream: false}),
+			session.request({}, {endStream: false}),
+			session.request({}, {endStream: false})
+		];
+
+		sessions.a.requests.shift().close();
+
+		serverSession.settings({
+			maxConcurrentStreams: 4
+		});
+
+		await pEvent(session, 'remoteSettings');
+	}
+
+	t.is(agent.pendingSessionCount, 2);
+
+	agent.destroy();
+});
+
+test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent();
 
 	const session = await agent.getSession(server.url);
-	t.is(session, streamSession);
-	t.is(count, 2);
+	const requests = [
+		session.request({}, {endStream: false}),
+		session.request({}, {endStream: false})
+	];
 
-	const lateSession = await pEvent(server, 'session');
-	await pEvent(lateSession, 'close');
+	t.is(requests[0].session, requests[1].session);
 
 	agent.destroy();
 });
 
-test('destroying causes pending sessions to throw', wrapper, async (t, server) => {
-	const agent = new Agent();
-	const sessionPromise = agent.getSession(server.url);
-
-	agent.destroy();
-
-	await t.throwsAsync(sessionPromise, {
-		message: 'Agent has been destroyed'
+test('respects the `maxSessions` option', singleRequestWrapper, async (t, server) => {
+	server.get('/', (request, response) => {
+		process.nextTick(() => {
+			response.end();
+		});
 	});
-});
 
-test('newly queued sessions should not throw after `agent.destroy()`', wrapper, async (t, server) => {
-	const agent = new Agent();
-	const sessionPromise = agent.getSession(server.url);
-	agent.destroy();
-
-	await t.throwsAsync(sessionPromise, {
-		message: 'Agent has been destroyed'
+	const agent = new Agent({
+		maxSessions: 1
 	});
-	await t.notThrowsAsync(agent.getSession(server.url));
+
+	const {session} = (await agent.request(server.url, server.options, {}, {endStream: false})).end();
+	const requestPromise = agent.request(server.url, server.options, {}, {endStream: false});
+
+	t.is(typeof Object.values(Object.values(agent.queue)[0])[0], 'function');
+	t.is(Object.values(agent.freeSessions).length, 0);
+	t.is(Object.values(agent.busySessions).length, 1);
+	t.is(Object.values(agent.busySessions)[0].length, 1);
+
+	session.destroy();
+
+	const request = await requestPromise;
+	request.close();
 
 	agent.destroy();
 });
+
+test('creates new session if there are no free sessions', singleRequestWrapper, async (t, server) => {
+	server.get('/infinite', () => {});
+
+	const agent = new Agent();
+
+	const first = await agent.request(server.url, server.options, {
+		':path': '/infinite'
+	});
+
+	const second = await agent.request(server.url, server.options, {
+		':path': '/infinite'
+	});
+
+	t.not(first.session, second.session);
+
+	const closeEvents = [pEvent(first.session, 'close'), pEvent(second.session, 'close')];
+
+	agent.destroy();
+
+	await Promise.all(closeEvents);
+});
+
+// ====================== COVERED SESSIONS ======================
 
 test('free sessions can become suddenly covered by shrinking their current streams count', tripleRequestWrapper, async (t, server) => {
 	const agent = new Agent({
@@ -852,52 +478,7 @@ test('busy sessions can become suddenly covered by shrinking their current strea
 	agent.destroy();
 });
 
-test('prevents overloading sessions #4', tripleRequestWrapper, async (t, server) => {
-	const agent = new Agent({
-		maxFreeSessions: 1
-	});
-
-	const sessions = {};
-
-	{
-		const session = await agent.getSession(server.url);
-
-		sessions.a = session;
-		sessions.a.requests = [
-			session.request({}, {endStream: false}),
-			session.request({}, {endStream: false}),
-			session.request({}, {endStream: false})
-		];
-	}
-
-	{
-		const serverSessionPromise = pEvent(server, 'session');
-		const session = await agent.getSession(server.url);
-		const serverSession = await serverSessionPromise;
-
-		sessions.b = session;
-		sessions.b.requests = [
-			session.request({}, {endStream: false}),
-			session.request({}, {endStream: false}),
-			session.request({}, {endStream: false})
-		];
-
-		sessions.a.requests.shift().close();
-
-		serverSession.settings({
-			maxConcurrentStreams: 4
-		});
-
-		await pEvent(session, 'remoteSettings');
-	}
-
-	t.is(Object.values(agent.freeSessions).length, 1);
-	t.is(Object.values(agent.freeSessions)[0].length, 2);
-
-	agent.destroy();
-});
-
-test('a session can cover other session by increasing its streams count limit', singleRequestWrapper, async (t, server) => {
+test('session can cover another session by increasing its streams count limit', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
 
 	const serverSessionAPromise = pEvent(server, 'session');
@@ -923,30 +504,159 @@ test('a session can cover other session by increasing its streams count limit', 
 	agent.destroy();
 });
 
-test('`session` event', wrapper, async (t, server) => {
+test('closes covered sessions - `origin` event', wrapper, async (t, server) => {
+	const secondServer = await createServer();
 	const agent = new Agent();
 
-	let called = false;
-	agent.once('session', session => {
-		called = true;
-
-		t.false(session.closed);
-		t.false(session[Agent.kGracefullyClosing]);
+	secondServer.on('session', session => {
+		session.origin(server.url);
 	});
+	await secondServer.listen();
 
-	await agent.getSession(server.url);
-	t.true(called);
+	const firstSession = await agent.getSession(server.url);
+	const secondSession = await agent.getSession(secondServer.url);
+	await pEvent(secondSession, 'origin');
+
+	t.true(firstSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
+	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
+
+	t.true(firstSession.destroyed);
+	t.false(secondSession.destroyed);
 
 	agent.destroy();
+
+	await secondServer.close();
 });
 
-test('errors on failure', async t => {
+test('closes covered sessions - session no longer busy', singleRequestWrapper, async (t, server) => {
+	const secondServer = await createServer();
 	const agent = new Agent();
-	const error = await t.throwsAsync(agent.getSession(new URL('https://localhost')));
 
-	t.is(error.port, 443);
-	t.is(error.address, '127.0.0.1');
+	secondServer.on('session', session => {
+		session.origin(server.url);
+	});
+	await secondServer.listen();
+
+	const firstSession = await agent.getSession(server.url);
+	const request = await agent.request(server.url, {}, {}, {endStream: false});
+
+	const secondSession = await agent.getSession(secondServer.url);
+	await pEvent(secondSession, 'origin');
+
+	t.false(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
+	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
+
+	t.false(firstSession.destroyed);
+	t.false(firstSession.destroyed);
+
+	request.close();
+
+	await setImmediateAsync();
+
+	t.true(firstSession.destroyed);
+	t.false(secondSession.destroyed);
+
+	agent.destroy();
+
+	await secondServer.close();
 });
+
+test('graceful close works', wrapper, async (t, server) => {
+	server.on('session', session => {
+		session.once('goaway', () => {
+			session.destroy('', constants.NGHTTP2_ENHANCE_YOUR_CALM);
+		});
+	});
+
+	const secondServer = await createServer({
+		origins: [
+			server.url
+		]
+	});
+
+	await secondServer.listen();
+
+	const agent = new Agent();
+
+	const firstSession = await agent.getSession(server.url);
+	const firstRequest = firstSession.request({}, {endStream: false});
+
+	const secondSession = await agent.getSession(secondServer.url);
+	await pEvent(secondSession, 'origin');
+
+	t.throws(() => firstSession.request(), {
+		message: 'The session is gracefully closing. No new streams are allowed.'
+	});
+
+	t.false(firstRequest.destroyed);
+	t.false(firstRequest.closed);
+
+	t.false(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
+
+	t.not(firstSession, secondSession);
+
+	const newRequest = await agent.request(server.url);
+	t.is(newRequest.session, secondSession);
+
+	newRequest.close();
+	firstRequest.close();
+
+	await pEvent(firstRequest, 'close');
+
+	t.true(firstSession.closed);
+	t.true(firstSession[Agent.kGracefullyClosing]);
+
+	agent.destroy();
+
+	await secondServer.close();
+});
+
+test('does not close covered sessions if the current one is full', singleRequestWrapper, async (t, server) => {
+	const secondServer = await createServer();
+	const agent = new Agent();
+
+	await secondServer.listen();
+	server.on('session', session => {
+		session.origin(secondServer.url);
+	});
+
+	const request = await agent.request(server.url, {}, {}, {endStream: false});
+	const secondRequest = await agent.request(secondServer.url, {}, {}, {endStream: false});
+	const {session} = request;
+	const secondSession = secondRequest.session;
+
+	t.not(session, secondSession);
+	t.false(session.closed);
+	t.false(session[Agent.kGracefullyClosing]);
+	t.false(session.destroyed);
+	t.false(secondSession.closed);
+	t.false(secondSession[Agent.kGracefullyClosing]);
+	t.false(secondSession.destroyed);
+
+	request.close();
+
+	await setImmediateAsync();
+
+	t.false(session.closed);
+	t.false(session[Agent.kGracefullyClosing]);
+	t.false(session.destroyed);
+	t.false(secondSession.closed);
+	t.true(secondSession[Agent.kGracefullyClosing]);
+	t.false(secondSession.destroyed);
+
+	secondRequest.close();
+
+	agent.destroy();
+
+	await secondServer.close();
+});
+
+// ====================== SESSION COUNT ======================
 
 test('no negative session count', async t => {
 	const agent = new Agent();
@@ -1046,18 +756,179 @@ test('properly calculates session count #4', singleRequestWrapper, async (t, ser
 	t.is(agent.emptySessionCount, 0);
 });
 
-test('catches session.request() errors', wrapper, async (t, server) => {
-	const agent = new Agent();
+// ====================== SESSION PICKING ======================
 
-	await t.throwsAsync(agent.request(server.url, {}, {}, false), {
-		code: 'ERR_INVALID_ARG_TYPE',
-		message: /^The "options" argument must be of type/
-	});
+test('uses sessions which are more loaded to use fewer connections', tripleRequestWrapper, async (t, server) => {
+	const SESSIONS_COUNT = 3;
+
+	const agent = new Agent({maxFreeSessions: SESSIONS_COUNT});
+	const generateRequests = (session, count) => {
+		const requests = [];
+
+		for (let i = 0; i < count; i++) {
+			requests.push(session.request({}, {endStream: false}));
+		}
+
+		return requests;
+	};
+
+	// Prepare busy sessions
+	const sessions = [];
+	for (let i = 0; i < SESSIONS_COUNT; i++) {
+		// eslint-disable-next-line no-await-in-loop
+		const session = await agent.getSession(server.url);
+
+		sessions.push({
+			session,
+			requests: generateRequests(session, session.remoteSettings.maxConcurrentStreams),
+			closeRequests(count) {
+				if (!count) {
+					count = this.requests.length;
+				}
+
+				for (let i = 0; i < count; i++) {
+					this.requests.shift().close();
+				}
+			}
+		});
+	}
+
+	// First session: pending 2 requests / 3
+	sessions[0].closeRequests(1);
+
+	// Second session: pending 1 request / 3
+	sessions[1].closeRequests(2);
+
+	// Third session: pending 0 requests / 3
+	sessions[2].closeRequests(3);
+
+	await setImmediateAsync();
+
+	const request = await agent.request(server.url, {}, {}, {endStream: false});
+	t.is(request.session, sessions[0].session);
+
+	// Cleanup
+	request.close();
+
+	for (let i = 0; i < SESSIONS_COUNT; i++) {
+		sessions[i].closeRequests();
+	}
 
 	agent.destroy();
 });
 
-test('makes requests on a session with biggest stream capacity', async t => {
+test('sessions are picked in an optimal way #1', tripleRequestWrapper, async (t, server) => {
+	server.get('/', () => {});
+
+	const agent = new Agent();
+	const requests = await Promise.all([
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url)
+	]);
+
+	t.is(requests[0].session, requests[1].session);
+	t.is(requests[0].session, requests[2].session);
+	t.is(requests[3].session, requests[4].session);
+	t.is(requests[3].session, requests[5].session);
+
+	{
+		const toDestroy = [0, 1, 5];
+
+		const wait = Promise.all(toDestroy.map(index => pEvent(requests[index], 'close')));
+
+		for (const index of toDestroy) {
+			requests[index].destroy();
+		}
+
+		await wait;
+	}
+
+	const newer = await agent.request(server.url);
+
+	t.is(newer.session, requests[4].session);
+
+	agent.destroy();
+});
+
+test('sessions are picked in an optimal way #2', tripleRequestWrapper, async (t, server) => {
+	server.get('/', () => {});
+
+	const agent = new Agent();
+	const requests = await Promise.all([
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url),
+		agent.request(server.url)
+	]);
+
+	t.is(requests[0].session, requests[1].session);
+	t.is(requests[0].session, requests[2].session);
+	t.is(requests[3].session, requests[4].session);
+	t.is(requests[3].session, requests[5].session);
+
+	{
+		const toDestroy = [0, 4, 5];
+
+		const wait = Promise.all(toDestroy.map(index => pEvent(requests[index], 'close')));
+
+		for (const index of toDestroy) {
+			requests[index].destroy();
+		}
+
+		await wait;
+	}
+
+	const newer = await agent.request(server.url);
+
+	t.is(newer.session, requests[2].session);
+
+	agent.destroy();
+});
+
+test('picks sessions with the highest stream capacity (single origin)', tripleRequestWrapper, async (t, server) => {
+	const secondServer = await createServer({
+		settings: {
+			maxConcurrentStreams: 1
+		}
+	});
+
+	const thirdServer = await createServer({
+		settings: {
+			maxConcurrentStreams: 4
+		}
+	});
+
+	await secondServer.listen();
+	await thirdServer.listen();
+
+	const agent = new Agent();
+
+	const sessions = [
+		await agent.getSession(server.url),
+		await agent.getSession(secondServer.url),
+		await agent.getSession(thirdServer.url)
+	];
+
+	t.is(Object.values(agent.sessions).length, 1);
+	t.deepEqual(Object.values(agent.sessions)[0], [
+		sessions[2],
+		sessions[0],
+		sessions[1]
+	]);
+
+	agent.destroy();
+
+	await thirdServer.close();
+	await secondServer.close();
+});
+
+test('picks sessions with the highest stream capacity (many origins)', async t => {
 	const server = await createServer({
 		settings: {
 			maxConcurrentStreams: 10
@@ -1099,231 +970,22 @@ test('makes requests on a session with biggest stream capacity', async t => {
 	await Promise.all([server, secondServer].map(server => server.close()));
 });
 
-test('graceful close works', wrapper, async (t, server) => {
+test('does not create a new session if there exists an authoritive one', wrapper, async (t, server) => {
 	server.on('session', session => {
-		session.once('goaway', () => {
-			session.destroy('', constants.NGHTTP2_ENHANCE_YOUR_CALM);
-		});
-	});
-
-	const secondServer = await createServer({
-		origins: [
-			server.url
-		]
-	});
-
-	await secondServer.listen();
-
-	const agent = new Agent();
-
-	const firstSession = await agent.getSession(server.url);
-	const firstRequest = firstSession.request({}, {endStream: false});
-
-	const secondSession = await agent.getSession(secondServer.url);
-	await pEvent(secondSession, 'origin');
-
-	t.throws(() => firstSession.request(), {
-		message: 'The session is gracefully closing. No new streams are allowed.'
-	});
-
-	t.false(firstRequest.destroyed);
-	t.false(firstRequest.closed);
-
-	t.false(firstSession.closed);
-	t.true(firstSession[Agent.kGracefullyClosing]);
-
-	t.not(firstSession, secondSession);
-
-	const newRequest = await agent.request(server.url);
-	t.is(newRequest.session, secondSession);
-
-	newRequest.close();
-	firstRequest.close();
-
-	await pEvent(firstRequest, 'close');
-
-	t.true(firstSession.closed);
-	t.true(firstSession[Agent.kGracefullyClosing]);
-
-	agent.destroy();
-
-	await secondServer.close();
-});
-
-test('`protocol` property', t => {
-	const agent = new Agent();
-	t.is(agent.protocol, 'https:');
-});
-
-test('session are being picked in an optimal way #1', tripleRequestWrapper, async (t, server) => {
-	server.get('/', () => {});
-
-	const agent = new Agent();
-	const requests = await Promise.all([
-		agent.request(server.url),
-		agent.request(server.url),
-		agent.request(server.url),
-		agent.request(server.url),
-		agent.request(server.url),
-		agent.request(server.url)
-	]);
-
-	t.is(requests[0].session, requests[1].session);
-	t.is(requests[0].session, requests[2].session);
-	t.is(requests[3].session, requests[4].session);
-	t.is(requests[3].session, requests[5].session);
-
-	{
-		const toDestroy = [0, 1, 5];
-
-		const wait = Promise.all(toDestroy.map(index => pEvent(requests[index], 'close')));
-
-		for (const index of toDestroy) {
-			requests[index].destroy();
-		}
-
-		await wait;
-	}
-
-	const newer = await agent.request(server.url);
-
-	t.is(newer.session, requests[4].session);
-
-	agent.destroy();
-});
-
-test('session are being picked in an optimal way #2', tripleRequestWrapper, async (t, server) => {
-	server.get('/', () => {});
-
-	const agent = new Agent();
-	const requests = await Promise.all([
-		agent.request(server.url),
-		agent.request(server.url),
-		agent.request(server.url),
-		agent.request(server.url),
-		agent.request(server.url),
-		agent.request(server.url)
-	]);
-
-	t.is(requests[0].session, requests[1].session);
-	t.is(requests[0].session, requests[2].session);
-	t.is(requests[3].session, requests[4].session);
-	t.is(requests[3].session, requests[5].session);
-
-	{
-		const toDestroy = [0, 4, 5];
-
-		const wait = Promise.all(toDestroy.map(index => pEvent(requests[index], 'close')));
-
-		for (const index of toDestroy) {
-			requests[index].destroy();
-		}
-
-		await wait;
-	}
-
-	const newer = await agent.request(server.url);
-
-	t.is(newer.session, requests[2].session);
-
-	agent.destroy();
-});
-
-test('sessions are sorted highest to lowest capacity', tripleRequestWrapper, async (t, server) => {
-	const secondServer = await createServer({
-		settings: {
-			maxConcurrentStreams: 1
-		}
-	});
-
-	const thirdServer = await createServer({
-		settings: {
-			maxConcurrentStreams: 4
-		}
-	});
-
-	await secondServer.listen();
-	await thirdServer.listen();
-
-	const agent = new Agent();
-
-	const sessions = [
-		await agent.getSession(server.url),
-		await agent.getSession(secondServer.url),
-		await agent.getSession(thirdServer.url)
-	];
-
-	t.is(Object.values(agent.sessions).length, 1);
-	t.deepEqual(Object.values(agent.sessions)[0], [
-		sessions[2],
-		sessions[0],
-		sessions[1]
-	]);
-
-	agent.destroy();
-
-	await thirdServer.close();
-	await secondServer.close();
-});
-
-test('no infinity loop', wrapper, async (t, server) => {
-	server.get('/', (request, response) => {
-		response.end('ok');
+		session.origin('https://example.com');
 	});
 
 	const agent = new Agent();
-
-	await t.throwsAsync((async () => {
-		await agent.getSession('https://example.com', {host: 'localhost', port: server.options.port});
-
-		const stream = await agent.request('https://example.com');
-		const body = await getStream(stream);
-
-		t.is(body, 'ok');
-
-		agent.destroy();
-	})(), {
-		message: `Requested origin https://example.com does not match server https://example.com:${server.options.port}`
-	});
-});
-
-test('closes empty sessions automatically', wrapper, async (t, server) => {
-	const secondServer = await createServer();
-	await secondServer.listen();
-
-	const agent = new Agent({maxSessions: 1});
 
 	const session = await agent.getSession(server.url);
-	const secondSession = await agent.getSession(secondServer.url);
+	await pEvent(session, 'origin');
 
-	t.true(session.closed);
-	t.false(secondSession.closed);
+	t.is(await agent.getSession('https://example.com'), session);
 
 	agent.destroy();
-
-	await secondServer.close();
 });
 
-test('can process another sessions on session close', wrapper, async (t, server) => {
-	const secondServer = await createServer();
-	await secondServer.listen();
-
-	const agent = new Agent({maxSessions: 1});
-
-	const request = await agent.request(server.url);
-	const secondSessionPromise = agent.getSession(secondServer.url, {rejectUnauthorized: false});
-
-	request.close();
-
-	const secondSession = await secondSessionPromise;
-	secondSession.close();
-
-	t.pass();
-
-	await secondServer.close();
-});
-
-test('session becomes free on remoteSettings maxConcurrentStreams update', singleRequestWrapper, async (t, server) => {
+test('session may become free on maxConcurrentStreams update', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
 	const emitter = new EventEmitter();
 
@@ -1350,4 +1012,287 @@ test('session becomes free on remoteSettings maxConcurrentStreams update', singl
 
 	request.close();
 	agent.destroy();
+});
+
+test('gives free sessions if available', wrapper, async (t, server) => {
+	const agent = new Agent();
+	const first = await agent.getSession(server.url);
+
+	t.is(Object.values(agent.freeSessions)[0].length, 1);
+
+	const second = await agent.getSession(server.url);
+
+	t.is(Object.values(agent.freeSessions)[0].length, 1);
+	t.is(first, second);
+
+	agent.destroy();
+});
+
+// ====================== ERRORS ======================
+
+test('throws on servername mismatch', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	await t.throwsAsync(agent.getSession(server.url, {servername: 'foobar'}), {
+		message: 'Origin localhost differs from servername foobar'
+	});
+});
+
+test('throws if session is closed before receiving a SETTINGS frame', async t => {
+	const server = tls.createServer({key, cert, ALPNProtocols: ['h2']}, socket => {
+		socket.end();
+	});
+
+	server.listen = promisify(server.listen.bind(server));
+	server.close = promisify(server.close.bind(server));
+
+	await server.listen();
+
+	const agent = new Agent();
+
+	await t.throwsAsync(
+		agent.request(`https://localhost:${server.address().port}`, {}, {}, {endStream: false}),
+		{
+			message: 'Session closed without receiving a SETTINGS frame'
+		}
+	);
+
+	await server.close();
+});
+
+test('newly queued sessions should not throw after `agent.destroy()`', wrapper, async (t, server) => {
+	const agent = new Agent();
+	const sessionPromise = agent.getSession(server.url);
+	agent.destroy();
+
+	await t.throwsAsync(sessionPromise, {
+		message: 'Agent has been destroyed'
+	});
+	await t.notThrowsAsync(agent.getSession(server.url));
+
+	agent.destroy();
+});
+
+test('errors on failure', async t => {
+	const agent = new Agent();
+	const error = await t.throwsAsync(agent.getSession(new URL('https://localhost')));
+
+	t.is(error.port, 443);
+	t.is(error.address, '127.0.0.1');
+});
+
+test('catches session.request() errors', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	await t.throwsAsync(agent.request(server.url, {}, {}, false), {
+		code: 'ERR_INVALID_ARG_TYPE',
+		message: /^The "options" argument must be of type/
+	});
+
+	agent.destroy();
+});
+
+test('no infinity loop on endpoint mismatch', wrapper, async (t, server) => {
+	server.get('/', (request, response) => {
+		response.end('ok');
+	});
+
+	const agent = new Agent();
+
+	await t.throwsAsync((async () => {
+		await agent.getSession('https://example.com', {host: 'localhost', port: server.options.port});
+
+		const stream = await agent.request('https://example.com');
+		const body = await getStream(stream);
+
+		t.is(body, 'ok');
+
+		agent.destroy();
+	})(), {
+		message: `Requested origin https://example.com does not match server https://example.com:${server.options.port}`
+	});
+});
+
+// ====================== EMPTY SESSIONS ======================
+
+test('`.closeEmptySessions()` works', wrapper, async (t, server) => {
+	{
+		const agent = new Agent();
+		const session = await agent.getSession(server.url);
+
+		agent.closeEmptySessions();
+
+		t.true(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
+		await pEvent(session, 'close');
+
+		t.is(agent.emptySessionCount, 0);
+		t.is(agent.pendingSessionCount, 0);
+
+		agent.destroy();
+	}
+
+	{
+		const agent = new Agent();
+		const session = await agent.getSession(server.url);
+		await agent.request(server.url);
+
+		agent.closeEmptySessions();
+
+		t.false(session.closed);
+		t.false(session[Agent.kGracefullyClosing]);
+
+		t.is(agent.emptySessionCount, 0);
+		t.is(agent.pendingSessionCount, 1);
+
+		agent.destroy();
+	}
+});
+
+test('respects `.maxEmptySessions` changes', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent({
+		maxEmptySessions: 2
+	});
+
+	let count = 0;
+	agent.createConnection = (...args) => {
+		count++;
+
+		return Agent.connect(...args);
+	};
+
+	const stream = await agent.request(server.url, {}, {}, {endStream: false});
+	const streamSession = stream.session;
+
+	agent.maxEmptySessions = 1;
+	stream.close();
+
+	const session = await agent.getSession(server.url);
+	t.is(session, streamSession);
+	t.is(count, 2);
+
+	const lateSession = await pEvent(server, 'session');
+	await pEvent(lateSession, 'close');
+
+	agent.destroy();
+});
+
+test('closes empty sessions automatically', wrapper, async (t, server) => {
+	const secondServer = await createServer();
+	await secondServer.listen();
+
+	const agent = new Agent({maxSessions: 1});
+
+	const session = await agent.getSession(server.url);
+	const secondSession = await agent.getSession(secondServer.url);
+
+	t.true(session.closed);
+	t.false(secondSession.closed);
+
+	agent.destroy();
+
+	await secondServer.close();
+});
+
+test('`maxEmptySessions` set to 0 causes to close the session after running through the queue', wrapper, async (t, server) => {
+	const agent = new Agent({
+		maxEmptySessions: 0
+	});
+
+	const session = await agent.getSession(server.url);;
+
+	t.true(session.destroyed);
+
+	agent.destroy();
+});
+
+// ====================== QUEUE ======================
+
+test('gives the queued session if exists', wrapper, async (t, server) => {
+	server.get('/infinite', () => {});
+
+	const agent = new Agent({
+		maxSessions: 1
+	});
+
+	const firstPromise = agent.getSession(server.url, {});
+
+	t.is(Object.values(agent.queue).length, 1);
+	t.is(Object.values(Object.values(agent.queue)[0]).length, 1);
+
+	const queued = Object.values(Object.values(agent.queue)[0])[0];
+	t.is(typeof queued, 'function');
+
+	const secondPromise = agent.getSession(server.url, {});
+
+	t.is(Object.values(agent.queue).length, 1);
+	t.is(Object.values(Object.values(agent.queue)[0]).length, 1);
+
+	t.is(Object.values(Object.values(agent.queue)[0])[0], queued);
+	t.is(await firstPromise, await secondPromise);
+
+	agent.destroy();
+});
+
+test('processes session queue on session close', wrapper, async (t, server) => {
+	const secondServer = await createServer();
+	await secondServer.listen();
+
+	const agent = new Agent({maxSessions: 1});
+
+	const request = await agent.request(server.url);
+	const secondSessionPromise = agent.getSession(secondServer.url, {rejectUnauthorized: false});
+
+	request.close();
+
+	const secondSession = await secondSessionPromise;
+	secondSession.close();
+
+	t.pass();
+
+	await secondServer.close();
+});
+
+// ====================== AGENT DESTROY ======================
+
+test('`agent.destroy()` destroys free sessions', wrapper, async (t, server) => {
+	const agent = new Agent();
+	const session = await agent.getSession(server.url);
+
+	t.is(agent.emptySessionCount, 1);
+
+	agent.destroy();
+	await pEvent(session, 'close');
+
+	t.is(agent.sessionCount, 0);
+});
+
+test('`agent.destroy()` destroys busy sessions', singleRequestWrapper, async (t, server) => {
+	server.get('/infinite', () => {});
+
+	const agent = new Agent();
+
+	const request = await agent.request(server.url, server.options, {
+		':path': '/infinite'
+	});
+
+	t.is(Object.values(agent.busySessions)[0].length, 1);
+
+	agent.destroy(new Error(message));
+
+	const error = await pEvent(request, 'error');
+	t.is(error.message, message);
+
+	t.is(Object.values(agent.busySessions).length, 0);
+});
+
+test('`agent.destroy()` makes pending sessions throw', wrapper, async (t, server) => {
+	const agent = new Agent();
+	const sessionPromise = agent.getSession(server.url);
+
+	agent.destroy();
+
+	await t.throwsAsync(sessionPromise, {
+		message: 'Agent has been destroyed'
+	});
 });

@@ -191,7 +191,7 @@ class Agent extends EventEmitter {
 
 	_processQueue() {
 		if (this._sessionCount >= this.maxSessions) {
-			this.closeFreeSessions(this.maxSessions - this._sessionCount + 1);
+			this.closeEmptySessions(this.maxSessions - this._sessionCount + 1);
 			return;
 		}
 
@@ -532,7 +532,7 @@ class Agent extends EventEmitter {
 						this._accept(session, listeners, normalizedOrigin, options);
 
 						if (session[kCurrentStreamCount] === 0 && this._emptySessionCount > this.maxEmptySessions) {
-							this.closeFreeSessions(this._emptySessionCount - this.maxEmptySessions);
+							this.closeEmptySessions(this._emptySessionCount - this.maxEmptySessions);
 						}
 
 						// `session.remoteSettings.maxConcurrentStreams` might get increased
@@ -663,7 +663,7 @@ class Agent extends EventEmitter {
 		return socket;
 	}
 
-	closeFreeSessions(maxCount = Number.POSITIVE_INFINITY) {
+	closeEmptySessions(maxCount = Number.POSITIVE_INFINITY) {
 		let closedCount = 0;
 
 		const {sessions} = this;
