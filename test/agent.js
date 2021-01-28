@@ -286,6 +286,69 @@ test('prevents session overloading #3', tripleRequestWrapper, async (t, server) 
 	agent.destroy();
 });
 
+test('prevents session overloading #4', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent({
+		maxSessions: 2
+	});
+
+	const serverSessionPromise = pEvent(server, 'session');
+
+	const stream = await agent.request(server.url);
+	const serverSession = await serverSessionPromise;
+
+	serverSession.settings({
+		maxConcurrentStreams: 2
+	});
+
+	const streams = await Promise.all([
+		agent.request(server.url),
+		agent.request(server.url)
+	]);
+
+	t.is(streams[0].session, stream.session);
+	t.not(streams[0].session, streams[1].session);
+
+	agent.destroy();
+});
+
+test('prevents session overloading #5', singleRequestWrapper, async (t, server) => {
+	const secondServer = await createServer();
+	await secondServer.listen();
+
+	const agent = new Agent({
+		maxSessions: 2
+	});
+
+	const serverSessionPromise = pEvent(server, 'session');
+
+	const session = await agent.getSession(server.url);
+	const serverSession = await serverSessionPromise;
+
+	serverSession.origin(secondServer.url);
+
+	await new Promise((resolve, reject) => {
+		session.prependOnceListener('origin', async () => {
+			try {
+				const streams = await Promise.all([
+					agent.request(secondServer.url),
+					agent.request(secondServer.url)
+				]);
+
+				t.is(streams[0].session, session);
+				t.not(streams[0].session, streams[1].session);
+			} catch (error) {
+				reject(error);
+			} finally {
+				resolve();
+			}
+		});
+	});
+
+	agent.destroy();
+
+	await secondServer.close();
+});
+
 test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
 

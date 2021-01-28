@@ -476,6 +476,10 @@ class Agent extends EventEmitter {
 
 						processListeners();
 
+						if (!isFree()) {
+							return;
+						}
+
 						// Close covered sessions (if possible).
 						closeCoveredSessions(this.sessions[normalizedOptions], session);
 					});
