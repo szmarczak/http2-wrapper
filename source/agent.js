@@ -325,6 +325,8 @@ class Agent extends EventEmitter {
 					this._accept(optimalSession, listeners, normalizedOrigin, options);
 					return;
 				}
+
+				console.log('no existing session?');
 			}
 
 			if (normalizedOptions in this.queue) {
@@ -459,6 +461,8 @@ class Agent extends EventEmitter {
 										delete this.queue[normalizedOptions];
 										break;
 									}
+
+									// this._processQueue();
 								}
 
 								// We're no longer free, no point in continuing.

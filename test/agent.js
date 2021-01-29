@@ -363,8 +363,8 @@ test.only('prevents session overloading #6', singleRequestWrapper, async (t, ser
 		maxConcurrentStreams: 3
 	});
 
-	// TODO: it hangs because at this point it has not yet acknowledged the settings
-	//       so it creates 3 entries in the queue for some reason
+	// TODO: It hangs because at this point it has not yet acknowledged the settings,
+	//       so it creates 2 sessions and 1 in the queue.
 
 	const streams = await Promise.all([
 		agent.request(server.url),
