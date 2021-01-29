@@ -349,6 +349,37 @@ test('prevents session overloading #5', singleRequestWrapper, async (t, server) 
 	await secondServer.close();
 });
 
+test.only('prevents session overloading #6', singleRequestWrapper, async (t, server) => {
+	const agent = new Agent({
+		maxSessions: 2
+	});
+
+	const serverSessionPromise = pEvent(server, 'session');
+
+	const stream = await agent.request(server.url);
+	const serverSession = await serverSessionPromise;
+
+	serverSession.settings({
+		maxConcurrentStreams: 3
+	});
+
+	// TODO: it hangs because at this point it has not yet acknowledged the settings
+	//       so it creates 3 entries in the queue for some reason
+
+	const streams = await Promise.all([
+		agent.request(server.url),
+		agent.request(server.url)
+	]);
+
+	streams.push(await agent.request(server.url));
+
+	t.is(streams[0].session, stream.session);
+	t.is(streams[0].session, streams[1].session);
+	t.not(stream.session, streams[2].session);
+
+	agent.destroy();
+});
+
 test('sessions can be manually overloaded', singleRequestWrapper, async (t, server) => {
 	const agent = new Agent();
 

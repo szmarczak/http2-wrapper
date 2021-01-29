@@ -329,6 +329,7 @@ class Agent extends EventEmitter {
 
 			if (normalizedOptions in this.queue) {
 				if (normalizedOrigin in this.queue[normalizedOptions]) {
+					console.log('queue');
 					// There's already an item in the queue, just attach ourselves to it.
 					this.queue[normalizedOptions][normalizedOrigin].listeners.push(...listeners);
 					return;
@@ -336,6 +337,8 @@ class Agent extends EventEmitter {
 			} else {
 				this.queue[normalizedOptions] = {};
 			}
+
+			console.log('new');
 
 			// The entry must be removed from the queue IMMEDIATELY when:
 			// 1. the session connects successfully,
@@ -353,6 +356,7 @@ class Agent extends EventEmitter {
 
 			// The main logic is here
 			const entry = async () => {
+				console.log('+');
 				this._sessionCount++;
 
 				const name = `${normalizedOrigin}:${normalizedOptions}`;
@@ -397,6 +401,7 @@ class Agent extends EventEmitter {
 					});
 
 					session.once('close', () => {
+						console.log('-');
 						this._sessionCount--;
 
 						if (receivedSettings) {
@@ -532,10 +537,12 @@ class Agent extends EventEmitter {
 						this._emptySessionCount++;
 
 						this.emit('session', session);
-
+						console.log('s', this.sessions['::::::::::::::::::::::::::::::::::::'].length);
+						console.log('l2', listeners.length);
 						this._accept(session, listeners, normalizedOrigin, options);
 
 						if (session[kCurrentStreamCount] === 0 && this._emptySessionCount > this.maxEmptySessions) {
+							console.log('close empty');
 							this.closeEmptySessions(this._emptySessionCount - this.maxEmptySessions);
 						}
 
@@ -676,7 +683,9 @@ class Agent extends EventEmitter {
 
 		// eslint-disable-next-line guard-for-in
 		for (const key in sessions) {
+			console.log(sessions[key].length);
 			for (const session of sessions[key]) {
+				console.log('current', session[kCurrentStreamCount]);
 				if (session[kCurrentStreamCount] === 0) {
 					closedCount++;
 					session.close();
