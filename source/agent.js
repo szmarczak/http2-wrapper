@@ -453,8 +453,6 @@ class Agent extends EventEmitter {
 										delete this.queue[normalizedOptions];
 										break;
 									}
-
-									// this._processQueue();
 								}
 
 								// We're no longer free, no point in continuing.
