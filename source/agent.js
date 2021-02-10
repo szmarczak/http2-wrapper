@@ -502,10 +502,6 @@ class Agent extends EventEmitter {
 					});
 
 					session.once('remoteSettings', () => {
-						// Fix Node.js bug preventing the process from exiting
-						session.ref();
-						session.unref();
-
 						// The Agent could have been destroyed already.
 						if (entry.destroyed) {
 							const error = new Error('Agent has been destroyed');
