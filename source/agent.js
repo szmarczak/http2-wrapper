@@ -216,11 +216,17 @@ class Agent extends EventEmitter {
 	}
 
 	_accept(session, listeners, normalizedOrigin, options) {
-		while (listeners.length > 0 && session[kCurrentStreamCount] < session.remoteSettings.maxConcurrentStreams) {
+		let index = 0;
+
+		while (index < listeners.length && session[kCurrentStreamCount] < session.remoteSettings.maxConcurrentStreams) {
 			// We assume `resolve(...)` calls `request(...)` *directly*,
 			// otherwise the session will get overloaded.
-			listeners.shift().resolve(session);
+			listeners[index].resolve(session);
+
+			index++;
 		}
+
+		listeners.splice(0, index);
 
 		if (listeners.length > 0) {
 			this.getSession(normalizedOrigin, options, listeners);
@@ -439,12 +445,18 @@ class Agent extends EventEmitter {
 							if (origin in queue) {
 								const {listeners, completed} = queue[origin];
 
+								let index = 0;
+
 								// Prevents session overloading.
-								while (listeners.length > 0 && isFree()) {
+								while (index < listeners.length && isFree()) {
 									// We assume `resolve(...)` calls `request(...)` *directly*,
 									// otherwise the session will get overloaded.
-									listeners.shift().resolve(session);
+									listeners[index].resolve(session);
+
+									index++;
 								}
+
+								queue[origin].listeners.splice(0, index);
 
 								if (queue[origin].listeners.length === 0 && !completed) {
 									delete queue[origin];
