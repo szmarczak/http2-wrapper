@@ -93,7 +93,9 @@ const closeCoveredSessions = (where, session) => {
 	// Clients SHOULD NOT emit new requests on any connection whose Origin
 	// Set is a proper subset of another connection's Origin Set, and they
 	// SHOULD close it once all outstanding requests are satisfied.
-	for (const coveredSession of where) {
+	for (let index = 0; index < where.length; index++) {
+		const coveredSession = where[index];
+
 		if (
 			// The set is a proper subset when its length is less than the other set.
 			coveredSession[kOriginSet].length < session[kOriginSet].length &&
@@ -112,7 +114,9 @@ const closeCoveredSessions = (where, session) => {
 
 // This is basically inverted `closeCoveredSessions(...)`.
 const closeSessionIfCovered = (where, coveredSession) => {
-	for (const session of where) {
+	for (let index = 0; index < where.length; index++) {
+		const session = where[index];
+
 		if (
 			coveredSession[kOriginSet].length < session[kOriginSet].length &&
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
@@ -182,7 +186,9 @@ class Agent extends EventEmitter {
 	normalizeOptions(options) {
 		let normalized = '';
 
-		for (const key of nameKeys) {
+		for (let index = 0; index < nameKeys.length; index++) {
+			const key = nameKeys[index];
+
 			normalized += ':';
 
 			if (options && options[key] !== undefined) {
@@ -267,8 +273,8 @@ class Agent extends EventEmitter {
 					}
 				}
 			} catch (error) {
-				for (const {reject} of listeners) {
-					reject(error);
+				for (let index = 0; index < listeners.length; index++) {
+					listeners[index].reject(error);
 				}
 
 				return;
@@ -296,7 +302,9 @@ class Agent extends EventEmitter {
 				//                     |
 				//     pick this one  --
 				//
-				for (const session of sessions) {
+				for (let index = 0; index < sessions.length; index++) {
+					const session = sessions[index];
+
 					const sessionMaxConcurrentStreams = session.remoteSettings.maxConcurrentStreams;
 
 					if (sessionMaxConcurrentStreams < maxConcurrentStreams) {
@@ -395,8 +403,8 @@ class Agent extends EventEmitter {
 
 					session.once('error', error => {
 						// Listeners are empty when the session successfully connected.
-						for (const {reject} of listeners) {
-							reject(error);
+						for (let index = 0; index < listeners.length; index++) {
+							listeners[index].reject(error);
 						}
 
 						// The connection got broken, purge the cache.
@@ -431,8 +439,8 @@ class Agent extends EventEmitter {
 							const error = new Error('Session closed without receiving a SETTINGS frame');
 							error.code = 'HTTP2WRAPPER_NOSETTINGS';
 
-							for (const {reject} of listeners) {
-								reject(error);
+							for (let index = 0; index < listeners.length; index++) {
+								listeners[index].reject(error);
 							}
 						}
 
@@ -447,7 +455,11 @@ class Agent extends EventEmitter {
 							return;
 						}
 
-						for (const origin of session[kOriginSet]) {
+						const originSet = session[kOriginSet];
+
+						for (let index = 0; index < originSet.length; index++) {
+							const origin = originSet[index];
+
 							if (origin in queue) {
 								const {listeners, completed} = queue[origin];
 
@@ -506,8 +518,8 @@ class Agent extends EventEmitter {
 						if (entry.destroyed) {
 							const error = new Error('Agent has been destroyed');
 
-							for (const listener of listeners) {
-								listener.reject(error);
+							for (let index = 0; index < listeners.length; index++) {
+								listeners[index].reject(error);
 							}
 
 							session.destroy();
@@ -520,8 +532,8 @@ class Agent extends EventEmitter {
 						if (mainOrigin !== normalizedOrigin) {
 							const error = new Error(`Requested origin ${normalizedOrigin} does not match server ${mainOrigin}`);
 
-							for (const listener of listeners) {
-								listener.reject(error);
+							for (let index = 0; index < listeners.length; index++) {
+								listeners[index].reject(error);
 							}
 
 							session.destroy();
@@ -619,8 +631,8 @@ class Agent extends EventEmitter {
 						socket.destroy();
 					}
 
-					for (const listener of listeners) {
-						listener.reject(error);
+					for (let index = 0; index < listeners.length; index++) {
+						listeners[index].reject(error);
 					}
 				}
 			};
@@ -689,7 +701,11 @@ class Agent extends EventEmitter {
 
 		// eslint-disable-next-line guard-for-in
 		for (const key in sessions) {
-			for (const session of sessions[key]) {
+			const thisSessions = sessions[key];
+
+			for (let index = 0; index < thisSessions.length; index++) {
+				const session = thisSessions[index];
+
 				if (session[kCurrentStreamCount] === 0) {
 					closedCount++;
 					session.close();
@@ -709,8 +725,10 @@ class Agent extends EventEmitter {
 
 		// eslint-disable-next-line guard-for-in
 		for (const key in sessions) {
-			for (const session of sessions[key]) {
-				session.destroy(reason);
+			const thisSessions = sessions[key];
+
+			for (let index = 0; index < thisSessions.length; index++) {
+				thisSessions[index].destroy(reason);
 			}
 		}
 

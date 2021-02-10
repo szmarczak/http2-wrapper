@@ -55,5 +55,10 @@
 	},
 	"ava": {
 		"timeout": "10s"
+	},
+	"xo": {
+		"rules": {
+			"unicorn/no-for-loop": "off"
+		}
 	}
 }
