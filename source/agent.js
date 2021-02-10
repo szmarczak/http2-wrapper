@@ -12,6 +12,7 @@ const kCurrentStreamCount = Symbol('currentStreamCount');
 const kRequest = Symbol('request');
 const kOriginSet = Symbol('cachedOriginSet');
 const kGracefullyClosing = Symbol('gracefullyClosing');
+const kLength = Symbol('length');
 
 const nameKeys = [
 	// `http2.connect()` options
@@ -143,6 +144,9 @@ class Agent extends EventEmitter {
 
 		// The queue for creating new sessions. It looks like this:
 		// QUEUE[NORMALIZED_OPTIONS][NORMALIZED_ORIGIN] = ENTRY_FUNCTION
+		//
+		// It's faster when there are many origins. If there's only one, then QUEUE[`${options}:${origin}`] is faster.
+		// I guess object creation / deletion is causing the slowdown.
 		//
 		// The entry function has `listeners`, `completed` and `destroyed` properties.
 		// `listeners` is an array of objects containing `resolve` and `reject` functions.
@@ -340,7 +344,9 @@ class Agent extends EventEmitter {
 					return;
 				}
 			} else {
-				this.queue[normalizedOptions] = {};
+				this.queue[normalizedOptions] = {
+					[kLength]: 0
+				};
 			}
 
 			// The entry must be removed from the queue IMMEDIATELY when:
@@ -351,7 +357,7 @@ class Agent extends EventEmitter {
 				if (normalizedOptions in this.queue && this.queue[normalizedOptions][normalizedOrigin] === entry) {
 					delete this.queue[normalizedOptions][normalizedOrigin];
 
-					if (Object.keys(this.queue[normalizedOptions]).length === 0) {
+					if (--this.queue[normalizedOptions][kLength] === 0) {
 						delete this.queue[normalizedOptions];
 					}
 				}
@@ -461,7 +467,7 @@ class Agent extends EventEmitter {
 								if (queue[origin].listeners.length === 0 && !completed) {
 									delete queue[origin];
 
-									if (Object.keys(queue).length === 0) {
+									if (--queue[kLength] === 0) {
 										delete this.queue[normalizedOptions];
 										break;
 									}
@@ -628,6 +634,7 @@ class Agent extends EventEmitter {
 			entry.destroyed = false;
 
 			this.queue[normalizedOptions][normalizedOrigin] = entry;
+			this.queue[normalizedOptions][kLength]++;
 			this._processQueue();
 		});
 	}
