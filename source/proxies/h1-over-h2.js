@@ -26,6 +26,7 @@ const createConnection = (self, options, callback) => {
 
 				if (statusCode !== 200) {
 					callback(new UnexpectedStatusCodeError(statusCode));
+					return;
 				}
 
 				if (raw && self instanceof https.Agent) {
@@ -36,6 +37,7 @@ const createConnection = (self, options, callback) => {
 					});
 
 					callback(null, secureStream);
+					return;
 				}
 
 				callback(null, stream);

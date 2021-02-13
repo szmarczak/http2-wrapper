@@ -40,7 +40,7 @@
 		"benchmark": "^2.1.4",
 		"get-stream": "^6.0.0",
 		"got": "^11.8.1",
-		"http2-proxy": "^5.0.51",
+		"http2-proxy": "^5.0.53",
 		"https-proxy-agent": "^5.0.0",
 		"lolex": "^6.0.0",
 		"many-keys-map": "^1.0.3",
@@ -55,6 +55,11 @@
 	},
 	"ava": {
 		"timeout": "10s"
+	},
+	"nyc": {
+		"include": [
+			"source"
+		]
 	},
 	"xo": {
 		"rules": {

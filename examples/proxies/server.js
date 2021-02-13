@@ -3,13 +3,17 @@ const {key, cert} = require('../../test/helpers/certs');
 const createProxyServer = require('../../proxy-server');
 
 const authorize = (type, credentials) => {
-	if (type !== 'basic') {
-		return false;
-	}
+	try {
+		if (type !== 'basic') {
+			return false;
+		}
 
-	const plain = Buffer.from(credentials, 'base64').toString();
+		const plain = Buffer.from(credentials, 'base64').toString();
 
-	if (plain !== 'username:password') {
+		if (plain !== 'username:password') {
+			return false;
+		}
+	} catch {
 		return false;
 	}
 };
