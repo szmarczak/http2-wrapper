@@ -24,13 +24,11 @@ class Http2OverHttpX extends Agent {
 		} else {
 			options.createConnection = () => {
 				const socket = new JSStreamSocket(stream);
-				socket.encrypted = true;
-				socket.alpnProtocol = 'h2';
-				socket.servername = origin.hostname;
+				socket.encrypted = false;
 				socket._handle.getpeername = out => {
 					out.family = undefined;
 					out.address = undefined;
-					out.port = origin.port || undefined;
+					out.port = undefined;
 				};
 
 				return socket;

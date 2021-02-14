@@ -1,5 +1,6 @@
 'use strict';
 const tls = require('tls');
+const JSStreamSocket = require('../utils/js-stream-socket');
 const http = require('http');
 const https = require('https');
 const {globalAgent} = require('../agent');
@@ -29,8 +30,11 @@ const createConnection = (self, options, callback) => {
 					return;
 				}
 
-				if (raw && self instanceof https.Agent) {
-					const secureStream = tls.connect(stream, options);
+				const encrypted = self instanceof https.Agent;
+
+				if (raw && encrypted) {
+					options.socket = stream;
+					const secureStream = tls.connect(options);
 
 					secureStream.once('close', () => {
 						stream.destroy();
@@ -40,7 +44,15 @@ const createConnection = (self, options, callback) => {
 					return;
 				}
 
-				callback(null, stream);
+				const socket = new JSStreamSocket(stream);
+				socket.encrypted = false;
+				socket._handle.getpeername = out => {
+					out.family = undefined;
+					out.address = undefined;
+					out.port = undefined;
+				};
+
+				callback(null, socket);
 			});
 		} catch (error) {
 			callback(error);

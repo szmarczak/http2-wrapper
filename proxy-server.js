@@ -83,7 +83,9 @@ module.exports = (options = {}) => {
 
 		const network = target.protocol === 'tls:' ? tls : net;
 
-		const socket = network.connect(target.port, target.hostname, {ALPNProtocols}, () => {
+		const socket = network.connect(target.port, target.hostname, {
+			ALPNProtocols
+		}, () => {
 			if (isHttp2) {
 				source.respond();
 			} else {

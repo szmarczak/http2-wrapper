@@ -11,7 +11,9 @@ const checkType = (name, value, types) => {
 	});
 
 	if (!valid) {
-		throw new TypeError(`Expected '${name}' to be a type of ${types.join(' or ')}, got ${typeof value}`);
+		const names = types.map(type => typeof type === 'string' ? type : type.name);
+
+		throw new TypeError(`Expected '${name}' to be a type of ${names.join(' or ')}, got ${typeof value}`);
 	}
 };
 
