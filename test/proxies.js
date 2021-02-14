@@ -144,6 +144,7 @@ test.serial('HTTPS over HTTP/2 - 200', wrapper, async (t, server) => {
 		t.is(proxyServer.proxiedCounter, 1);
 		const body = await getStream(response);
 
+		t.notThrows(() => request.socket.remoteAddress);
 		t.is(typeof request.socket.encrypted, 'boolean');
 		t.is(response.statusCode, 200);
 		t.notThrows(() => JSON.parse(body));
@@ -182,6 +183,7 @@ test.serial('extremely insecure HTTPS over HTTP/2 - 200', wrapper, async (t, ser
 		t.is(proxyServer.proxiedCounter, 1);
 		const body = await getStream(response);
 
+		t.notThrows(() => request.socket.remoteAddress);
 		t.is(typeof request.socket.encrypted, 'boolean');
 		t.is(response.statusCode, 200);
 		t.notThrows(() => JSON.parse(body));
@@ -220,6 +222,7 @@ test.serial('extremely insecure HTTPS over HTTP/2 - incorrect `raw` property', w
 		t.is(proxyServer.proxiedCounter, 1);
 		const body = await getStream(response);
 
+		t.notThrows(() => request.socket.remoteAddress);
 		t.is(typeof request.socket.encrypted, 'boolean');
 		t.is(response.statusCode, 200);
 		t.notThrows(() => JSON.parse(body));
@@ -304,6 +307,7 @@ test.serial('HTTP over HTTP/2 - 200', async t => {
 		t.is(proxyServer.proxiedCounter, 1);
 		const body = await getStream(response);
 
+		t.notThrows(() => request.socket.remoteAddress);
 		t.is(typeof request.socket.encrypted, 'boolean');
 		t.is(response.statusCode, 200);
 		t.notThrows(() => JSON.parse(body));
