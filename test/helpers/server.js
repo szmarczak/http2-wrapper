@@ -59,10 +59,12 @@ const createServer = async options => {
 
 		request.on('data', chunk => body.push(chunk));
 		request.on('end', () => {
-			response.end(JSON.stringify({
+			const reply = JSON.stringify({
 				headers: request.headers,
 				body: Buffer.concat(body).toString()
-			}));
+			});
+
+			response.end(reply);
 		});
 	};
 

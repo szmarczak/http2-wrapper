@@ -373,7 +373,20 @@ class ClientRequest extends Writable {
 						res.destroy();
 					}
 
-					res.emit('close');
+					const finish = () => {
+						res.emit('close');
+
+						this.destroy();
+						this.emit('close');
+					};
+
+					if (res.readable) {
+						res.once('end', finish);
+					} else {
+						finish();
+					}
+
+					return;
 				}
 
 				this.destroy();

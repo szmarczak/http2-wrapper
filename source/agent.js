@@ -97,6 +97,9 @@ const closeCoveredSessions = (where, session) => {
 		const coveredSession = where[index];
 
 		if (
+			// Unfortunately `.every()` returns true for an empty array
+			coveredSession[kOriginSet].length > 0 &&
+
 			// The set is a proper subset when its length is less than the other set.
 			coveredSession[kOriginSet].length < session[kOriginSet].length &&
 
@@ -118,6 +121,7 @@ const closeSessionIfCovered = (where, coveredSession) => {
 		const session = where[index];
 
 		if (
+			coveredSession[kOriginSet].length > 0 &&
 			coveredSession[kOriginSet].length < session[kOriginSet].length &&
 			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
 			(coveredSession[kCurrentStreamCount] + session[kCurrentStreamCount]) <= session.remoteSettings.maxConcurrentStreams
@@ -495,7 +499,7 @@ class Agent extends EventEmitter {
 
 					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
 					session.on('origin', () => {
-						session[kOriginSet] = session.originSet;
+						session[kOriginSet] = session.originSet || [];
 						session[kGracefullyClosing] = false;
 						closeSessionIfCovered(this.sessions[normalizedOptions], session);
 
@@ -526,7 +530,7 @@ class Agent extends EventEmitter {
 							return;
 						}
 
-						session[kOriginSet] = session.originSet;
+						session[kOriginSet] = session.originSet || [];
 
 						if (session.socket.encrypted) {
 							const mainOrigin = session[kOriginSet][0];

@@ -4,7 +4,7 @@ const {Readable} = require('stream');
 class IncomingMessage extends Readable {
 	constructor(socket, highWaterMark) {
 		super({
-			emitClose: true,
+			emitClose: false,
 			autoDestroy: true,
 			highWaterMark
 		});
