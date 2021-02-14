@@ -724,3 +724,167 @@ test.serial('HTTP/2 over HTTP - proxy does not exist', wrapper, async (t, server
 	const error = await pEvent(request, 'error');
 	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:443');
 });
+
+// ============================ HTTP/2 over HTTP/2 ============================
+
+test.serial('HTTP/2 over HTTP/2 - 200', wrapper, async (t, server) => {
+	const proxyServer = createProxyServer({
+		...sslOptions,
+		authorize
+	});
+
+	const agent = new http2.proxies.Http2OverHttp2({
+		proxyOptions: {
+			url: new URL('https://username:password@localhost')
+		}
+	});
+
+	await runTestWithServer(proxyServer, async () => {
+		agent.proxyOptions.url.port = proxyServer.address().port;
+
+		const request = http2.request(`https://localhost:${server.address().port}`, {
+			agent
+		});
+		request.end();
+
+		await pEvent(request, 'socket');
+		t.is(proxyServer.proxiedCounter, 1);
+		t.notThrows(() => request.socket.remoteAddress);
+		t.is(typeof request.socket.encrypted, 'boolean');
+
+		const response = await pEvent(request, 'response');
+		const body = await getStream(response);
+
+		t.is(response.statusCode, 200);
+		t.notThrows(() => JSON.parse(body));
+
+		http2.globalAgent.destroy();
+	});
+
+	t.pass();
+});
+
+test.serial('extremely insecure HTTP/2 over HTTP/2 - 200', wrapper, async (t, server) => {
+	const proxyServer = createProxyServer({
+		...sslOptions,
+		authorize
+	});
+
+	const agent = new http2.proxies.Http2OverHttp2({
+		proxyOptions: {
+			url: new URL('https://username:password@localhost'),
+			raw: false,
+			headers: {
+				'alpn-protocols': 'h2'
+			}
+		}
+	});
+
+	await runTestWithServer(proxyServer, async () => {
+		agent.proxyOptions.url.port = proxyServer.address().port;
+
+		const request = http2.request(`https://localhost:${server.address().port}`, {
+			agent
+		});
+		request.end();
+
+		await pEvent(request, 'socket');
+		t.is(proxyServer.proxiedCounter, 1);
+		t.notThrows(() => request.socket.remoteAddress);
+		t.is(typeof request.socket.encrypted, 'boolean');
+
+		const response = await pEvent(request, 'response');
+		const body = await getStream(response);
+
+		t.is(response.statusCode, 200);
+		t.notThrows(() => JSON.parse(body));
+
+		http2.globalAgent.destroy();
+	});
+
+	t.pass();
+});
+
+test.serial('extremely insecure HTTP/2 over HTTP/2 - incorrect `raw` property', wrapper, async (t, server) => {
+	const proxyServer = createProxyServer({
+		...sslOptions,
+		authorize
+	});
+
+	const agent = new http2.proxies.Http2OverHttp2({
+		proxyOptions: {
+			url: new URL('https://username:password@localhost'),
+			raw: true,
+			headers: {
+				'alpn-protocols': 'h2'
+			}
+		}
+	});
+
+	await t.throwsAsync(runTestWithServer(proxyServer, async () => {
+		agent.proxyOptions.url.port = proxyServer.address().port;
+
+		const request = http2.request(`https://localhost:${server.address().port}`, {
+			agent
+		});
+		request.end();
+
+		await pEvent(request, 'socket');
+		t.is(proxyServer.proxiedCounter, 1);
+		t.notThrows(() => request.socket.remoteAddress);
+		t.is(typeof request.socket.encrypted, 'boolean');
+
+		const response = await pEvent(request, 'response');
+		const body = await getStream(response);
+
+		t.is(response.statusCode, 200);
+		t.notThrows(() => JSON.parse(body));
+
+		http2.globalAgent.destroy();
+	}), {
+		code: 'ERR_SSL_WRONG_VERSION_NUMBER'
+	});
+});
+
+test.serial('HTTP/2 over HTTP/2 - 403', wrapper, async (t, server) => {
+	const proxyServer = createProxyServer({
+		...sslOptions,
+		authorize
+	});
+
+	const agent = new http2.proxies.Http2OverHttp2({
+		proxyOptions: {
+			url: new URL('https://localhost')
+		}
+	});
+
+	await runTestWithServer(proxyServer, async () => {
+		agent.proxyOptions.url.port = proxyServer.address().port;
+
+		const request = http2.request(`https://localhost:${server.address().port}`, {
+			agent
+		});
+		request.end();
+
+		const error = await pEvent(request, 'error');
+		t.is(error.message, 'The proxy server rejected the request with status code 403');
+
+		http2.globalAgent.destroy();
+	});
+});
+
+test.serial('HTTP/2 over HTTP/2 - proxy does not exist', wrapper, async (t, server) => {
+	const agent = new http2.proxies.Http2OverHttp2({
+		proxyOptions: {
+			url: new URL('https://localhost')
+		}
+	});
+
+	const request = http2.request(`https://localhost:${server.address().port}`, {
+		agent
+	});
+	request.end();
+
+	const error = await pEvent(request, 'error');
+	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:443');
+});
