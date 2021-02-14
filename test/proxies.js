@@ -709,9 +709,10 @@ test.serial('HTTP/2 over HTTP - 403', wrapper, async (t, server) => {
 });
 
 test.serial('HTTP/2 over HTTP - proxy does not exist', wrapper, async (t, server) => {
+	// GitHub Actions container has an HTTP server on 80 on Windows for some reason.
 	const agent = new http2.proxies.Http2OverHttps({
 		proxyOptions: {
-			url: new URL('http://localhost')
+			url: new URL('http://localhost:443')
 		}
 	});
 
@@ -721,5 +722,5 @@ test.serial('HTTP/2 over HTTP - proxy does not exist', wrapper, async (t, server
 	request.end();
 
 	const error = await pEvent(request, 'error');
-	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:80');
+	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:443');
 });
