@@ -4,7 +4,7 @@
 const {URL} = require('url');
 const checkType = require('../utils/check-type');
 
-module.exports = (self, proxyOptions = {}) => {
+module.exports = (self, proxyOptions) => {
 	checkType('proxyOptions', proxyOptions, ['object']);
 	checkType('proxyOptions.headers', proxyOptions.headers, ['object', 'undefined']);
 	checkType('proxyOptions.raw', proxyOptions.raw, ['boolean', 'undefined']);
