@@ -34,6 +34,8 @@ module.exports = (options = {}) => {
 		...options
 	});
 
+	server.proxied = [];
+
 	if (typeof options.authorize !== 'function') {
 		throw new TypeError('The `authorize` option needs to be a function');
 	}
@@ -99,6 +101,8 @@ module.exports = (options = {}) => {
 			source.pipe(socket);
 		});
 
+		server.proxied.push(socket);
+
 		socket.once('error', () => {
 			if (isHttp2) {
 				source.close(http2.constants.NGHTTP2_CONNECT_ERROR);
@@ -108,6 +112,8 @@ module.exports = (options = {}) => {
 		});
 
 		socket.once('close', () => {
+			server.proxied.splice(server.proxied.indexOf(socket), 1);
+
 			source.destroy();
 		});
 
