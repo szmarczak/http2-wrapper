@@ -565,7 +565,7 @@ test.serial('HTTP/2 over HTTP - 200', wrapper, async (t, server) => {
 		authorize
 	});
 
-	const agent = new http2.proxies.Http2OverHttps({
+	const agent = new http2.proxies.Http2OverHttp({
 		proxyOptions: {
 			url: new URL('http://username:password@localhost')
 		}
@@ -602,7 +602,7 @@ test.serial('extremely insecure HTTP/2 over HTTP - 200', wrapper, async (t, serv
 		authorize
 	});
 
-	const agent = new http2.proxies.Http2OverHttps({
+	const agent = new http2.proxies.Http2OverHttp({
 		proxyOptions: {
 			url: new URL('http://username:password@localhost'),
 			raw: false,
@@ -643,7 +643,7 @@ test.serial('extremely insecure HTTP/2 over HTTP - incorrect `raw` property', wr
 		authorize
 	});
 
-	const agent = new http2.proxies.Http2OverHttps({
+	const agent = new http2.proxies.Http2OverHttp({
 		proxyOptions: {
 			url: new URL('http://username:password@localhost'),
 			raw: true,
@@ -684,7 +684,7 @@ test.serial('HTTP/2 over HTTP - 403', wrapper, async (t, server) => {
 		authorize
 	});
 
-	const agent = new http2.proxies.Http2OverHttps({
+	const agent = new http2.proxies.Http2OverHttp({
 		proxyOptions: {
 			url: new URL('http://localhost')
 		}
@@ -710,7 +710,7 @@ test.serial('HTTP/2 over HTTP - 403', wrapper, async (t, server) => {
 
 test.serial('HTTP/2 over HTTP - proxy does not exist', wrapper, async (t, server) => {
 	// GitHub Actions container has an HTTP server on 80 on Windows for some reason.
-	const agent = new http2.proxies.Http2OverHttps({
+	const agent = new http2.proxies.Http2OverHttp({
 		proxyOptions: {
 			url: new URL('http://localhost:443')
 		}
