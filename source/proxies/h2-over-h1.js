@@ -6,10 +6,7 @@ const getAuthorizationHeaders = require('./get-auth-headers');
 
 const getStream = request => new Promise((resolve, reject) => {
 	const onConnect = (response, socket, head) => {
-		if (head.length > 0) {
-			reject(new Error(`Unexpected data: ${head}`));
-			return;
-		}
+		socket.unshift(head);
 
 		request.off('error', reject);
 		resolve([socket, response.statusCode]);

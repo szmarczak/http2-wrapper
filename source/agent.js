@@ -15,6 +15,9 @@ const kGracefullyClosing = Symbol('gracefullyClosing');
 const kLength = Symbol('length');
 
 const nameKeys = [
+	// Not an Agent option actually
+	'createConnection',
+
 	// `http2.connect()` options
 	'maxDeflateDynamicTableSize',
 	'maxSettings',
@@ -525,16 +528,18 @@ class Agent extends EventEmitter {
 
 						session[kOriginSet] = session.originSet;
 
-						const mainOrigin = session[kOriginSet][0];
-						if (mainOrigin !== normalizedOrigin) {
-							const error = new Error(`Requested origin ${normalizedOrigin} does not match server ${mainOrigin}`);
+						if (session.socket.encrypted) {
+							const mainOrigin = session[kOriginSet][0];
+							if (mainOrigin !== normalizedOrigin) {
+								const error = new Error(`Requested origin ${normalizedOrigin} does not match server ${mainOrigin}`);
 
-							for (let index = 0; index < listeners.length; index++) {
-								listeners[index].reject(error);
+								for (let index = 0; index < listeners.length; index++) {
+									listeners[index].reject(error);
+								}
+
+								session.destroy();
+								return;
 							}
-
-							session.destroy();
-							return;
 						}
 
 						removeFromQueue();
@@ -741,6 +746,7 @@ class Agent extends EventEmitter {
 
 		// New requests should NOT attach to destroyed sessions
 		this.queue = {};
+		this.tlsSessionCache.clear();
 	}
 
 	get emptySessionCount() {

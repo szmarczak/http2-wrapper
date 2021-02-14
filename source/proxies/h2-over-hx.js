@@ -22,17 +22,15 @@ class Http2OverHttpX extends Agent {
 		if (this.proxyOptions.raw) {
 			options.socket = stream;
 		} else {
-			options.createConnection = () => {
-				const socket = new JSStreamSocket(stream);
-				socket.encrypted = false;
-				socket._handle.getpeername = out => {
-					out.family = undefined;
-					out.address = undefined;
-					out.port = undefined;
-				};
-
-				return socket;
+			const socket = new JSStreamSocket(stream);
+			socket.encrypted = false;
+			socket._handle.getpeername = out => {
+				out.family = undefined;
+				out.address = undefined;
+				out.port = undefined;
 			};
+
+			return socket;
 		}
 
 		return super.createConnection(origin, options);
