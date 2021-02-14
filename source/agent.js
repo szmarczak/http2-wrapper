@@ -633,10 +633,6 @@ class Agent extends EventEmitter {
 					removeFromQueue();
 					this._sessionCount--;
 
-					if (socket) {
-						socket.destroy();
-					}
-
 					for (let index = 0; index < listeners.length; index++) {
 						listeners[index].reject(error);
 					}
