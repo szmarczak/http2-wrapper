@@ -35,6 +35,7 @@ module.exports = (options = {}) => {
 	});
 
 	server.proxied = [];
+	server.proxiedCounter = 0;
 
 	if (typeof options.authorize !== 'function') {
 		throw new TypeError('The `authorize` option needs to be a function');
@@ -102,6 +103,7 @@ module.exports = (options = {}) => {
 		});
 
 		server.proxied.push(socket);
+		server.proxiedCounter++;
 
 		socket.once('error', () => {
 			if (isHttp2) {
@@ -124,6 +126,8 @@ module.exports = (options = {}) => {
 		source.once('close', () => {
 			socket.destroy();
 		});
+
+		return socket;
 	};
 
 	server.on('stream', (stream, headers) => {
@@ -132,7 +136,9 @@ module.exports = (options = {}) => {
 		}
 
 		try {
-			connect(stream, headers, headers[':authority']);
+			const proxied = connect(stream, headers, headers[':authority']);
+
+			server.emit('proxied', stream, proxied);
 		} catch {
 			sendStatus(stream, 500);
 		}
@@ -145,7 +151,9 @@ module.exports = (options = {}) => {
 		}
 
 		try {
-			connect(socket, request.headers, request.url, head);
+			const proxied = connect(socket, request.headers, request.url, head);
+
+			server.emit('proxied', socket, proxied);
 		} catch {
 			sendStatus(socket, 500);
 		}

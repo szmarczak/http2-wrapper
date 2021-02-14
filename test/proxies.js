@@ -141,7 +141,7 @@ test.serial('HTTPS over HTTP/2 - 200', wrapper, async (t, server) => {
 		request.end();
 
 		const response = await pEvent(request, 'response');
-		t.is(proxyServer.proxied.length, 1);
+		t.is(proxyServer.proxiedCounter, 1);
 		const body = await getStream(response);
 
 		t.is(typeof request.socket.encrypted, 'boolean');
@@ -179,7 +179,7 @@ test.serial('extremely insecure HTTPS over HTTP/2 - 200', wrapper, async (t, ser
 		request.end();
 
 		const response = await pEvent(request, 'response');
-		t.is(proxyServer.proxied.length, 1);
+		t.is(proxyServer.proxiedCounter, 1);
 		const body = await getStream(response);
 
 		t.is(typeof request.socket.encrypted, 'boolean');
@@ -217,7 +217,7 @@ test.serial('extremely insecure HTTPS over HTTP/2 - incorrect `raw` property', w
 		request.end();
 
 		const response = await pEvent(request, 'response');
-		t.is(proxyServer.proxied.length, 1);
+		t.is(proxyServer.proxiedCounter, 1);
 		const body = await getStream(response);
 
 		t.is(typeof request.socket.encrypted, 'boolean');
@@ -301,7 +301,7 @@ test.serial('HTTP over HTTP/2 - 200', async t => {
 		request.end();
 
 		const response = await pEvent(request, 'response');
-		t.is(proxyServer.proxied.length, 1);
+		t.is(proxyServer.proxiedCounter, 1);
 		const body = await getStream(response);
 
 		t.is(typeof request.socket.encrypted, 'boolean');
