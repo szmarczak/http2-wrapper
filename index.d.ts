@@ -10,10 +10,11 @@ export interface RequestOptions extends Omit<https.RequestOptions, 'session'> {
 }
 
 export interface EntryFunction {
-	(): Promise<void>;
 	completed: boolean;
 	destroyed: boolean;
-};
+
+	(): Promise<void>;
+}
 
 export interface AgentOptions {
 	timeout?: number;
