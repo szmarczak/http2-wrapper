@@ -38,7 +38,7 @@ export class Agent extends EventEmitter {
 	protocol: string;
 	settings: http2.Settings;
 
-	tlsSessionCache: QuickLRU;
+	tlsSessionCache: QuickLRU<string, string>;
 
 	emptySessionCount: number;
 	pendingSessionCount: number;
