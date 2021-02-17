@@ -1,9 +1,13 @@
 import {EventEmitter} from 'events';
-import {TLSSocket} from 'tls';
-import http = require('http');
-import {RequestOptions} from 'https';
+import tls = require('tls');
+import https = require('https');
 import http2 = require('http2');
 import QuickLRU from 'quick-lru';
+
+export interface RequestOptions extends Omit<https.RequestOptions, 'session'> {
+	tlsSession: tls.ConnectionOptions['session'];
+	h2session?: http2.ClientHttp2Session;
+}
 
 export interface EntryFunction {
 	(): Promise<void>;
@@ -41,31 +45,32 @@ export class Agent extends EventEmitter {
 
 	constructor(options?: AgentOptions);
 
-	static connect(origin: URL, options: http2.SecureClientSessionOptions): TLSSocket;
+	static connect(origin: URL, options: http2.SecureClientSessionOptions): tls.TLSSocket;
 
 	normalizeOptions(options: http2.ClientSessionRequestOptions): string;
 
 	getSession(origin: string | URL, options?: http2.SecureClientSessionOptions, listeners?: PromiseListeners): Promise<http2.ClientHttp2Session>;
 	request(origin: string | URL, options?: http2.SecureClientSessionOptions, headers?: http2.OutgoingHttpHeaders, streamOptions?: http2.ClientSessionRequestOptions): Promise<http2.ClientHttp2Stream>;
 
-	createConnection(origin: URL, options: http2.SecureClientSessionOptions): Promise<TLSSocket>;
+	createConnection(origin: URL, options: http2.SecureClientSessionOptions): Promise<tls.TLSSocket>;
 
 	closeEmptySessions(count?: number): void;
 	destroy(reason?: Error): void;
 }
 
-export interface RequestFunction<T> {
-	(url: string | URL, options: RequestOptions, callback?: (response: IncomingMessage) => void): T;
-	(options: RequestOptions, callback?: (response: IncomingMessage) => void): T;
-}
-
-export import ClientRequest = http.ClientRequest;
-export import IncomingMessage = http.IncomingMessage;
+export type RequestFunction<T> =
+	((url: string | URL, options: RequestOptions, callback?: (response: IncomingMessage) => void) => T) &
+	((options: RequestOptions, callback?: (response: IncomingMessage) => void) => T);
 
 export const globalAgent: Agent;
 
 export const request: RequestFunction<ClientRequest>;
 export const get: RequestFunction<ClientRequest>;
 export const auto: RequestFunction<Promise<ClientRequest>> & {protocolCache: QuickLRU<string, string>};
+
+export {
+	ClientRequest,
+	IncomingMessage
+} from 'http';
 
 export * from 'http2';
