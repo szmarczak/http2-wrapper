@@ -5,10 +5,16 @@ import {RequestOptions} from 'https';
 import http2 = require('http2');
 import QuickLRU from 'quick-lru';
 
+export interface EntryFunction {
+	(): Promise<void>;
+	completed: boolean;
+	destroyed: boolean;
+};
+
 export interface AgentOptions {
 	timeout?: number;
 	maxSessions?: number;
-	maxFreeSessions?: number;
+	maxEmptySessions?: number;
 	maxCachedTlsSessions?: number;
 }
 
@@ -18,12 +24,22 @@ export interface PromiseListeners {
 }
 
 export class Agent extends EventEmitter {
-	freeSessions: Record<string, http2.ClientHttp2Stream[]>;
-	busySessions: Record<string, http2.ClientHttp2Stream[]>;
+	sessions: Record<string, http2.ClientHttp2Session[]>;
+	queue: Record<string, Record<string, EntryFunction>>;
 
-	constructor(options: AgentOptions);
+	timeout: number;
+	maxSessions: number;
+	maxEmptySessions: number;
+	protocol: string;
+	settings: http2.Settings;
 
-	static normalizeOrigin(url: string | URL, servername?: string): string;
+	tlsSessionCache: QuickLRU;
+
+	emptySessionCount: number;
+	pendingSessionCount: number;
+	sessionCount: number;
+
+	constructor(options?: AgentOptions);
 
 	static connect(origin: URL, options: http2.SecureClientSessionOptions): TLSSocket;
 
@@ -32,9 +48,9 @@ export class Agent extends EventEmitter {
 	getSession(origin: string | URL, options?: http2.SecureClientSessionOptions, listeners?: PromiseListeners): Promise<http2.ClientHttp2Session>;
 	request(origin: string | URL, options?: http2.SecureClientSessionOptions, headers?: http2.OutgoingHttpHeaders, streamOptions?: http2.ClientSessionRequestOptions): Promise<http2.ClientHttp2Stream>;
 
-	createConnection(origin: URL, options: http2.SecureClientSessionOptions): TLSSocket;
+	createConnection(origin: URL, options: http2.SecureClientSessionOptions): Promise<TLSSocket>;
 
-	closeFreeSessions(): void;
+	closeEmptySessions(count?: number): void;
 	destroy(reason?: Error): void;
 }
 

@@ -669,7 +669,7 @@ class Agent extends EventEmitter {
 		});
 	}
 
-	createConnection(origin, options) {
+	async createConnection(origin, options) {
 		return Agent.connect(origin, options);
 	}
 
