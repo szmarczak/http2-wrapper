@@ -1,5 +1,7 @@
-import {EventEmitter} from 'events';
+// See https://github.com/facebook/jest/issues/2549
+// eslint-disable-next-line node/prefer-global/url
 import {URL} from 'url';
+import {EventEmitter} from 'events';
 import tls = require('tls');
 import http = require('http');
 import https = require('https');

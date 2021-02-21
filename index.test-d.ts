@@ -1,3 +1,6 @@
+/* eslint-disable node/prefer-global/url */
+/* eslint-disable no-new */
+
 import {expectType} from 'tsd';
 import {URL} from 'url';
 import {TLSSocket} from 'tls';
@@ -82,7 +85,7 @@ for (const method of methods) {
 		}, response => {
 			expectType<http.IncomingMessage>(response);
 			response.resume();
-		})
+		});
 
 		expectType<http.ClientRequest>(request);
 
@@ -175,7 +178,7 @@ for (const method of methods) {
 		}, response => {
 			expectType<http.IncomingMessage>(response);
 			response.resume();
-		})
+		});
 
 		expectType<http.ClientRequest>(request);
 	}
@@ -186,7 +189,7 @@ for (const method of methods) {
 		timeout: 1000,
 		maxSessions: 1,
 		maxEmptySessions: 0,
-		maxCachedTlsSessions: 10,
+		maxCachedTlsSessions: 10
 	});
 
 	const session = await agent.getSession('https://example.com');
