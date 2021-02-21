@@ -1,17 +1,28 @@
 import {EventEmitter} from 'events';
+import {URL} from 'url';
 import tls = require('tls');
+import http = require('http');
 import https = require('https');
 import http2 = require('http2');
-import QuickLRU from 'quick-lru';
+import QuickLRU = require('quick-lru');
 
 export interface RequestOptions extends Omit<https.RequestOptions, 'session'> {
-	tlsSession: tls.ConnectionOptions['session'];
+	tlsSession?: tls.ConnectionOptions['session'];
 	h2session?: http2.ClientHttp2Session;
+}
+
+export interface AutoRequestOptions extends Omit<RequestOptions, 'agent' | 'h2session'> {
+	agent?: {
+		http?: http.Agent;
+		https?: https.Agent;
+		http2?: Agent;
+	};
 }
 
 export interface EntryFunction {
 	completed: boolean;
 	destroyed: boolean;
+	listeners: PromiseListeners;
 
 	(): Promise<void>;
 }
@@ -59,15 +70,16 @@ export class Agent extends EventEmitter {
 	destroy(reason?: Error): void;
 }
 
-export type RequestFunction<T> =
-	((url: string | URL, options: RequestOptions, callback?: (response: IncomingMessage) => void) => T) &
-	((options: RequestOptions, callback?: (response: IncomingMessage) => void) => T);
+export type RequestFunction<T, O = RequestOptions> =
+	((url: string | URL, options?: O, callback?: (response: http.IncomingMessage) => void) => T) &
+	((url: string | URL, callback?: (response: http.IncomingMessage) => void) => T) &
+	((options: O, callback?: (response: http.IncomingMessage) => void) => T);
 
 export const globalAgent: Agent;
 
-export const request: RequestFunction<ClientRequest>;
-export const get: RequestFunction<ClientRequest>;
-export const auto: RequestFunction<Promise<ClientRequest>> & {protocolCache: QuickLRU<string, string>};
+export const request: RequestFunction<http.ClientRequest>;
+export const get: RequestFunction<http.ClientRequest>;
+export const auto: RequestFunction<Promise<http.ClientRequest>, AutoRequestOptions> & {protocolCache: QuickLRU<string, string>};
 
 export {
 	ClientRequest,
