@@ -1,7 +1,7 @@
 /* eslint-disable node/prefer-global/url */
 /* eslint-disable no-new */
 
-import {expectType} from 'tsd';
+import {expectType, expectAssignable} from 'tsd';
 import {URL} from 'url';
 import {TLSSocket} from 'tls';
 import http = require('http');
@@ -228,3 +228,58 @@ for (const method of methods) {
 	agent.destroy();
 	agent.destroy(new Error('Have a good day!'));
 })();
+
+expectAssignable<typeof http.Agent>(http2.proxies.HttpOverHttp2);
+expectAssignable<typeof https.Agent>(http2.proxies.HttpsOverHttp2);
+expectAssignable<typeof http2.Agent>(http2.proxies.Http2OverHttp2);
+expectAssignable<typeof http2.Agent>(http2.proxies.Http2OverHttp);
+expectAssignable<typeof http2.Agent>(http2.proxies.Http2OverHttps);
+
+const agents = [
+	http2.proxies.HttpOverHttp2,
+	http2.proxies.HttpsOverHttp2,
+	http2.proxies.Http2OverHttp2,
+	http2.proxies.Http2OverHttp,
+	http2.proxies.Http2OverHttps
+] as const;
+
+for (const Agent of agents) {
+	new Agent({
+		proxyOptions: {
+			url: 'https://example.com'
+		}
+	});
+
+	new Agent({
+		proxyOptions: {
+			url: 'https://example.com',
+			headers: {}
+		}
+	});
+
+	new Agent({
+		proxyOptions: {
+			url: 'https://example.com',
+			raw: false
+		}
+	});
+
+	new Agent({
+		proxyOptions: {
+			url: 'https://example.com',
+			headers: {
+				foobar: 'unicorn'
+			}
+		}
+	});
+
+	new Agent({
+		proxyOptions: {
+			url: 'https://example.com',
+			headers: {
+				foobar: 'unicorn'
+			},
+			raw: false
+		}
+	});
+}

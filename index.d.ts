@@ -72,6 +72,34 @@ export class Agent extends EventEmitter {
 	destroy(reason?: Error): void;
 }
 
+export interface ProxyOptions {
+	headers?: http2.OutgoingHttpHeaders;
+	raw?: boolean;
+	url: URL | string;
+}
+
+export namespace proxies {
+	class HttpOverHttp2 extends http.Agent {
+		constructor(options: http.AgentOptions & {proxyOptions: ProxyOptions});
+	}
+
+	class HttpsOverHttp2 extends https.Agent {
+		constructor(options: https.AgentOptions & {proxyOptions: ProxyOptions});
+	}
+
+	class Http2OverHttp2 extends Agent {
+		constructor(options: AgentOptions & {proxyOptions: ProxyOptions});
+	}
+
+	class Http2OverHttp extends Agent {
+		constructor(options: AgentOptions & {proxyOptions: ProxyOptions});
+	}
+
+	class Http2OverHttps extends Agent {
+		constructor(options: AgentOptions & {proxyOptions: ProxyOptions});
+	}
+}
+
 export type RequestFunction<T, O = RequestOptions> =
 	((url: string | URL, options?: O, callback?: (response: http.IncomingMessage) => void) => T) &
 	((url: string | URL, callback?: (response: http.IncomingMessage) => void) => T) &
