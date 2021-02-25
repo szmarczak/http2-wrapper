@@ -274,6 +274,8 @@ test('`socket`/`connection` property is an instance of `net.Socket`', wrapper, a
 	t.true(request.socket instanceof net.Socket);
 	t.is(request.socket, request.connection);
 	t.is(request.socket, socket);
+
+	request.destroy();
 });
 
 test('`.write()` works', wrapper, async (t, server) => {
@@ -333,6 +335,20 @@ test('`headersSent` is `true` after flushing headers', wrapper, async (t, server
 
 	await pEvent(request, 'finish');
 	t.true(request.headersSent);
+
+	request.destroy();
+});
+
+test('errors when stream ends unexpectedly', wrapper, async (t, server) => {
+	server.once('stream', stream => {
+		stream.destroy();
+	});
+
+	const request = makeRequest(server.options);
+	request.end();
+
+	const error = await pEvent(request, 'error');
+	t.is(error.message, 'The HTTP/2 stream has been early terminated');
 });
 
 test.serial('`timeout` option', wrapper.lolex, async (t, server, clock) => {
@@ -453,6 +469,8 @@ test('`information` event', wrapper, async (t, server) => {
 
 	const {statusCode} = await pEvent(request, 'information');
 	t.is(statusCode, 102);
+
+	request.destroy();
 });
 
 test('destroys the request if no listener attached for `CONNECT` request', proxyWrapper, async (t, proxy) => {

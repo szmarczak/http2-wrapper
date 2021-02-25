@@ -34,7 +34,8 @@ const kPendingAgentPromise = Symbol('pendingAgentPromise');
 class ClientRequest extends Writable {
 	constructor(input, options, callback) {
 		super({
-			autoDestroy: false
+			autoDestroy: false,
+			emitClose: false
 		});
 
 		if (typeof input === 'string') {
@@ -280,7 +281,8 @@ class ClientRequest extends Writable {
 
 			// Forwards `timeout`, `continue`, `close` and `error` events to this instance.
 			if (!isConnectMethod) {
-				proxyEvents(stream, this, ['timeout', 'continue', 'close']);
+				// TODO: Should we proxy `close` here?
+				proxyEvents(stream, this, ['timeout', 'continue']);
 			}
 
 			stream.once('error', error => {
@@ -386,6 +388,12 @@ class ClientRequest extends Writable {
 						finish();
 					}
 
+					return;
+				}
+
+				if (!this.destroyed) {
+					this.destroy(new Error('The HTTP/2 stream has been early terminated'));
+					this.emit('close');
 					return;
 				}
 
