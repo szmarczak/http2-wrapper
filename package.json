@@ -1,11 +1,11 @@
 {
 	"name": "http2-wrapper",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "HTTP2 client, just with the familiar `https` API",
 	"main": "source",
 	"types": "index.d.ts",
 	"engines": {
-		"node": ">=15.10.0"
+		"node": ">=10.19.0"
 	},
 	"scripts": {
 		"test": "xo && nyc --reporter=lcovonly --reporter=text --reporter=html ava && tsd"
