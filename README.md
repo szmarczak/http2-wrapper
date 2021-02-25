@@ -98,7 +98,7 @@ const http2 = require('http2-wrapper');
 
 const options = {
 	hostname: 'httpbin.org',
-	protocol: 'http:', // Note the `http:` protocol here
+	protocol: 'http:', // Try changing this to https:
 	path: '/post',
 	method: 'POST',
 	headers: {
@@ -167,7 +167,7 @@ Same as [`https.request`](https://nodejs.org/api/https.html#https_https_request_
 
 Type: `Http2Session`<br>
 
-The session used to make the actual request. If none provided, it will use `options.agent`.
+The session used to make the actual request. If none provided, it will use `options.agent` to get one.
 
 ### http2.get(url, options, callback)
 
@@ -200,21 +200,21 @@ class MyAgent extends http2.Agent {
 http2.get({
 	hostname: 'google.com',
 	agent: new MyAgent()
-}, res => {
-	res.on('data', chunk => console.log(`Received chunk of ${chunk.length} bytes`));
+}, response => {
+	response.on('data', chunk => console.log(`Received chunk of ${chunk.length} bytes`));
 });
 ```
 
 #### options
 
-Each option is assigned to each `Agent` instance and can be changed later.
+Each option is an `Agent` property and can be changed later.
 
 ##### timeout
 
 Type: `number`<br>
-Default: `60000`
+Default: `0`
 
-If there's no activity after `timeout` milliseconds, the session will be closed.
+If there's no activity after `timeout` milliseconds, the session will be closed. If `0`, no timeout is applied.
 
 ##### maxSessions
 
@@ -223,14 +223,12 @@ Default: `Infinity`
 
 The maximum amount of sessions in total.
 
-##### maxFreeSessions
+##### maxEmptySessions
 
 Type: `number`<br>
 Default: `10`
 
-The maximum amount of free sessions in total. This only applies to sessions with no pending requests.
-
-**Note:** It is possible that the amount will be exceeded when sessions have at least 1 pending request.
+The maximum amount of empty sessions in total. An empty session is a session with no pending requests.
 
 ##### maxCachedTlsSessions
 
@@ -239,9 +237,10 @@ Default: `100`
 
 The maximum amount of cached TLS sessions.
 
-#### Agent.normalizeOrigin(url)
+#### agent.protocol
 
-Returns a string representing the origin of the URL.
+Type: `string`<br>
+Default: `https:`
 
 #### agent.settings
 
@@ -256,7 +255,7 @@ Returns a string representing normalized options.
 
 ```js
 Agent.normalizeOptions({servername: 'example.com'});
-// => ':example.com'
+// => ':::::::::::::::::::::::::::::::::::::'
 ```
 
 #### agent.getSession(origin, options)
@@ -265,15 +264,17 @@ Agent.normalizeOptions({servername: 'example.com'});
 
 Type: `string` `URL` `object`
 
-An origin used to create new session.
+Origin used to create new session.
 
 ##### [options](https://nodejs.org/api/http2.html#http2_http2_connect_authority_options_listener)
 
 Type: `object`
 
-The options used to create new session.
+Options used to create new session.
 
 Returns a Promise giving free `Http2Session`. If no free sessions are found, a new one is created.
+
+A session is considered free when pending streams count is less than max concurrent streams settings.
 
 #### agent.getSession([origin](#origin), [options](options-1), listener)
 
@@ -298,13 +299,36 @@ Returns a Promise giving `Http2Stream`.
 
 Returns a new `TLSSocket`. It defaults to `Agent.connect(origin, options)`.
 
-#### agent.closeFreeSessions()
+#### agent.closeEmptySessions(count)
 
-Makes an attempt to close free sessions. Only sessions with 0 concurrent streams will be closed.
+##### count
+
+Type: `number`
+Default: `Number.POSITIVE_INFINITY`
+
+Makes an attempt to close empty sessions. Only sessions with 0 concurrent streams will be closed.
 
 #### agent.destroy(reason)
 
 Destroys **all** sessions.
+
+#### agent.emptySessionCount
+
+Type: `number`
+
+A number of empty sessions.
+
+#### agent.pendingSessionCount
+
+Type: `number`
+
+A number of pending sessions.
+
+#### agent.sessionCount
+
+Type: `number`
+
+A number of all sessions held by the Agent.
 
 #### Event: 'session'
 
@@ -316,94 +340,32 @@ agent.on('session', session => {
 
 ## Proxy support
 
-### Mirroring another server
+Currently `http2-wrapper` provides support for these proxies:
+
+- `HttpOverHttp2`
+- `HttpsOverHttp2`
+- `Http2OverHttp2`
+- `Http2OverHttp`
+- `Http2OverHttps`
+
+Any of the above can be accessed via `http2wrapper.proxies`. Check out the [`examples/proxies`](examples/proxies) directory to learn more.
+
+## Mirroring another server
 
 See [`examples/proxies/mirror.js`](examples/proxies/mirror.js) for an example.
 
-### HTTP/1 over HTTP/2
+## [WebSockets over HTTP/2](https://tools.ietf.org/html/rfc8441)
 
-It uses tunnelling, the `CONNECT` protocol.
+See [`examples/ws`](examples/ws) for an example.
 
-Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
-Client: [`examples/proxies/h1-over-h2.js`](examples/proxies/h1-over-h2.js)
+## Push streams
 
-### HTTP/2 over HTTP/2
-
-Now let's get fancy! Did you know you can create an HTTP/2 session on top of an HTTP/2 stream?
-
-Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
-Client: [`examples/proxies/h2-over-h2.js`](examples/proxies/h2-over-h2.js)
-
-### ??? over HTTP/2
-
-What is that? HTTP/1? HTTP/2? No one knows until we connect.
-
-Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
-Client: [`examples/proxies/unknown-over-h2.js`](examples/proxies/unknown-over-h2.js)
-
-### HTTP/2 over HTTP/1
-
-Yes, we can do that too.
-
-Server: [`examples/proxies/server.js`](examples/proxies/server.js)\
-Client: [`examples/proxies/h2-over-h1.js`](examples/proxies/h2-over-h1.js)
-
-### ??? over ???
-
-It is possible that we don't know the protocol of both: the proxy server and the server being proxied.
-
-Client: [`examples/proxies/unknown-over-unknown.js`](examples/proxies/unknown-over-unknown.js)
-
-## Notes
-
-- If you're interested in [WebSockets over HTTP/2](https://tools.ietf.org/html/rfc8441), then [check out this discussion](https://github.com/websockets/ws/issues/1458).
-- [HTTP/2 sockets cannot be malformed](https://github.com/nodejs/node/blob/cc8250fab86486632fdeb63892be735d7628cd13/lib/internal/http2/core.js#L725), therefore modifying the socket will have no effect.
-- You can make [a custom Agent](examples/push-stream/index.js) to support push streams.
-
-## Benchmarks
-
-CPU: Intel i7-7700k (governor: performance)<br>
-Server: H2O v2.2.5 [`h2o.conf`](h2o.conf)<br>
-Node: v14.11.0<br>
-Linux: 5.6.19-158.current
-
-`auto` means `http2wrapper.auto`.
-
-```
-http2-wrapper                         x 11,233 ops/sec ±1.52% (80 runs sampled)
-http2-wrapper - preconfigured session x 12,329 ops/sec ±1.99% (82 runs sampled)
-http2-wrapper - auto                  x 9,365 ops/sec ±5.07% (81 runs sampled)
-http2                                 x 15,983 ops/sec ±1.34% (81 runs sampled)
-https         - auto - keepalive      x 11,452 ops/sec ±2.42% (78 runs sampled)
-https                - keepalive      x 10,513 ops/sec ±2.84% (75 runs sampled)
-https                                 x 1,586 ops/sec ±1.14% (83 runs sampled)
-http                                  x 5,273 ops/sec ±1.80% (80 runs sampled)
-Fastest is http2
-```
-
-`http2-wrapper`:
-- 30% **less** performant than `http2`
-- as performant as `https - keepalive`
-- 113% **more** performant than `http`
-
-`http2-wrapper - preconfigured session`:
-- 23% **less** performant than `http2`
-- 17% **more** performant than `https - keepalive`
-- 134% **more** performant than `http`
-
-`http2-wrapper - auto`:
-- 41% **less** performant than `http2`
-- 11% **less** performant than `https - keepalive`
-- 89% **more** performant than `http`
-
-`https - auto - keepalive`:
-- 28% **less** performant than `http2`
-- as performant as `https - keepalive`
-- 117% **more** performant than `http`
+See [`examples/push-stream`](examples/push-stream) for an example.
 
 ## Related
 
- - [`got`](https://github.com/sindresorhus/got) - Simplified HTTP requests
+- [`got`](https://github.com/sindresorhus/got) - Simplified HTTP requests
+- [`http2-proxy`](https://github.com/nxtedition/node-http2-proxy) - A simple http/2 & http/1.1 spec compliant proxy helper for Node.
 
 ## License
 
