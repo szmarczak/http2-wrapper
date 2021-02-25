@@ -771,7 +771,7 @@ test.serial('creates a new socket on early socket close by the server', async t 
 	const request = await http2.auto(server.url);
 
 	await new Promise(resolve => {
-		setTimeout(resolve, 10);
+		setTimeout(resolve, 20);
 	});
 
 	request.end();
