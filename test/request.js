@@ -198,7 +198,7 @@ test('passes options to the original request', wrapper, async (t, server) => {
 	const error = await pEvent(request, 'error');
 
 	// We can get `The pending stream has been canceled (caused by: self signed certificate)` or `unable to verify the first certificate`
-	t.true((/self signed certificate/).test(error.message) || error.message === 'unable to verify the first certificate');
+	t.true((/self signed certificate/).test(error.message) || error.message === 'unable to verify the first certificate' || error.message === 'certificate has expired');
 });
 
 test('`tlsSession` option', wrapper, async (t, server) => {

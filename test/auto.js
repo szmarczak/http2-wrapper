@@ -819,3 +819,16 @@ test.serial('creates a new socket on early socket close by the server 2', async 
 
 	await server.close();
 });
+
+test('does not throw when passing agents as `undefined`', async t => {
+	const options = {
+		agent: {
+			http2: undefined
+		}
+	};
+
+	const request = await http2.auto(h2s.url, options);
+	request.destroy();
+
+	t.pass();
+});

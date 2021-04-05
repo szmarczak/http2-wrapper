@@ -148,7 +148,9 @@ module.exports = async (input, options, callback) => {
 		if (agent) {
 			agent = isHttp2 ? agent.http2 : agent.https;
 			options.agent = agent;
-		} else if (agent === undefined) {
+		}
+
+		if (agent === undefined) {
 			agent = isHttp2 ? globalAgent : https.globalAgent;
 		}
 
