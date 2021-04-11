@@ -832,3 +832,22 @@ test('does not throw when passing agents as `undefined`', async t => {
 
 	t.pass();
 });
+
+test('throws on timeout', async t => {
+	t.timeout(100);
+
+	const request = await http2.auto('https://123.123.123.123', {timeout: 1});
+
+	await new Promise((resolve, reject) => {
+		request.once('timeout', () => {
+			request.destroy();
+			resolve();
+		});
+
+		request.once('error', reject);
+	});
+
+	request.destroy();
+
+	t.pass();
+});

@@ -19,6 +19,7 @@ I recommend adapting to the [`http2`](https://nodejs.org/api/http2.html) module 
 > `$ yarn add http2-wrapper`
 
 ## Usage
+
 ```js
 const http2 = require('http2-wrapper');
 
@@ -85,6 +86,8 @@ request.end('456');
 ## API
 
 **Note:** The `session` option was renamed to `tlsSession` for better readability.
+
+**Note:** The `timeout` option applies to HTTP/2 streams only. In order to set session timeout, pass an Agent with custom `timeout` option set.
 
 ### http2.auto(url, options, callback)
 

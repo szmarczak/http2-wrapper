@@ -1,6 +1,6 @@
 {
 	"name": "http2-wrapper",
-	"version": "2.0.1",
+	"version": "2.0.2",
 	"description": "HTTP2 client, just with the familiar `https` API",
 	"main": "source",
 	"types": "index.d.ts",
@@ -32,7 +32,7 @@
 	"homepage": "https://github.com/szmarczak/http2-wrapper#readme",
 	"dependencies": {
 		"quick-lru": "^5.1.1",
-		"resolve-alpn": "^1.0.0"
+		"resolve-alpn": "^1.0.1"
 	},
 	"devDependencies": {
 		"@sindresorhus/is": "^4.0.0",
