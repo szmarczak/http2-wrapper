@@ -836,18 +836,8 @@ test('does not throw when passing agents as `undefined`', async t => {
 test('throws on timeout', async t => {
 	t.timeout(100);
 
-	const request = await http2.auto('https://123.123.123.123', {timeout: 1});
-
-	await new Promise((resolve, reject) => {
-		request.once('timeout', () => {
-			request.destroy();
-			resolve();
-		});
-
-		request.once('error', reject);
+	await t.throwsAsync(http2.auto('https://123.123.123.123', {timeout: 1}), {
+		message: 'Timed out resolving ALPN: 1 ms',
+		code: 'ETIMEDOUT'
 	});
-
-	request.destroy();
-
-	t.pass();
 });

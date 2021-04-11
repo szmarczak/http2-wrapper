@@ -133,7 +133,19 @@ module.exports = async (input, options, callback) => {
 	if (isHttps) {
 		options.resolveSocket = true;
 
-		let {socket, alpnProtocol} = await resolveProtocol(options);
+		let {socket, alpnProtocol, timeout} = await resolveProtocol(options);
+
+		if (timeout) {
+			if (socket) {
+				socket.destroy();
+			}
+
+			const error = new Error(`Timed out resolving ALPN: ${options.timeout} ms`);
+			error.code = 'ETIMEDOUT';
+			error.ms = options.timeout;
+
+			throw error;
+		}
 
 		// We can't accept custom `createConnection` because the API is different for HTTP/2
 		if (socket && options.createConnection) {
