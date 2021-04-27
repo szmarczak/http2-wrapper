@@ -176,7 +176,8 @@ class Agent extends EventEmitter {
 
 		// We don't support push streams by default.
 		this.settings = {
-			enablePush: false
+			enablePush: false,
+			initialWindowSize: 1024 * 1024 * 32 // 32MB, see https://github.com/nodejs/node/issues/38426
 		};
 
 		// Reusing TLS sessions increases performance.
@@ -529,6 +530,9 @@ class Agent extends EventEmitter {
 							session.destroy();
 							return;
 						}
+
+						// See https://github.com/nodejs/node/issues/38426
+						session.setLocalWindowSize(1024 * 1024 * 4); // 4 MB
 
 						session[kOriginSet] = session.originSet || [];
 
