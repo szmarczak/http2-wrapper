@@ -532,7 +532,9 @@ class Agent extends EventEmitter {
 						}
 
 						// See https://github.com/nodejs/node/issues/38426
-						session.setLocalWindowSize(1024 * 1024 * 4); // 4 MB
+						if (session.setLocalWindowSize) {
+							session.setLocalWindowSize(1024 * 1024 * 4); // 4 MB
+						}
 
 						session[kOriginSet] = session.originSet || [];
 
