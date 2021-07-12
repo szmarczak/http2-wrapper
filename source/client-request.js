@@ -491,7 +491,17 @@ class ClientRequest extends Writable {
 		validateHeaderName(name);
 		validateHeaderValue(name, value);
 
-		this[kHeaders][name.toLowerCase()] = value;
+		const lowercased = name.toLowerCase();
+
+		if (lowercased === 'connection') {
+			if (value === 'keep-alive') {
+				return;
+			} else {
+				throw new Error(`Invalid 'connection' header: ${value}`);
+			}
+		}
+
+		this[kHeaders][lowercased] = value;
 	}
 
 	setNoDelay() {
