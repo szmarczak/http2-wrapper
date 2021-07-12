@@ -51,7 +51,7 @@
 		"tsd": "^0.17.0",
 		"websocket-stream": "^5.5.2",
 		"ws": "^7.5.3",
-		"xo": "^0.41.0"
+		"xo": "0.39.1"
 	},
 	"ava": {
 		"timeout": "10s"
@@ -67,7 +67,15 @@
 			"unicorn/prefer-module": "off",
 			"comma-dangle": "off",
 			"@typescript-eslint/comma-dangle": "off",
-			"quotes": ["error", "single", {"avoidEscape": true, "allowTemplateLiterals": true}]
+			"quotes": [
+				"error",
+				"single",
+				{
+					"avoidEscape": true,
+					"allowTemplateLiterals": true
+				}
+			],
+			"operator-linebreak": ["error", "before"]
 		}
 	}
 }
