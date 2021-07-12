@@ -2,7 +2,7 @@
 const {
 	ERR_HTTP_INVALID_HEADER_VALUE,
 	ERR_INVALID_CHAR
-} = require('./errors');
+} = require('./errors.js');
 
 const isInvalidHeaderValue = /[^\t\u0020-\u007E\u0080-\u00FF]/;
 

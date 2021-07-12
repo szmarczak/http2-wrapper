@@ -1,12 +1,12 @@
-const test = require('ava');
 const http = require('http');
 const https = require('https');
+const test = require('ava');
 const pEvent = require('p-event');
 const getStream = require('get-stream');
-const http2 = require('../source');
-const createProxyServer = require('../proxy-server');
-const {createWrapper} = require('./helpers/server');
-const sslOptions = require('./helpers/certs');
+const http2 = require('../source/index.js');
+const createProxyServer = require('../proxy-server.js');
+const {createWrapper} = require('./helpers/server.js');
+const sslOptions = require('./helpers/certs.js');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -59,6 +59,7 @@ test.serial('constructor', t => {
 		http2.proxies.Http2OverHttp,
 		http2.proxies.Http2OverHttps,
 		http2.proxies.Http2OverHttp2
+		// eslint-disable-next-line unicorn/no-array-for-each
 	].forEach(Agent => {
 		t.throws(() => new Agent({
 			proxyOptions: false

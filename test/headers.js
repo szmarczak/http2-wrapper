@@ -2,8 +2,8 @@
 const {serial: test} = require('ava');
 const pEvent = require('p-event');
 const getStream = require('get-stream');
-const http2 = require('../source');
-const {createWrapper} = require('./helpers/server');
+const http2 = require('../source/index.js');
+const {createWrapper} = require('./helpers/server.js');
 
 const {
 	request: makeRequest,

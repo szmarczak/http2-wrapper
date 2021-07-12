@@ -8,8 +8,8 @@ const pEvent = require('p-event');
 const getStream = require('get-stream');
 const tempy = require('tempy');
 const is = require('@sindresorhus/is');
-const {request: makeRequest, get, constants, connect, Agent, globalAgent, createServer: createUnsecureServer} = require('../source');
-const {createWrapper, createServer, createProxyServer} = require('./helpers/server');
+const {request: makeRequest, get, constants, connect, Agent, globalAgent, createServer: createUnsecureServer} = require('../source/index.js');
+const {createWrapper, createServer, createProxyServer} = require('./helpers/server.js');
 
 const delay = ms => new Promise(resolve => {
 	setTimeout(resolve, ms);

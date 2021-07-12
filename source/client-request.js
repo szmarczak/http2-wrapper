@@ -4,17 +4,17 @@
 const {URL, urlToHttpOptions} = require('url');
 const http2 = require('http2');
 const {Writable} = require('stream');
-const {Agent, globalAgent} = require('./agent');
-const IncomingMessage = require('./incoming-message');
-const proxyEvents = require('./utils/proxy-events');
+const {Agent, globalAgent} = require('./agent.js');
+const IncomingMessage = require('./incoming-message.js');
+const proxyEvents = require('./utils/proxy-events.js');
 const {
 	ERR_INVALID_ARG_TYPE,
 	ERR_INVALID_PROTOCOL,
 	ERR_HTTP_HEADERS_SENT
-} = require('./utils/errors');
-const validateHeaderName = require('./utils/validate-header-name');
-const validateHeaderValue = require('./utils/validate-header-value');
-const proxySocketHandler = require('./utils/proxy-socket-handler');
+} = require('./utils/errors.js');
+const validateHeaderName = require('./utils/validate-header-name.js');
+const validateHeaderValue = require('./utils/validate-header-value.js');
+const proxySocketHandler = require('./utils/proxy-socket-handler.js');
 
 const {
 	HTTP2_HEADER_STATUS,
@@ -139,6 +139,7 @@ class ClientRequest extends Writable {
 				return reuseSocket;
 			};
 
+			// eslint-disable-next-line promise/prefer-await-to-then
 			this.agent.getSession(this[kOrigin], this[kOptions]).catch(() => {});
 		}
 
@@ -496,9 +497,9 @@ class ClientRequest extends Writable {
 		if (lowercased === 'connection') {
 			if (value === 'keep-alive') {
 				return;
-			} else {
-				throw new Error(`Invalid 'connection' header: ${value}`);
 			}
+
+			throw new Error(`Invalid 'connection' header: ${value}`);
 		}
 
 		this[kHeaders][lowercased] = value;

@@ -1,7 +1,7 @@
 const test = require('ava');
 const got = require('got');
-const http2 = require('../source');
-const {createWrapper} = require('./helpers/server');
+const http2 = require('../source/index.js');
+const {createWrapper} = require('./helpers/server.js');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 

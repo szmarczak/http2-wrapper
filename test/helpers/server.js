@@ -93,8 +93,8 @@ const createServer = async options => {
 	return server;
 };
 
-const createPlainWrapper = options => {
-	return async (t, run) => {
+const createPlainWrapper = options =>
+	async (t, run) => {
 		const create = (options && options.createServer) || createServer;
 
 		const clock = options && options.lolex ? lolex.install() : lolex.createClock();
@@ -121,7 +121,6 @@ const createPlainWrapper = options => {
 			await server.close();
 		}
 	};
-};
 
 const createWrapper = options => {
 	const wrapper = createPlainWrapper(options);

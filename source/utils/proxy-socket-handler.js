@@ -1,5 +1,5 @@
 'use strict';
-const {ERR_HTTP2_NO_SOCKET_MANIPULATION} = require('./errors');
+const {ERR_HTTP2_NO_SOCKET_MANIPULATION} = require('./errors.js');
 
 /* istanbul ignore file */
 /* https://github.com/nodejs/node/blob/6eec858f34a40ffa489c1ec54bb24da72a28c781/lib/internal/http2/compat.js#L195-L272 */

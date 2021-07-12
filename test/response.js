@@ -5,9 +5,9 @@ const {serial: test} = require('ava');
 const pEvent = require('p-event');
 const getStream = require('get-stream');
 const is = require('@sindresorhus/is');
-const {request: makeRequest, globalAgent} = require('../source');
-const IncomingMessage = require('../source/incoming-message');
-const {createWrapper} = require('./helpers/server');
+const {request: makeRequest, globalAgent} = require('../source/index.js');
+const IncomingMessage = require('../source/incoming-message.js');
+const {createWrapper} = require('./helpers/server.js');
 
 test.serial = test;
 

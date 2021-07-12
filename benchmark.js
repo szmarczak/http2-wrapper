@@ -4,7 +4,7 @@ const http2 = require('http2');
 const https = require('https');
 const http = require('http');
 const Benchmark = require('benchmark');
-const wrapper = require('./source');
+const wrapper = require('./source/index.js');
 
 // Configuration
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';

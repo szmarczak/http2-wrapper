@@ -3,25 +3,23 @@ const http2 = require('http2');
 const {
 	Agent,
 	globalAgent
-} = require('./agent');
-const ClientRequest = require('./client-request');
-const IncomingMessage = require('./incoming-message');
-const auto = require('./auto');
+} = require('./agent.js');
+const ClientRequest = require('./client-request.js');
+const IncomingMessage = require('./incoming-message.js');
+const auto = require('./auto.js');
 const {
 	HttpOverHttp2,
 	HttpsOverHttp2
-} = require('./proxies/h1-over-h2');
-const Http2OverHttp2 = require('./proxies/h2-over-h2');
+} = require('./proxies/h1-over-h2.js');
+const Http2OverHttp2 = require('./proxies/h2-over-h2.js');
 const {
 	Http2OverHttp,
 	Http2OverHttps
-} = require('./proxies/h2-over-h1');
-const validateHeaderName = require('./utils/validate-header-name');
-const validateHeaderValue = require('./utils/validate-header-value');
+} = require('./proxies/h2-over-h1.js');
+const validateHeaderName = require('./utils/validate-header-name.js');
+const validateHeaderValue = require('./utils/validate-header-value.js');
 
-const request = (url, options, callback) => {
-	return new ClientRequest(url, options, callback);
-};
+const request = (url, options, callback) => new ClientRequest(url, options, callback);
 
 const get = (url, options, callback) => {
 	// eslint-disable-next-line unicorn/prevent-abbreviations

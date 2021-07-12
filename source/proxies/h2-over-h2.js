@@ -1,7 +1,7 @@
 'use strict';
-const {globalAgent} = require('../agent');
-const Http2OverHttpX = require('./h2-over-hx');
-const getAuthorizationHeaders = require('./get-auth-headers');
+const {globalAgent} = require('../agent.js');
+const Http2OverHttpX = require('./h2-over-hx.js');
+const getAuthorizationHeaders = require('./get-auth-headers.js');
 
 const getStatusCode = stream => new Promise((resolve, reject) => {
 	stream.once('error', reject);

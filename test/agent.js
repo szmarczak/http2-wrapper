@@ -5,9 +5,9 @@ const test = require('ava');
 const getStream = require('get-stream');
 const pEvent = require('p-event');
 const is = require('@sindresorhus/is');
-const {Agent, constants} = require('../source');
-const {createWrapper, createServer} = require('./helpers/server');
-const setImmediateAsync = require('./helpers/set-immediate-async');
+const {Agent, constants} = require('../source/index.js');
+const {createWrapper, createServer} = require('./helpers/server.js');
+const setImmediateAsync = require('./helpers/set-immediate-async.js');
 const {key, cert} = require('./helpers/certs.js');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';

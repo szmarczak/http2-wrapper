@@ -1,6 +1,6 @@
 'use strict';
-const http2 = require('../../source'); // Note: using the local version
 const HttpsProxyAgent = require('https-proxy-agent');
+const http2 = require('../../source/index.js'); // Note: using the local version
 
 const {
 	HttpOverHttp2,
@@ -36,7 +36,6 @@ const {
 				rejectUnauthorized: false
 			});
 
-			// eslint-disable-next-line unicorn/prefer-ternary
 			if (alpnProtocol === 'h2') {
 				agent = {
 					http: new HttpOverHttp2(proxy),

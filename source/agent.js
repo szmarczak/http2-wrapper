@@ -6,7 +6,7 @@ const EventEmitter = require('events');
 const tls = require('tls');
 const http2 = require('http2');
 const QuickLRU = require('quick-lru');
-const delayAsyncDestroy = require('./utils/delay-async-destroy');
+const delayAsyncDestroy = require('./utils/delay-async-destroy.js');
 
 const kCurrentStreamCount = Symbol('currentStreamCount');
 const kRequest = Symbol('request');
@@ -84,9 +84,7 @@ const getSortedIndex = (array, value, compare) => {
 	return low;
 };
 
-const compareSessions = (a, b) => {
-	return a.remoteSettings.maxConcurrentStreams > b.remoteSettings.maxConcurrentStreams;
-};
+const compareSessions = (a, b) => a.remoteSettings.maxConcurrentStreams > b.remoteSettings.maxConcurrentStreams;
 
 // See https://tools.ietf.org/html/rfc8336
 const closeCoveredSessions = (where, session) => {
@@ -98,16 +96,16 @@ const closeCoveredSessions = (where, session) => {
 
 		if (
 			// Unfortunately `.every()` returns true for an empty array
-			coveredSession[kOriginSet].length > 0 &&
+			coveredSession[kOriginSet].length > 0
 
 			// The set is a proper subset when its length is less than the other set.
-			coveredSession[kOriginSet].length < session[kOriginSet].length &&
+			&& coveredSession[kOriginSet].length < session[kOriginSet].length
 
 			// And the other set includes all elements of the subset.
-			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
+			&& coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin))
 
 			// Makes sure that the session can handle all requests from the covered session.
-			(coveredSession[kCurrentStreamCount] + session[kCurrentStreamCount]) <= session.remoteSettings.maxConcurrentStreams
+			&& (coveredSession[kCurrentStreamCount] + session[kCurrentStreamCount]) <= session.remoteSettings.maxConcurrentStreams
 		) {
 			// This allows pending requests to finish and prevents making new requests.
 			gracefullyClose(coveredSession);
@@ -121,10 +119,10 @@ const closeSessionIfCovered = (where, coveredSession) => {
 		const session = where[index];
 
 		if (
-			coveredSession[kOriginSet].length > 0 &&
-			coveredSession[kOriginSet].length < session[kOriginSet].length &&
-			coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin)) &&
-			(coveredSession[kCurrentStreamCount] + session[kCurrentStreamCount]) <= session.remoteSettings.maxConcurrentStreams
+			coveredSession[kOriginSet].length > 0
+			&& coveredSession[kOriginSet].length < session[kOriginSet].length
+			&& coveredSession[kOriginSet].every(origin => session[kOriginSet].includes(origin))
+			&& (coveredSession[kCurrentStreamCount] + session[kCurrentStreamCount]) <= session.remoteSettings.maxConcurrentStreams
 		) {
 			gracefullyClose(coveredSession);
 
@@ -323,11 +321,11 @@ class Agent extends EventEmitter {
 					const sessionCurrentStreamsCount = session[kCurrentStreamCount];
 
 					if (
-						sessionCurrentStreamsCount >= sessionMaxConcurrentStreams ||
-						session[kGracefullyClosing] ||
+						sessionCurrentStreamsCount >= sessionMaxConcurrentStreams
+						|| session[kGracefullyClosing]
 						// Unfortunately the `close` event isn't called immediately,
 						// so `session.destroyed` is `true`, but `session.closed` is `false`.
-						session.destroyed
+						|| session.destroyed
 					) {
 						continue;
 					}

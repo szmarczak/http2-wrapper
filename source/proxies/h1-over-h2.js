@@ -1,12 +1,12 @@
 'use strict';
 const tls = require('tls');
-const JSStreamSocket = require('../utils/js-stream-socket');
 const http = require('http');
 const https = require('https');
-const {globalAgent} = require('../agent');
-const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
-const initialize = require('./initialize');
-const getAuthorizationHeaders = require('./get-auth-headers');
+const JSStreamSocket = require('../utils/js-stream-socket.js');
+const {globalAgent} = require('../agent.js');
+const UnexpectedStatusCodeError = require('./unexpected-status-code-error.js');
+const initialize = require('./initialize.js');
+const getAuthorizationHeaders = require('./get-auth-headers.js');
 
 const createConnection = (self, options, callback) => {
 	(async () => {

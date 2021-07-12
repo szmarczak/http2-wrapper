@@ -1,7 +1,7 @@
 'use strict';
 const http2 = require('http2');
 const WebSocket = require('ws');
-const {key, cert} = require('../../test/helpers/certs');
+const {key, cert} = require('../../test/helpers/certs/index.js');
 
 const head = Buffer.from('');
 

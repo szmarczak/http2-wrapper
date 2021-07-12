@@ -6,8 +6,8 @@ const {promisify} = require('util');
 const {serial: test, afterEach} = require('ava');
 const pEvent = require('p-event');
 const getStream = require('get-stream');
-const http2 = require('../source');
-const {createServer} = require('./helpers/server');
+const http2 = require('../source/index.js');
+const {createServer} = require('./helpers/server.js');
 const {key, cert} = require('./helpers/certs.js');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -321,8 +321,8 @@ test('does not break when using `createConnection` option', async t => {
 	request.agent.destroy();
 });
 
-const cb = fn => {
-	return (t, ...args) => new Promise((resolve, reject) => {
+const cb = fn =>
+	(t, ...args) => new Promise((resolve, reject) => {
 		let calledEnd = false;
 
 		const tProxy = new Proxy(t, {
@@ -350,7 +350,6 @@ const cb = fn => {
 
 		fn(tProxy, ...args);
 	});
-};
 
 test('callback as a second argument', cb(async t => {
 	await t.notThrowsAsync((async () => {

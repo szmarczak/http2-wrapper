@@ -1,8 +1,8 @@
 'use strict';
-const {Agent} = require('../agent');
-const JSStreamSocket = require('../utils/js-stream-socket');
-const UnexpectedStatusCodeError = require('./unexpected-status-code-error');
-const initialize = require('./initialize');
+const {Agent} = require('../agent.js');
+const JSStreamSocket = require('../utils/js-stream-socket.js');
+const UnexpectedStatusCodeError = require('./unexpected-status-code-error.js');
+const initialize = require('./initialize.js');
 
 class Http2OverHttpX extends Agent {
 	constructor(options) {

@@ -1,12 +1,10 @@
-// See https://github.com/facebook/jest/issues/2549
-// eslint-disable-next-line node/prefer-global/url
-import {URL} from 'url';
-import {EventEmitter} from 'events';
-import tls = require('tls');
-import http = require('http');
-import https = require('https');
-import http2 = require('http2');
-import QuickLRU = require('quick-lru');
+import {URL} from 'node:url';
+import {EventEmitter} from 'node:events';
+import tls from 'node:tls';
+import http from 'node:http';
+import https from 'node:https';
+import http2 from 'node:http2';
+import QuickLRU from 'quick-lru';
 
 export interface RequestOptions extends Omit<https.RequestOptions, 'session'> {
 	tlsSession?: tls.ConnectionOptions['session'];
@@ -22,11 +20,11 @@ export interface AutoRequestOptions extends Omit<RequestOptions, 'agent' | 'h2se
 }
 
 export interface EntryFunction {
+	(): Promise<void>;
+
 	completed: boolean;
 	destroyed: boolean;
 	listeners: PromiseListeners;
-
-	(): Promise<void>;
 }
 
 export interface AgentOptions {
@@ -114,6 +112,6 @@ export const auto: RequestFunction<Promise<http.ClientRequest>, AutoRequestOptio
 export {
 	ClientRequest,
 	IncomingMessage
-} from 'http';
+} from 'node:http';
 
-export * from 'http2';
+export * from 'node:http2';

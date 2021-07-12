@@ -1,6 +1,6 @@
 'use strict';
 const http2 = require('http2');
-const {cert, key} = require('../../test/helpers/certs');
+const {cert, key} = require('../../test/helpers/certs/index.js');
 
 const server = http2.createSecureServer({cert, key});
 

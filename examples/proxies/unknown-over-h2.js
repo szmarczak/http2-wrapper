@@ -1,5 +1,5 @@
 'use strict';
-const http2 = require('../../source'); // Note: using the local version
+const http2 = require('../../source/index.js'); // Note: using the local version
 
 const H1Agent = new http2.proxies.HttpOverHttp2({
 	proxyOptions: {

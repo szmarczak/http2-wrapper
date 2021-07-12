@@ -1,8 +1,8 @@
 'use strict';
 const http = require('http');
 const https = require('https');
-const Http2OverHttpX = require('./h2-over-hx');
-const getAuthorizationHeaders = require('./get-auth-headers');
+const Http2OverHttpX = require('./h2-over-hx.js');
+const getAuthorizationHeaders = require('./get-auth-headers.js');
 
 const getStream = request => new Promise((resolve, reject) => {
 	const onConnect = (response, socket, head) => {

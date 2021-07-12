@@ -1,6 +1,6 @@
 'use strict';
-const {key, cert} = require('../../test/helpers/certs');
-const createProxyServer = require('../../proxy-server');
+const {key, cert} = require('../../test/helpers/certs.js');
+const createProxyServer = require('../../proxy-server.js');
 
 const authorize = (type, credentials) => {
 	try {

@@ -1,6 +1,6 @@
 'use strict';
 const https = require('https');
-const http2 = require('../../source'); // Note: using the local version
+const http2 = require('../../source/index.js'); // Note: using the local version
 
 const agent = new http2.proxies.HttpsOverHttp2({
 	proxyOptions: {

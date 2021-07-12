@@ -6,9 +6,9 @@ const http = require('http');
 const https = require('https');
 const resolveALPN = require('resolve-alpn');
 const QuickLRU = require('quick-lru');
-const {Agent, globalAgent} = require('./agent');
-const Http2ClientRequest = require('./client-request');
-const calculateServerName = require('./utils/calculate-server-name');
+const {Agent, globalAgent} = require('./agent.js');
+const Http2ClientRequest = require('./client-request.js');
+const calculateServerName = require('./utils/calculate-server-name.js');
 
 const cache = new QuickLRU({maxSize: 100});
 const queue = new Map();

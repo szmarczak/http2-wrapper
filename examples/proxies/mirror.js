@@ -1,7 +1,7 @@
 'use strict';
 const proxy = require('http2-proxy');
-const http2 = require('../../source'); // Note: using the local version
-const {key, cert} = require('../../test/helpers/certs');
+const http2 = require('../../source/index.js'); // Note: using the local version
+const {key, cert} = require('../../test/helpers/certs.js');
 
 const server = http2.createSecureServer({
 	key,

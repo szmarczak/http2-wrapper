@@ -1,6 +1,6 @@
 'use strict';
-const http2 = require('../..');
 const WebSocket = require('ws');
+const http2 = require('../../source/index.js');
 
 const head = Buffer.from('');
 

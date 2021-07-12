@@ -2,7 +2,7 @@
 // See https://github.com/facebook/jest/issues/2549
 // eslint-disable-next-line node/prefer-global/url
 const {URL} = require('url');
-const checkType = require('../utils/check-type');
+const checkType = require('../utils/check-type/index.js');
 
 module.exports = (self, proxyOptions) => {
 	checkType('proxyOptions', proxyOptions, ['object']);
