@@ -1,13 +1,11 @@
-/* eslint-disable node/prefer-global/url */
 /* eslint-disable no-new */
-
 import {URL} from 'node:url';
 import {TLSSocket} from 'node:tls';
 import http from 'node:http';
 import https from 'node:https';
 import {expectType, expectAssignable} from 'tsd';
-import QuickLRU = require('quick-lru');
-import http2 from './source/index.js';
+import QuickLRU from 'quick-lru';
+import http2 from '.';
 
 expectType<http2.Agent>(http2.globalAgent);
 expectType<typeof http.ClientRequest>(http2.ClientRequest);

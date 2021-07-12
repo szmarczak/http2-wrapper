@@ -1,8 +1,8 @@
 import {URL} from 'node:url';
 import {EventEmitter} from 'node:events';
 import tls from 'node:tls';
-import http from 'node:http';
-import https from 'node:https';
+import http, {Agent as HttpAgent, AgentOptions as HttpAgentOptions} from 'node:http';
+import https, {Agent as HttpsAgent, AgentOptions as HttpsAgentOptions} from 'node:https';
 import http2 from 'node:http2';
 import QuickLRU from 'quick-lru';
 
@@ -77,12 +77,12 @@ export interface ProxyOptions {
 }
 
 export namespace proxies {
-	class HttpOverHttp2 extends http.Agent {
-		constructor(options: http.AgentOptions & {proxyOptions: ProxyOptions});
+	class HttpOverHttp2 extends HttpAgent {
+		constructor(options: HttpAgentOptions & {proxyOptions: ProxyOptions});
 	}
 
-	class HttpsOverHttp2 extends https.Agent {
-		constructor(options: https.AgentOptions & {proxyOptions: ProxyOptions});
+	class HttpsOverHttp2 extends HttpsAgent {
+		constructor(options: HttpsAgentOptions & {proxyOptions: ProxyOptions});
 	}
 
 	class Http2OverHttp2 extends Agent {
