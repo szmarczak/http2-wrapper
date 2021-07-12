@@ -1,10 +1,12 @@
-import {URL} from 'node:url';
-import {EventEmitter} from 'node:events';
-import tls from 'node:tls';
-import http, {Agent as HttpAgent, AgentOptions as HttpAgentOptions} from 'node:http';
-import https, {Agent as HttpsAgent, AgentOptions as HttpsAgentOptions} from 'node:https';
-import http2 from 'node:http2';
-import QuickLRU from 'quick-lru';
+// See https://github.com/facebook/jest/issues/2549
+// eslint-disable-next-line node/prefer-global/url
+import {URL} from 'url';
+import {EventEmitter} from 'events';
+import tls = require('tls');
+import http = require('http');
+import https = require('https');
+import http2 = require('http2');
+import QuickLRU = require('quick-lru');
 
 export interface RequestOptions extends Omit<https.RequestOptions, 'session'> {
 	tlsSession?: tls.ConnectionOptions['session'];
@@ -77,12 +79,12 @@ export interface ProxyOptions {
 }
 
 export namespace proxies {
-	class HttpOverHttp2 extends HttpAgent {
-		constructor(options: HttpAgentOptions & {proxyOptions: ProxyOptions});
+	class HttpOverHttp2 extends http.Agent {
+		constructor(options: http.AgentOptions & {proxyOptions: ProxyOptions});
 	}
 
-	class HttpsOverHttp2 extends HttpsAgent {
-		constructor(options: HttpsAgentOptions & {proxyOptions: ProxyOptions});
+	class HttpsOverHttp2 extends https.Agent {
+		constructor(options: https.AgentOptions & {proxyOptions: ProxyOptions});
 	}
 
 	class Http2OverHttp2 extends Agent {
@@ -112,6 +114,6 @@ export const auto: RequestFunction<Promise<http.ClientRequest>, AutoRequestOptio
 export {
 	ClientRequest,
 	IncomingMessage
-} from 'node:http';
+} from 'http';
 
-export * from 'node:http2';
+export * from 'http2';
