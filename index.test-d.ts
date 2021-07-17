@@ -91,6 +91,14 @@ for (const method of methods) {
 			request.end();
 		}
 	}
+
+	{
+		const request = http2[method]('https://example.com', {
+			agent: new http2.Agent()
+		});
+
+		request.destroy();
+	}
 }
 
 (async () => {

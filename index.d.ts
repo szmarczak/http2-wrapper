@@ -6,11 +6,12 @@ import tls = require('tls');
 import http = require('http');
 import https = require('https');
 import http2 = require('http2');
-import QuickLRU = require('quick-lru');
+import QuickLRU from 'quick-lru';
 
-export interface RequestOptions extends Omit<https.RequestOptions, 'session'> {
+export interface RequestOptions extends Omit<https.RequestOptions, 'session' | 'agent'> {
 	tlsSession?: tls.ConnectionOptions['session'];
 	h2session?: http2.ClientHttp2Session;
+	agent?: Agent;
 }
 
 export interface AutoRequestOptions extends Omit<RequestOptions, 'agent' | 'h2session'> {
