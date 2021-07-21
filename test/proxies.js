@@ -78,7 +78,7 @@ test.serial('constructor', t => {
 				url: 'invalid'
 			}
 		}), {
-			message: 'Invalid URL: invalid'
+			message: /Invalid URL/
 		});
 
 		t.notThrows(() => new Agent({

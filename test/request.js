@@ -430,6 +430,61 @@ test('doesn\'t close custom sessions', wrapper, (t, server) => {
 	h2session.close();
 });
 
+test('`connect` event - request.path modification', proxyWrapper, async (t, proxy) => {
+	const tcp = net.createServer(s => s.end('hello')).listen(0);
+
+	const request = makeRequest({
+		...proxy.options,
+		method: 'CONNECT',
+		headers: {
+			':authority': 'foobar'
+		}
+	});
+	t.is(request.path, 'foobar');
+	request.path = `localhost:${tcp.address().port}`;
+	request.end();
+
+	const response = await pEvent(request, 'connect');
+	const stream = response.req._request;
+	t.true(response.upgrade);
+
+	t.false(stream.writableEnded);
+
+	const data = await pEvent(stream, 'data');
+	t.is(data.toString(), 'hello');
+
+	await pEvent(stream, 'end');
+
+	tcp.close();
+});
+
+test('`connect` event - host header', proxyWrapper, async (t, proxy) => {
+	const tcp = net.createServer(s => s.end('hello')).listen(0);
+
+	const request = makeRequest({
+		...proxy.options,
+		method: 'CONNECT',
+		headers: {
+			host: `localhost:${tcp.address().port}`
+		}
+	});
+	t.is(request.path, `localhost:${tcp.address().port}`);
+	request.end();
+
+	const response = await pEvent(request, 'connect');
+	const stream = response.req._request;
+	t.true(response.upgrade);
+
+	t.false(stream.writableEnded);
+
+	const data = await pEvent(stream, 'data');
+	t.is(data.toString(), 'hello');
+
+	await pEvent(stream, 'end');
+
+	tcp.close();
+});
+
 test('`connect` event', proxyWrapper, async (t, proxy) => {
 	const tcp = net.createServer(s => s.end('hello')).listen(0);
 
@@ -440,11 +495,66 @@ test('`connect` event', proxyWrapper, async (t, proxy) => {
 			':authority': `localhost:${tcp.address().port}`
 		}
 	});
+	t.is(request.path, `localhost:${tcp.address().port}`);
 	request.end();
 
 	const response = await pEvent(request, 'connect');
 	const stream = response.req._request;
 	t.true(response.upgrade);
+
+	t.false(stream.writableEnded);
+
+	const data = await pEvent(stream, 'data');
+	t.is(data.toString(), 'hello');
+
+	await pEvent(stream, 'end');
+
+	tcp.close();
+});
+
+test('`connect` event - URL string', proxyWrapper, async (t, proxy) => {
+	const tcp = net.createServer(s => s.end('hello')).listen(0);
+
+	const request = makeRequest(proxy.url, {
+		method: 'CONNECT',
+		headers: {
+			':authority': `localhost:${tcp.address().port}`
+		}
+	});
+	t.is(request.path, `localhost:${tcp.address().port}`);
+	request.end();
+
+	const response = await pEvent(request, 'connect');
+	const stream = response.req._request;
+	t.true(response.upgrade);
+
+	t.false(stream.writableEnded);
+
+	const data = await pEvent(stream, 'data');
+	t.is(data.toString(), 'hello');
+
+	await pEvent(stream, 'end');
+
+	tcp.close();
+});
+
+test('`connect` event - URL', proxyWrapper, async (t, proxy) => {
+	const tcp = net.createServer(s => s.end('hello')).listen(0);
+
+	const request = makeRequest(new URL(proxy.url), {
+		method: 'CONNECT',
+		headers: {
+			':authority': `localhost:${tcp.address().port}`
+		}
+	});
+	t.is(request.path, `localhost:${tcp.address().port}`);
+	request.end();
+
+	const response = await pEvent(request, 'connect');
+	const stream = response.req._request;
+	t.true(response.upgrade);
+
+	t.false(stream.writableEnded);
 
 	const data = await pEvent(stream, 'data');
 	t.is(data.toString(), 'hello');

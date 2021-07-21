@@ -20,6 +20,7 @@ const {
 	HTTP2_HEADER_STATUS,
 	HTTP2_HEADER_METHOD,
 	HTTP2_HEADER_PATH,
+	HTTP2_HEADER_AUTHORITY,
 	HTTP2_METHOD_CONNECT
 } = http2.constants;
 
@@ -102,7 +103,10 @@ class ClientRequest extends Writable {
 		this.connection = null;
 
 		this.method = options.method || 'GET';
-		this.path = options.path;
+
+		if (!(this.method === 'CONNECT' && (options.path === '/' || options.path === undefined))) {
+			this.path = options.path;
+		}
 
 		this.res = null;
 		this.aborted = false;
@@ -165,12 +169,16 @@ class ClientRequest extends Writable {
 	}
 
 	get path() {
-		return this[kHeaders][HTTP2_HEADER_PATH];
+		const header = this.method === 'CONNECT' ? HTTP2_HEADER_AUTHORITY : HTTP2_HEADER_PATH;
+
+		return this[kHeaders][header];
 	}
 
 	set path(value) {
 		if (value) {
-			this[kHeaders][HTTP2_HEADER_PATH] = value;
+			const header = this.method === 'CONNECT' ? HTTP2_HEADER_AUTHORITY : HTTP2_HEADER_PATH;
+
+			this[kHeaders][header] = value;
 		}
 	}
 
@@ -208,8 +216,8 @@ class ClientRequest extends Writable {
 		this.flushHeaders();
 
 		const callEnd = () => {
-			// For GET, HEAD and DELETE
-			if (this._mustNotHaveABody) {
+			// For GET, HEAD and DELETE and CONNECT
+			if (this._mustNotHaveABody || this.method === 'CONNECT') {
 				callback();
 				return;
 			}
@@ -411,8 +419,8 @@ class ClientRequest extends Writable {
 			this.emit('socket', this.socket);
 		};
 
-		if (!(':authority' in this[kHeaders]) && !isConnectMethod) {
-			this[kHeaders][':authority'] = this[kOrigin].host;
+		if (!(HTTP2_HEADER_AUTHORITY in this[kHeaders]) && !isConnectMethod) {
+			this[kHeaders][HTTP2_HEADER_AUTHORITY] = this[kOrigin].host;
 		}
 
 		// Makes a HTTP2 request
@@ -502,7 +510,11 @@ class ClientRequest extends Writable {
 			throw new Error(`Invalid 'connection' header: ${value}`);
 		}
 
-		this[kHeaders][lowercased] = value;
+		if (lowercased === 'host' && this.method === 'CONNECT') {
+			this[kHeaders][HTTP2_HEADER_AUTHORITY] = value;
+		} else {
+			this[kHeaders][lowercased] = value;
+		}
 	}
 
 	setNoDelay() {
