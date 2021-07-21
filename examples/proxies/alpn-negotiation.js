@@ -26,7 +26,7 @@ const tls = require('tls');
 	request.end();
 
 	request.once('connect', (response, socket) => {
-		const tlsSocket = tls.connect(443, destination.host, {
+		const tlsSocket = tls.connect({
 			socket,
 			servername: 'httpbin.org',
 			ALPNProtocols: ['h2', 'http/1.1']
