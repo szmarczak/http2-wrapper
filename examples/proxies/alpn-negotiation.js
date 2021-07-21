@@ -11,14 +11,16 @@ const tls = require('tls');
 	};
 
 	const destination = new URL('https://httpbin.org/anything');
+	const host = `${destination.host}:${destination.port || 443}`;
 
 	const request = await http2wrapper.auto(agentOptions.proxyOptions.url, {
 		rejectUnauthorized: agentOptions.proxyOptions.rejectUnauthorized,
 		method: 'CONNECT',
 		headers: {
-			host: `${destination.host}:${destination.port || 443}`,
+			host,
 			authorization: `basic ${Buffer.from('username:password').toString('base64')}`
-		}
+		},
+		path: host
 	});
 
 	request.end();
