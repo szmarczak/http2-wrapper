@@ -20,6 +20,7 @@ export interface AutoRequestOptions extends Omit<RequestOptions, 'agent' | 'h2se
 		https?: https.Agent;
 		http2?: Agent;
 	};
+	resolveProtocol?: ResolveProtocolFunction;
 }
 
 export interface EntryFunction {
@@ -108,9 +109,24 @@ export type RequestFunction<T, O = RequestOptions> =
 
 export const globalAgent: Agent;
 
+export type ResolveProtocolResult = {
+	alpnProtocol: string;
+	socket?: tls.TLSSocket;
+	timeout?: boolean;
+};
+export type ResolveProtocolFunction = (options: AutoRequestOptions) => Promise<ResolveProtocolResult>;
+
+type Promisable<T> = T | Promise<T>;
+
+export type ResolveProtocolConnectFunction = (options: tls.ConnectionOptions, callback: () => void) => Promisable<tls.TLSSocket>;
+
 export const request: RequestFunction<http.ClientRequest>;
 export const get: RequestFunction<http.ClientRequest>;
-export const auto: RequestFunction<Promise<http.ClientRequest>, AutoRequestOptions> & {protocolCache: QuickLRU<string, string>};
+export const auto: RequestFunction<Promise<http.ClientRequest>, AutoRequestOptions> & {
+	protocolCache: QuickLRU<string, string>;
+	resolveProtocol: ResolveProtocolFunction;
+	createResolveProtocol: (cache: Map<string, string>, queue: Map<string, Promise<ResolveProtocolResult>>, connect?: ResolveProtocolConnectFunction) => ResolveProtocolFunction;
+};
 
 export {
 	ClientRequest,

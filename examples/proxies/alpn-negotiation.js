@@ -17,8 +17,7 @@ const tls = require('tls');
 		rejectUnauthorized: agentOptions.proxyOptions.rejectUnauthorized,
 		method: 'CONNECT',
 		headers: {
-			host,
-			authorization: `basic ${Buffer.from('username:password').toString('base64')}`
+			host
 		},
 		path: host
 	});

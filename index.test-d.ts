@@ -1,6 +1,6 @@
 /* eslint-disable no-new */
 import {URL} from 'node:url';
-import {TLSSocket} from 'node:tls';
+import {TLSSocket, connect, ConnectionOptions} from 'node:tls';
 import http from 'node:http';
 import https from 'node:https';
 import {expectType, expectAssignable} from 'tsd';
@@ -233,6 +233,25 @@ for (const method of methods) {
 
 	agent.destroy();
 	agent.destroy(new Error('Have a good day!'));
+
+	const fns = [
+		http2.auto.createResolveProtocol(new Map(), new Map()),
+		http2.auto.createResolveProtocol(new Map(), new Map(), connect),
+		http2.auto.createResolveProtocol(new Map(), new Map(), async (options: ConnectionOptions, callback: () => void) => {
+			return connect(options, callback);
+		})
+	];
+
+	for (const fn of fns) {
+		// eslint-disable-next-line no-await-in-loop
+		const request = await http2.auto('https://example.com', {
+			resolveProtocol: fn
+		}, response => {
+			response.resume();
+		});
+
+		request.end();
+	}
 })();
 
 expectAssignable<typeof http.Agent>(http2.proxies.HttpOverHttp2);

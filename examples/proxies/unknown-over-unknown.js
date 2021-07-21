@@ -1,5 +1,6 @@
 'use strict';
 const HttpsProxyAgent = require('https-proxy-agent');
+const tls = require('tls');
 const http2 = require('../../source/index.js'); // Note: using the local version
 
 const {
@@ -9,6 +10,49 @@ const {
 	Http2OverHttps,
 	Http2OverHttp
 } = http2.proxies;
+
+const resolveAlpnProxy = new URL('https://username:password@localhost:8000');
+const connect = async (options, callback) => new Promise((resolve, reject) => {
+	const host = `${options.host}:${options.port}`;
+
+	(async () => {
+		try {
+			const request = await http2.auto(resolveAlpnProxy, {
+				method: 'CONNECT',
+				headers: {
+					host
+				},
+				path: host,
+
+				// For demo purposes only!
+				rejectUnauthorized: false,
+			});
+
+			request.end();
+
+			request.once('connect', (response, socket, head) => {
+				if (head.length > 0) {
+					reject(new Error(`Unexpected data before CONNECT tunnel: ${head.length} bytes`));
+
+					socket.destroy();
+					return;
+				}
+
+				const tlsSocket = tls.connect({
+					...options,
+					socket
+				}, callback);
+
+				resolve(tlsSocket);
+			});
+		} catch (error) {
+			reject(error);
+		}
+	})();
+});
+
+// This is required to prevent leaking real IP address on ALPN negotiation
+const resolveProtocol = http2.auto.createResolveProtocol(new Map(), new Map(), connect);
 
 (async () => {
 	const proxy = {
@@ -68,7 +112,8 @@ const {
 	try {
 		const request = await http2.auto('https://httpbin.org/anything', {
 			method: 'POST',
-			agent
+			agent,
+			resolveProtocol
 		}, response => {
 			const isSecure = response.req.agent.protocol === 'https:';
 			const protocol = isSecure ? `http/${response.httpVersion} with TLS` : 'http/1.1 without TLS';

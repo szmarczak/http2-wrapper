@@ -54,41 +54,45 @@ const installSocket = (agent, socket, options) => {
 	agent.emit('free', socket, options);
 };
 
-const resolveProtocol = async options => {
-	const name = `${options.host}:${options.port}:${options.ALPNProtocols.sort()}`;
+const createResolveProtocol = (cache, queue = new Map(), connect = undefined) => {
+	return async options => {
+		const name = `${options.host}:${options.port}:${options.ALPNProtocols.sort()}`;
 
-	if (!cache.has(name)) {
-		if (queue.has(name)) {
-			const result = await queue.get(name);
-			return {alpnProtocol: result.alpnProtocol};
+		if (!cache.has(name)) {
+			if (queue.has(name)) {
+				const result = await queue.get(name);
+				return {alpnProtocol: result.alpnProtocol};
+			}
+
+			const {path} = options;
+			options.path = options.socketPath;
+
+			const resultPromise = resolveALPN(options, connect);
+			queue.set(name, resultPromise);
+
+			try {
+				const result = await resultPromise;
+
+				cache.set(name, result.alpnProtocol);
+				queue.delete(name);
+
+				options.path = path;
+
+				return result;
+			} catch (error) {
+				queue.delete(name);
+
+				options.path = path;
+
+				throw error;
+			}
 		}
 
-		const {path} = options;
-		options.path = options.socketPath;
-
-		const resultPromise = resolveALPN(options);
-		queue.set(name, resultPromise);
-
-		try {
-			const result = await resultPromise;
-
-			cache.set(name, result.alpnProtocol);
-			queue.delete(name);
-
-			options.path = path;
-
-			return result;
-		} catch (error) {
-			queue.delete(name);
-
-			options.path = path;
-
-			throw error;
-		}
-	}
-
-	return {alpnProtocol: cache.get(name)};
+		return {alpnProtocol: cache.get(name)};
+	};
 };
+
+const defaultResolveProtocol = createResolveProtocol(cache, queue);
 
 module.exports = async (input, options, callback) => {
 	if (typeof input === 'string') {
@@ -122,6 +126,8 @@ module.exports = async (input, options, callback) => {
 	options.servername = options.servername || calculateServerName(options);
 	options.port = options.port || (isHttps ? 443 : 80);
 	options._defaultAgent = isHttps ? https.globalAgent : http.globalAgent;
+
+	const resolveProtocol = options.resolveProtocol || defaultResolveProtocol;
 
 	// Note: We don't support `h2session` here
 
@@ -195,4 +201,5 @@ module.exports = async (input, options, callback) => {
 };
 
 module.exports.protocolCache = cache;
-module.exports.resolveProtocol = resolveProtocol;
+module.exports.resolveProtocol = defaultResolveProtocol;
+module.exports.createResolveProtocol = createResolveProtocol;

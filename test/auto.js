@@ -840,3 +840,117 @@ test('throws on timeout', async t => {
 		code: 'ETIMEDOUT'
 	});
 });
+
+test.serial('custom resolveProtocol with custom agent', async t => {
+	http2.auto.protocolCache.clear();
+
+	const server = await createServer();
+	await server.listen();
+
+	let count = 0;
+
+	server.on('connection', () => {
+		count++;
+	});
+
+	class CustomAgent extends http2.Agent {
+		createConnection(origin, options) {
+			return http2.Agent.connect(origin, options);
+		}
+	}
+
+	const agent = new CustomAgent();
+
+	const request = await http2.auto(server.url, {
+		agent: {
+			http2: agent
+		},
+		resolveProtocol: () => ({alpnProtocol: 'h2'})
+	});
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	t.is(count, 1);
+	agent.destroy();
+
+	await server.close();
+});
+
+test.serial('custom async resolveProtocol with custom agent', async t => {
+	http2.auto.protocolCache.clear();
+
+	const server = await createServer();
+	await server.listen();
+
+	let count = 0;
+
+	server.on('connection', () => {
+		count++;
+	});
+
+	class CustomAgent extends http2.Agent {
+		createConnection(origin, options) {
+			return http2.Agent.connect(origin, options);
+		}
+	}
+
+	const agent = new CustomAgent();
+
+	const request = await http2.auto(server.url, {
+		agent: {
+			http2: agent
+		},
+		resolveProtocol: async () => ({alpnProtocol: 'h2'})
+	});
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	t.is(count, 1);
+	agent.destroy();
+
+	await server.close();
+});
+
+test.serial('create resolve protocol function', async t => {
+	http2.auto.protocolCache.clear();
+
+	const server = await createServer();
+	await server.listen();
+
+	let count = 0;
+
+	server.on('connection', () => {
+		count++;
+	});
+
+	class CustomAgent extends http2.Agent {
+		createConnection(origin, options) {
+			return http2.Agent.connect(origin, options);
+		}
+	}
+
+	const agent = new CustomAgent();
+
+	const cache = new Map();
+
+	const request = await http2.auto(server.url, {
+		agent: {
+			http2: agent
+		},
+		resolveProtocol: http2.auto.createResolveProtocol(cache)
+	});
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	t.is(count, 2);
+	t.is(cache.size, 1);
+	agent.destroy();
+
+	await server.close();
+});

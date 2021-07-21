@@ -162,6 +162,30 @@ An instance of [`quick-lru`](https://github.com/sindresorhus/quick-lru) used for
 
 There is a maximum of 100 entries. You can modify the limit through `protocolCache.maxSize` - note that the change will be visible globally.
 
+### http2.auto.createResolveProtocol(cache, queue, connect)
+
+#### cache
+
+Type: `Map<string, string>`
+
+This is the store where cached ALPN protocols are put into.
+
+#### queue
+
+Type: `Map<string, Promise>`
+
+This is the store that contains pending ALPN negotiation promises.
+
+#### connect
+
+Type: `(options, callback) => TLSSocket | Promise<TLSSocket>`
+
+See https://github.com/szmarczak/resolve-alpn#connect
+
+### http2.auto.resolveProtocol(options)
+
+Returns a `Promise<{alpnProtocol: string}>`.
+
 ### http2.request(url, options, callback)
 
 Same as [`https.request`](https://nodejs.org/api/https.html#https_https_request_options_callback).
@@ -352,6 +376,64 @@ Currently `http2-wrapper` provides support for these proxies:
 - `Http2OverHttps`
 
 Any of the above can be accessed via `http2wrapper.proxies`. Check out the [`examples/proxies`](examples/proxies) directory to learn more.
+
+**Note:** If you use the `http2.auto` function, the real IP address will leak. `http2wrapper` is not aware of the context. It will create a connection to the end server using your real IP address to get the ALPN protocol. Then it will create another connection using proxy. To migitate this, you need to pass a custom `resolveProtocol` function as an option:
+
+```js
+const resolveAlpnProxy = new URL('https://username:password@localhost:8000');
+const connect = async (options, callback) => new Promise((resolve, reject) => {
+	const host = `${options.host}:${options.port}`;
+
+	(async () => {
+		try {
+			const request = await http2.auto(resolveAlpnProxy, {
+				method: 'CONNECT',
+				headers: {
+					host
+				},
+				path: host,
+
+				// For demo purposes only!
+				rejectUnauthorized: false,
+			});
+
+			request.end();
+
+			request.once('connect', (response, socket, head) => {
+				if (head.length > 0) {
+					reject(new Error(`Unexpected data before CONNECT tunnel: ${head.length} bytes`));
+
+					socket.destroy();
+					return;
+				}
+
+				const tlsSocket = tls.connect({
+					...options,
+					socket
+				}, callback);
+
+				resolve(tlsSocket);
+			});
+		} catch (error) {
+			reject(error);
+		}
+	})();
+});
+
+// This is required to prevent leaking real IP address on ALPN negotiation
+const resolveProtocol = http2.auto.createResolveProtocol(new Map(), new Map(), connect);
+
+const request = await http2.auto('https://httpbin.org/anything', {
+	agent: {…},
+	resolveProtocol
+}, response => {
+	// Read the response here
+});
+
+request.end();
+```
+
+See [`unknown-over-unknown.js`](examples/proxies/unknown-over-unknown.js) to learn more.
 
 ## Mirroring another server
 
