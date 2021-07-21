@@ -25,7 +25,12 @@ const tls = require('tls');
 
 	request.end();
 
-	request.once('connect', (response, socket) => {
+	request.once('connect', (response, socket, head) => {
+		if (head.length > 0) {
+			// Handle unexpected data
+			return;
+		}
+
 		const tlsSocket = tls.connect({
 			socket,
 			servername: 'httpbin.org',
