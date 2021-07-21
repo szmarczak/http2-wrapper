@@ -6,7 +6,9 @@ import tls = require('tls');
 import http = require('http');
 import https = require('https');
 import http2 = require('http2');
-import QuickLRU from 'quick-lru';
+
+// Note: do not convert this to import from.
+import QuickLRU = require('quick-lru');
 
 export interface RequestOptions extends Omit<https.RequestOptions, 'session' | 'agent'> {
 	tlsSession?: tls.ConnectionOptions['session'];
