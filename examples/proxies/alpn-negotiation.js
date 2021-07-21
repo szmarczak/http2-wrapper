@@ -33,7 +33,7 @@ const tls = require('tls');
 
 		const tlsSocket = tls.connect({
 			socket,
-			servername: 'httpbin.org',
+			servername: destination.hostname,
 			ALPNProtocols: ['h2', 'http/1.1']
 		});
 
