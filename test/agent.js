@@ -1447,3 +1447,15 @@ test('`agent.destroy()` makes pending sessions throw', wrapper, async (t, server
 		message: 'Agent has been destroyed'
 	});
 });
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BUGS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+test('does not throw if createConnection is explicitly undefined', wrapper, async (t, server) => {
+	const agent = new Agent();
+
+	await t.notThrowsAsync(agent.getSession(`https://localhost:${server.address().port}`, {
+		createConnection: undefined
+	}));
+
+	agent.destroy();
+});

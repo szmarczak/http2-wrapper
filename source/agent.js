@@ -383,15 +383,20 @@ class Agent extends EventEmitter {
 				let socket;
 
 				try {
-					const computedOptions = {
-						createConnection: this.createConnection,
-						settings: this.settings,
-						session: this.tlsSessionCache.get(name),
-						...options
-					};
+					const computedOptions = {...options};
+
+					if (computedOptions.settings === undefined) {
+						computedOptions.settings = this.settings;
+					}
+
+					if (computedOptions.session === undefined) {
+						computedOptions.session = this.tlsSessionCache.get(name);
+					}
+
+					const createConnection = computedOptions.createConnection || this.createConnection;
 
 					// A hacky workaround to enable async `createConnection`
-					socket = await computedOptions.createConnection.call(this, origin, computedOptions);
+					socket = await createConnection.call(this, origin, computedOptions);
 					computedOptions.createConnection = () => socket;
 
 					const session = http2.connect(origin, computedOptions);
