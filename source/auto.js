@@ -1,7 +1,7 @@
 'use strict';
 // See https://github.com/facebook/jest/issues/2549
 // eslint-disable-next-line node/prefer-global/url
-const {URL, urlToHttpOptions} = require('url');
+const {URL} = require('url');
 const http = require('http');
 const https = require('https');
 const resolveALPN = require('resolve-alpn');
@@ -9,6 +9,28 @@ const QuickLRU = require('quick-lru');
 const {Agent, globalAgent} = require('./agent.js');
 const Http2ClientRequest = require('./client-request.js');
 const calculateServerName = require('./utils/calculate-server-name.js');
+
+function urlToHttpOptions(url) {
+	const options = {
+	  protocol: url.protocol,
+	  hostname: typeof url.hostname === 'string' &&
+				String.prototype.startsWith.call(url.hostname, '[') ?
+		String.prototype.slice.call(url.hostname, 1, -1) :
+		url.hostname,
+	  hash: url.hash,
+	  search: url.search,
+	  pathname: url.pathname,
+	  path: `${url.pathname || ''}${url.search || ''}`,
+	  href: url.href
+	};
+	if (url.port !== '') {
+	  options.port = Number(url.port);
+	}
+	if (url.username || url.password) {
+	  options.auth = `${url.username}:${url.password}`;
+	}
+	return options;
+  };
 
 const cache = new QuickLRU({maxSize: 100});
 const queue = new Map();
