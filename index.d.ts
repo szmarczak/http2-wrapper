@@ -13,14 +13,14 @@ import QuickLRU = require('quick-lru');
 export interface RequestOptions extends Omit<https.RequestOptions, 'session' | 'agent'> {
 	tlsSession?: tls.ConnectionOptions['session'];
 	h2session?: http2.ClientHttp2Session;
-	agent?: Agent;
+	agent?: Agent | false;
 }
 
 export interface AutoRequestOptions extends Omit<RequestOptions, 'agent' | 'h2session'> {
 	agent?: {
-		http?: http.Agent;
-		https?: https.Agent;
-		http2?: Agent;
+		http?: http.Agent | false;
+		https?: https.Agent | false;
+		http2?: Agent | false;
 	};
 	resolveProtocol?: ResolveProtocolFunction;
 }

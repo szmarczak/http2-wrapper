@@ -99,9 +99,43 @@ for (const method of methods) {
 
 		request.destroy();
 	}
+
+	{
+		const request = http2[method]('https://example.com', {
+			agent: false
+		});
+
+		request.destroy();
+	}
 }
 
 (async () => {
+	(await http2.auto('https://example.com', {
+		agent: {
+			http: false
+		}
+	})).end();
+
+	(await http2.auto('https://example.com', {
+		agent: {
+			https: false
+		}
+	})).end();
+
+	(await http2.auto('https://example.com', {
+		agent: {
+			http2: false
+		}
+	})).end();
+
+	(await http2.auto('https://example.com', {
+		agent: {
+			http: false,
+			https: false,
+			http2: false
+		}
+	})).end();
+
 	(await http2.auto('https://example.com', {
 		agent: {}
 	})).end();
