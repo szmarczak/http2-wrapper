@@ -14,6 +14,9 @@ export interface RequestOptions extends Omit<https.RequestOptions, 'session' | '
 	tlsSession?: tls.ConnectionOptions['session'];
 	h2session?: http2.ClientHttp2Session;
 	agent?: Agent | false;
+
+	// Required because @types/node is missing types
+	ALPNProtocols?: string[];
 }
 
 export interface AutoRequestOptions extends Omit<RequestOptions, 'agent' | 'h2session'> {

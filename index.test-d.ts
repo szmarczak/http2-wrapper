@@ -107,6 +107,23 @@ for (const method of methods) {
 
 		request.destroy();
 	}
+
+	{
+		const request = http2[method]('https://example.com', {
+			ALPNProtocols: ['h2']
+		});
+
+		expectType<http.ClientRequest>(request);
+
+		request.once('response', response => {
+			expectType<http.IncomingMessage>(response);
+			response.resume();
+		});
+
+		if (method !== 'get') {
+			request.end();
+		}
+	}
 }
 
 (async () => {
@@ -215,6 +232,17 @@ for (const method of methods) {
 	{
 		const request = await http2.auto('https://httpbin.org', {
 			path: '/anything'
+		}, response => {
+			expectType<http.IncomingMessage>(response);
+			response.resume();
+		});
+
+		expectType<http.ClientRequest>(request);
+	}
+
+	{
+		const request = await http2.auto('https://httpbin.org', {
+			ALPNProtocols: ['h2']
 		}, response => {
 			expectType<http.IncomingMessage>(response);
 			response.resume();
