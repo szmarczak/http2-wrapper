@@ -54,6 +54,19 @@ test.after('cleanup', async () => {
 	await h2s.close();
 });
 
+test('http2 via ip', async t => {
+	const request = await http2.auto({
+		protocol: 'https:',
+		hostname: '127.0.0.1',
+		port: h2s.address().port
+	});
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	const data = await getStream(response);
+	t.is(data, 'h2');
+});
+
 test('http2', async t => {
 	const request = await http2.auto({
 		protocol: 'https:',

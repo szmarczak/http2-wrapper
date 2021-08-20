@@ -1,5 +1,4 @@
 'use strict';
-const net = require('net');
 /* istanbul ignore file: https://github.com/nodejs/node/blob/v13.0.1/lib/_http_agent.js */
 
 module.exports = options => {
@@ -15,9 +14,8 @@ module.exports = options => {
 		}
 	}
 
-	if (net.isIP(servername)) {
-		return '';
-	}
+	// Removed empty string return for IP,
+	// otherwise https://1.1.1.1/ would fail.
 
 	return servername;
 };
