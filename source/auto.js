@@ -9,6 +9,7 @@ const QuickLRU = require('quick-lru');
 const {Agent, globalAgent} = require('./agent.js');
 const Http2ClientRequest = require('./client-request.js');
 const calculateServerName = require('./utils/calculate-server-name.js');
+const delayAsyncDestroy = require('./utils/delay-async-destroy.js');
 
 const cache = new QuickLRU({maxSize: 100});
 const queue = new Map();
@@ -191,13 +192,13 @@ module.exports = async (input, options, callback) => {
 		}
 
 		if (isHttp2) {
-			return new Http2ClientRequest(options, callback);
+			return delayAsyncDestroy(new Http2ClientRequest(options, callback));
 		}
 	} else if (agent) {
 		options.agent = agent.http;
 	}
 
-	return http.request(options, callback);
+	return delayAsyncDestroy(http.request(options, callback));
 };
 
 module.exports.protocolCache = cache;

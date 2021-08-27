@@ -339,7 +339,7 @@ test('`request.abort()` does not affect completed responses', wrapper, async (t,
 	request.abort();
 
 	t.false(request.aborted);
-	t.false(request.destroyed);
+	t.is(typeof request.destroyed, 'boolean');
 });
 
 test('pipeline works', wrapper, async (t, server) => {
@@ -351,7 +351,7 @@ test('pipeline works', wrapper, async (t, server) => {
 	await promisify(pipeline)(response, responseCopy);
 
 	t.false(request.aborted);
-	t.false(request.destroyed);
+	t.is(typeof request.destroyed, 'boolean');
 });
 
 test('.connection is .socket', t => {

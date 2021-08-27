@@ -7,6 +7,7 @@ const {serial: test, afterEach} = require('ava');
 const pEvent = require('p-event');
 const getStream = require('get-stream');
 const http2 = require('../source/index.js');
+const delayAsyncDestroy = require('../source/utils/delay-async-destroy.js');
 const {createServer} = require('./helpers/server.js');
 const {key, cert} = require('./helpers/certs.js');
 
@@ -96,6 +97,8 @@ test('http2 agent', async t => {
 	const response = await pEvent(request, 'response');
 	const data = await getStream(response);
 	t.is(data, 'h2');
+
+	// This is 1 instead of 0 because of `delayAsyncDestroy`.
 	t.is(agent.pendingSessionCount, 1);
 
 	agent.destroy();
@@ -966,4 +969,37 @@ test.serial('create resolve protocol function', async t => {
 	agent.destroy();
 
 	await server.close();
+});
+
+test.cb('no uncaught socket hang up error', t => {
+	process.nextTick(async () => {
+		const request = await http2.auto('http://example.com', {
+			createConnection: (_options, callback) => {
+				callback(new Error('oh no'));
+			}
+		});
+
+		const error = await pEvent(request, 'error');
+		t.is(error.message, 'oh no');
+
+		t.end();
+	});
+});
+
+test.cb('delayAsyncDestroy does not modify streams with error listeners', t => {
+	let called = false;
+
+	const request = http.request(h1s.url);
+	request.once('error', () => {
+		called = true;
+	});
+	request.destroy();
+
+	delayAsyncDestroy(request);
+
+	process.nextTick(() => {
+		t.true(called);
+
+		t.end();
+	});
 });
