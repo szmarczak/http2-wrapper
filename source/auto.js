@@ -124,7 +124,7 @@ module.exports = async (input, options, callback) => {
 
 	options.host = options.hostname || options.host || 'localhost';
 	options.session = options.tlsSession;
-	options.servername = options.servername || calculateServerName(options.headers?.host || options.host);
+	options.servername = options.servername || calculateServerName(options.headers.host || options.host);
 	options.port = options.port || (isHttps ? 443 : 80);
 	options._defaultAgent = isHttps ? https.globalAgent : http.globalAgent;
 
