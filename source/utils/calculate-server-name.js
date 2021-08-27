@@ -1,9 +1,8 @@
 'use strict';
+const {isIP} = require('net');
 const assert = require('assert');
 
-module.exports = host => {
-	// Note: 1.1.1.1 is a valid servername as well!
-
+const getHost = host => {
 	if (host[0] === '[') {
 		const idx = host.indexOf(']');
 
@@ -17,4 +16,14 @@ module.exports = host => {
 	}
 
 	return host.slice(0, idx);
+};
+
+module.exports = host => {
+	const servername = getHost(host);
+
+	if (isIP(servername)) {
+		return '';
+	}
+
+	return servername;
 };

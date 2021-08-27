@@ -403,6 +403,22 @@ class Agent extends EventEmitter {
 					session[kCurrentStreamCount] = 0;
 					session[kGracefullyClosing] = false;
 
+					// Node.js return https://false:443 instead of https://1.1.1.1:443
+					const getOriginSet = () => {
+						const {socket} = session;
+
+						let originSet;
+						if (socket.servername === false) {
+							socket.servername = socket.remoteAddress;
+							originSet = session.originSet;
+							socket.servername = false;
+						} else {
+							originSet = session.originSet;
+						}
+
+						return originSet;
+					};
+
 					const isFree = () => session[kCurrentStreamCount] < session.remoteSettings.maxConcurrentStreams;
 
 					session.socket.once('session', tlsSession => {
@@ -503,7 +519,7 @@ class Agent extends EventEmitter {
 
 					// The Origin Set cannot shrink. No need to check if it suddenly became covered by another one.
 					session.on('origin', () => {
-						session[kOriginSet] = session.originSet || [];
+						session[kOriginSet] = getOriginSet() || [];
 						session[kGracefullyClosing] = false;
 						closeSessionIfCovered(this.sessions[normalizedOptions], session);
 
@@ -539,7 +555,7 @@ class Agent extends EventEmitter {
 							session.setLocalWindowSize(1024 * 1024 * 4); // 4 MB
 						}
 
-						session[kOriginSet] = session.originSet || [];
+						session[kOriginSet] = getOriginSet() || [];
 
 						if (session.socket.encrypted) {
 							const mainOrigin = session[kOriginSet][0];

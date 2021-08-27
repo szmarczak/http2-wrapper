@@ -1073,12 +1073,12 @@ test('throws on connection: close header', wrapper, async (t, server) => {
 });
 
 test('calculates valid server name', t => {
-	t.is(calculateServerName('1.1.1.1'), '1.1.1.1');
-	t.is(calculateServerName('1.1.1.1:443'), '1.1.1.1');
+	t.is(calculateServerName('1.1.1.1'), '');
+	t.is(calculateServerName('1.1.1.1:443'), '');
 	t.is(calculateServerName('example.com'), 'example.com');
 	t.is(calculateServerName('example.com:80'), 'example.com');
-	t.is(calculateServerName('[2606:4700:4700::1111]'), '2606:4700:4700::1111');
-	t.is(calculateServerName('[2606:4700:4700::1111]:443'), '2606:4700:4700::1111');
+	t.is(calculateServerName('[2606:4700:4700::1111]'), '');
+	t.is(calculateServerName('[2606:4700:4700::1111]:443'), '');
 });
 
 {
