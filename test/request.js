@@ -9,6 +9,7 @@ const getStream = require('get-stream');
 const tempy = require('tempy');
 const is = require('@sindresorhus/is');
 const {request: makeRequest, get, constants, connect, Agent, globalAgent, createServer: createUnsecureServer} = require('../source/index.js');
+const calculateServerName = require('../source/utils/calculate-server-name.js');
 const {createWrapper, createServer, createProxyServer} = require('./helpers/server.js');
 
 const delay = ms => new Promise(resolve => {
@@ -1054,6 +1055,15 @@ test('throws on connection: close header', wrapper, async (t, server) => {
 	}), {
 		message: `Invalid 'connection' header: close`
 	});
+});
+
+test('calculates valid server name', t => {
+	t.is(calculateServerName('1.1.1.1'), '1.1.1.1');
+	t.is(calculateServerName('1.1.1.1:443'), '1.1.1.1');
+	t.is(calculateServerName('example.com'), 'example.com');
+	t.is(calculateServerName('example.com:80'), 'example.com');
+	t.is(calculateServerName('[2606:4700:4700::1111]'), '2606:4700:4700::1111');
+	t.is(calculateServerName('[2606:4700:4700::1111]:443'), '2606:4700:4700::1111');
 });
 
 {
