@@ -1047,6 +1047,21 @@ test('does not throw on connection: keep-alive header', wrapper, async (t, serve
 	t.false('connection' in headers);
 });
 
+test('does not throw on connection: keep-alive header (uppercase)', wrapper, async (t, server) => {
+	const request = makeRequest(server.url, {
+		headers: {
+			connection: 'KEEP-ALIVE'
+		}
+	});
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	const body = await getStream(response);
+	const {headers} = JSON.parse(body);
+
+	t.false('connection' in headers);
+});
+
 test('throws on connection: close header', wrapper, async (t, server) => {
 	t.throws(() => makeRequest(server.url, {
 		headers: {

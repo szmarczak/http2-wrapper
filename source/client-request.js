@@ -503,7 +503,7 @@ class ClientRequest extends Writable {
 		const lowercased = name.toLowerCase();
 
 		if (lowercased === 'connection') {
-			if (value === 'keep-alive') {
+			if (value.toLowerCase() === 'keep-alive') {
 				return;
 			}
 
