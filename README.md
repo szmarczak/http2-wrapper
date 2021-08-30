@@ -399,6 +399,8 @@ const connect = async (options, callback) => new Promise((resolve, reject) => {
 
 			request.end();
 
+			request.once('error', reject);
+
 			request.once('connect', (response, socket, head) => {
 				if (head.length > 0) {
 					reject(new Error(`Unexpected data before CONNECT tunnel: ${head.length} bytes`));
