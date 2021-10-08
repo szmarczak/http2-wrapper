@@ -6,7 +6,7 @@ module.exports = stream => {
 	}
 
 	stream.__destroy = stream._destroy;
-	stream._destroy = async (...args) => {
+	stream._destroy = (...args) => {
 		const callback = args.pop();
 
 		stream.__destroy(...args, async error => {
