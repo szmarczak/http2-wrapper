@@ -309,14 +309,13 @@ class ClientRequest extends Writable {
 				}
 			});
 
-			// This event tells we are ready to listen for the data.
-			stream.once('response', (headers, flags, rawHeaders) => {
+			const onResponse = (headers, flags, rawHeaders) => {
 				// If we were to emit raw request stream, it would be as fast as the native approach.
 				// Note that wrapping the raw stream in a Proxy instance won't improve the performance (already tested it).
 				const response = new IncomingMessage(this.socket, stream.readableHighWaterMark);
 				this.res = response;
 
-				// Undocumented, but it used by `cacheable-request`
+				// Undocumented, but it is used by `cacheable-request`
 				response.url = `${this[kOrigin].origin}${this.path}`;
 
 				response.req = this;
@@ -362,13 +361,22 @@ class ClientRequest extends Writable {
 						response._dump();
 					}
 				}
-			});
+			};
+
+			// This event tells we are ready to listen for the data.
+			stream.once('response', onResponse);
 
 			// Emits `information` event
 			stream.once('headers', headers => this.emit('information', {statusCode: headers[HTTP2_HEADER_STATUS]}));
 
 			stream.once('trailers', (trailers, flags, rawTrailers) => {
 				const {res} = this;
+
+				// https://github.com/nodejs/node/issues/41251
+				if (res === null) {
+					onResponse(trailers, flags, rawTrailers);
+					return;
+				}
 
 				// Assigns trailers to the response object.
 				res.trailers = trailers;

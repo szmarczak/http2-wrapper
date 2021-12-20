@@ -372,3 +372,21 @@ test('`close` event is emitted', wrapper, async (t, server) => {
 
 	t.pass();
 });
+
+test('HEADERS with END_STREAM (aka trailers)', wrapper, async (t, server) => {
+	server.get('/', (requets, response) => {
+		response.writeContinue();
+		response.end();
+	});
+
+	const request = makeRequest(server.url);
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	response.resume();
+
+	t.is(response.statusCode, 200);
+	t.truthy(response.headers.date);
+
+	await pEvent(response, 'end');
+});
