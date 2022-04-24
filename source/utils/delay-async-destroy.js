@@ -2,7 +2,7 @@
 
 module.exports = stream => {
 	if (stream.listenerCount('error') !== 0) {
-		return;
+		return stream;
 	}
 
 	stream.__destroy = stream._destroy;
