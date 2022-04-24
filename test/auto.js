@@ -245,7 +245,7 @@ test('default port for `https:` protocol is 443', async t => {
 		hostname: 'localhost'
 	}));
 
-	t.is(error.address, '127.0.0.1');
+	t.true(error.address === '127.0.0.1' || error.address === '::1');
 	t.is(error.port, 443);
 });
 

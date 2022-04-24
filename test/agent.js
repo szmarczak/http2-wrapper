@@ -1211,7 +1211,7 @@ test('errors on failure', async t => {
 	const error = await t.throwsAsync(agent.getSession(new URL('https://localhost')));
 
 	t.is(error.port, 443);
-	t.is(error.address, '127.0.0.1');
+	t.true(error.address === '127.0.0.1' || error.address === '::1');
 });
 
 test('catches session.request() errors', wrapper, async (t, server) => {

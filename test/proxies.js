@@ -282,7 +282,7 @@ test.serial('HTTPS over HTTP/2 - proxy does not exist', wrapper, async (t, serve
 	request.end();
 
 	const error = await pEvent(request, 'error');
-	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:443');
+	t.regex(error.message, /^connect ECONNREFUSED (127\.0\.0\.1|::1):443$/);
 });
 
 // ============================ HTTP over HTTP/2 ============================
@@ -386,7 +386,7 @@ test.serial('HTTP over HTTP/2 - proxy does not exist', wrapper, async (t, server
 	request.end();
 
 	const error = await pEvent(request, 'error');
-	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:443');
+	t.regex(error.message, /^connect ECONNREFUSED (127\.0\.0\.1|::1):443$/);
 });
 
 // ============================ HTTP/2 over HTTPS ============================
@@ -556,7 +556,7 @@ test.serial('HTTP/2 over HTTPS - proxy does not exist', wrapper, async (t, serve
 	request.end();
 
 	const error = await pEvent(request, 'error');
-	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:443');
+	t.regex(error.message, /^connect ECONNREFUSED (127\.0\.0\.1|::1):443$/);
 });
 
 // ============================ HTTP/2 over HTTP ============================
@@ -723,7 +723,7 @@ test.serial('HTTP/2 over HTTP - proxy does not exist', wrapper, async (t, server
 	request.end();
 
 	const error = await pEvent(request, 'error');
-	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:443');
+	t.regex(error.message, /^connect ECONNREFUSED (127\.0\.0\.1|::1):443$/);
 });
 
 // ============================ HTTP/2 over HTTP/2 ============================
@@ -887,5 +887,5 @@ test.serial('HTTP/2 over HTTP/2 - proxy does not exist', wrapper, async (t, serv
 	request.end();
 
 	const error = await pEvent(request, 'error');
-	t.is(error.message, 'connect ECONNREFUSED 127.0.0.1:443');
+	t.regex(error.message, /^connect ECONNREFUSED (127\.0\.0\.1|::1):443$/);
 });

@@ -394,7 +394,7 @@ test('default port for `https:` protocol is 443', async t => {
 	const address = error.address || error.cause.address;
 	const port = error.port || error.cause.port;
 
-	t.is(address, '127.0.0.1');
+	t.true(address === '127.0.0.1' || address === '::1');
 	t.is(port, 443);
 });
 
