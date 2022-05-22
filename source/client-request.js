@@ -424,6 +424,8 @@ class ClientRequest extends Writable {
 				job();
 			}
 
+			this[kJobs].length = 0;
+
 			this.emit('socket', this.socket);
 		};
 
