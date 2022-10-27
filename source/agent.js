@@ -440,6 +440,12 @@ class Agent extends EventEmitter {
 						session.destroy();
 					});
 
+					session.once('goaway', () => {
+						// Prevent session from being used for new requests.
+						// The session will eventually emit either an 'error' or 'close' event.
+						session[kGracefullyClosing] = true;
+					});
+
 					session.once('close', () => {
 						this._sessionCount--;
 
