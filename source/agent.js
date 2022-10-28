@@ -443,7 +443,20 @@ class Agent extends EventEmitter {
 					session.once('goaway', () => {
 						// Prevent session from being used for new requests.
 						// The session will eventually emit either an 'error' or 'close' event.
-						session[kGracefullyClosing] = true;
+
+						// See https://github.com/nodejs/node/blob/7051ba4501883955daa6bf8e442fef0c32aa5ea3/lib/internal/http2/core.js#L1166:L1175
+						// Receiving a GOAWAY frame will cause the Http2Session to first emit a 'goaway'
+						// event notifying the user that a shutdown is in progress. If the goaway
+						// error code equals 0 (NGHTTP2_NO_ERROR), session.close() will be called,
+						// causing the Http2Session to send its own GOAWAY frame and switch itself
+						// into a graceful closing state. In this state, new inbound or outbound
+						// Http2Streams will be rejected. Existing *pending* streams (those created
+						// but without an assigned stream ID or handle) will be destroyed with a
+						// cancel error. Existing open streams will be permitted to complete on their
+						// own. Once all existing streams close, session.destroy() will be called
+						// automatically.
+
+						gracefullyClose(session);
 					});
 
 					session.once('close', () => {
