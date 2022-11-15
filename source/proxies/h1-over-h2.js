@@ -26,7 +26,7 @@ const createConnection = (self, options, callback) => {
 				const statusCode = headers[':status'];
 
 				if (statusCode !== 200) {
-					callback(new UnexpectedStatusCodeError(statusCode));
+					callback(new UnexpectedStatusCodeError(statusCode, ''));
 					return;
 				}
 

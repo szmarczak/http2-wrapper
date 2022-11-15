@@ -9,7 +9,7 @@ const getStream = request => new Promise((resolve, reject) => {
 		socket.unshift(head);
 
 		request.off('error', reject);
-		resolve([socket, response.statusCode]);
+		resolve([socket, response.statusCode, response.statusMessage]);
 	};
 
 	request.once('error', reject);

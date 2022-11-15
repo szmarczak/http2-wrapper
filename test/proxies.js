@@ -263,7 +263,7 @@ test.serial('HTTPS over HTTP/2 - 403', wrapper, async (t, server) => {
 		request.end();
 
 		const error = await pEvent(request, 'error');
-		t.is(error.message, 'The proxy server rejected the request with status code 403');
+		t.is(error.message, 'The proxy server rejected the request with status code 403 (empty status message)');
 
 		http2.globalAgent.destroy();
 	});
@@ -362,7 +362,7 @@ test.serial('HTTP over HTTP/2 - 403', async t => {
 		request.end();
 
 		const error = await pEvent(request, 'error');
-		t.is(error.message, 'The proxy server rejected the request with status code 403');
+		t.is(error.message, 'The proxy server rejected the request with status code 403 (empty status message)');
 
 		http2.globalAgent.destroy();
 	});
@@ -534,7 +534,7 @@ test.serial('HTTP/2 over HTTPS - 403', wrapper, async (t, server) => {
 		request.end();
 
 		const error = await pEvent(request, 'error');
-		t.is(error.message, 'The proxy server rejected the request with status code 403');
+		t.is(error.message, 'The proxy server rejected the request with status code 403 (Forbidden)');
 
 		agent.destroy();
 		http2.globalAgent.destroy();
@@ -700,7 +700,7 @@ test.serial('HTTP/2 over HTTP - 403', wrapper, async (t, server) => {
 		request.end();
 
 		const error = await pEvent(request, 'error');
-		t.is(error.message, 'The proxy server rejected the request with status code 403');
+		t.is(error.message, 'The proxy server rejected the request with status code 403 (Forbidden)');
 
 		agent.destroy();
 		http2.globalAgent.destroy();
@@ -868,7 +868,7 @@ test.serial('HTTP/2 over HTTP/2 - 403', wrapper, async (t, server) => {
 		request.end();
 
 		const error = await pEvent(request, 'error');
-		t.is(error.message, 'The proxy server rejected the request with status code 403');
+		t.is(error.message, 'The proxy server rejected the request with status code 403 (empty status message)');
 
 		http2.globalAgent.destroy();
 	});

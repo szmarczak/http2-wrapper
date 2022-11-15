@@ -14,9 +14,9 @@ class Http2OverHttpX extends Agent {
 	async createConnection(origin, options) {
 		const authority = `${origin.hostname}:${origin.port || 443}`;
 
-		const [stream, statusCode] = await this._getProxyStream(authority);
+		const [stream, statusCode, statusMessage] = await this._getProxyStream(authority);
 		if (statusCode !== 200) {
-			throw new UnexpectedStatusCodeError(statusCode);
+			throw new UnexpectedStatusCodeError(statusCode, statusMessage);
 		}
 
 		if (this.proxyOptions.raw) {

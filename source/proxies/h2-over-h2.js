@@ -25,7 +25,7 @@ class Http2OverHttp2 extends Http2OverHttpX {
 		const stream = await globalAgent.request(proxyOptions.url, proxyOptions, headers);
 		const statusCode = await getStatusCode(stream);
 
-		return [stream, statusCode];
+		return [stream, statusCode, ''];
 	}
 }
 
