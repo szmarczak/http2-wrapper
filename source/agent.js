@@ -471,7 +471,16 @@ class Agent extends EventEmitter {
 						// There may be another session awaiting.
 						this._processQueue();
 					});
+					session.once('goaway', () => {
+						// Prevent session from being used for new requests.
+						// The session will eventually emit either an 'error' or 'close' event.
 
+						// See https://datatracker.ietf.org/doc/html/rfc7540#section-6.8
+						// There is an inherent race condition between an endpoint starting new streams and the remote sending a GOAWAY frame.
+						// Receivers of a GOAWAY frame MUST NOT open additional streams on the connection, although a new connection can be established for new streams.
+
+						gracefullyClose(session);
+					});
 					// Iterates over the queue and processes listeners.
 					const processListeners = () => {
 						const queue = this.queue[normalizedOptions];
