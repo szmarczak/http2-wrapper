@@ -198,6 +198,20 @@ module.exports = async (input, options, callback) => {
 		options.agent = agent.http;
 	}
 
+	// If we're sending HTTP/1.1, handle any explicitly set H2 headers in the options:
+	if (options.headers) {
+		// :authority is equivalent to the http/1.1 host header
+		if (options.headers[':authority'] && !options.headers.host) {
+			options.headers.host = options.headers[':authority'];
+			delete options.headers[':authority'];
+		}
+
+		// All other H2 headers are represented in the request-line, separate to headers
+		delete options.headers[':method'];
+		delete options.headers[':scheme'];
+		delete options.headers[':path'];
+	}
+
 	return delayAsyncDestroy(http.request(options, callback));
 };
 
