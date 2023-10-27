@@ -5,6 +5,8 @@ import http from 'node:http';
 import https from 'node:https';
 import {expectType, expectAssignable} from 'tsd';
 import QuickLRU from 'quick-lru';
+
+// eslint-disable-next-line import/extensions
 import http2 from '.';
 
 expectType<http2.Agent>(http2.globalAgent);
