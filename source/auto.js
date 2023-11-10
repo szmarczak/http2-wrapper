@@ -201,8 +201,11 @@ module.exports = async (input, options, callback) => {
 	// If we're sending HTTP/1.1, handle any explicitly set H2 headers in the options:
 	if (options.headers) {
 		// :authority is equivalent to the http/1.1 host header
-		if (options.headers[':authority'] && !options.headers.host) {
-			options.headers.host = options.headers[':authority'];
+		if (options.headers[':authority']) {
+			if (!options.headers.host) {
+				options.headers.host = options.headers[':authority'];
+			}
+
 			delete options.headers[':authority'];
 		}
 
