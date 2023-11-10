@@ -118,6 +118,26 @@ test('https', async t => {
 	t.is(data, 'http/1.1');
 });
 
+test('https with http2 headers', async t => {
+	const request = await http2.auto({
+		protocol: 'https:',
+		hostname: 'localhost',
+		port: h2s.address().port,
+		ALPNProtocols: ['http/1.1'],
+		headers: {
+			':method': 'GET',
+			':scheme': 'https',
+			':authority': `localhost:${h2s.address().port}`,
+			':path': '/'
+		}
+	});
+	request.end();
+
+	const response = await pEvent(request, 'response');
+	const data = await getStream(response);
+	t.is(data, 'http/1.1');
+});
+
 test('https agent', async t => {
 	const agent = new https.Agent();
 
