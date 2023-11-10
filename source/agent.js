@@ -15,8 +15,8 @@ const kGracefullyClosing = Symbol('gracefullyClosing');
 const kLength = Symbol('length');
 
 const nameKeys = [
-	// Not an Agent option actually
-	'createConnection',
+	// Theoretically we could depend on `createConnection`, but practically this results in a bug.
+	// `createConnection` gets replaced when the session gets reused, so this would result in a duplicate session.
 
 	// `http2.connect()` options
 	'maxDeflateDynamicTableSize',
