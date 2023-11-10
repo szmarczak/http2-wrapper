@@ -5,7 +5,7 @@ import http from 'node:http';
 import https from 'node:https';
 import {expectType, expectAssignable} from 'tsd';
 import QuickLRU from 'quick-lru';
-import http2 from '.';
+import http2 from './index.js';
 
 expectType<http2.Agent>(http2.globalAgent);
 expectType<typeof http.ClientRequest>(http2.ClientRequest);
