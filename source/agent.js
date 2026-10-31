@@ -1,6 +1,7 @@
 'use strict';
 // See https://github.com/facebook/jest/issues/2549
 // eslint-disable-next-line node/prefer-global/url
+const {isIP} = require('net');
 const {URL} = require('url');
 const EventEmitter = require('events');
 const tls = require('tls');
@@ -416,7 +417,49 @@ class Agent extends EventEmitter {
 							originSet = session.originSet;
 						}
 
-						return originSet;
+						const cert = socket.getPeerX509Certificate?.();
+						if (!cert) {
+							let hostname = socket.servername;
+							if (hostname === null || hostname === false) {
+								if (socket.remoteFamily === 'IPv6') {
+									hostname = `[${socket.remoteAddress}]`;
+								} else {
+									hostname = socket.remoteAddress;
+								}
+							}
+
+							let origin = `https://${hostname}`;
+
+							if (socket.remotePort !== null && socket.remotePort !== undefined) {
+								origin += `:${socket.remotePort}`;
+							}
+
+							const parsed = URL.parse(origin);
+
+							if (parsed !== null) {
+								return [parsed.origin];
+							}
+
+							return [];
+						}
+
+						return originSet.filter(origin => {
+							if (origin.startsWith('https://')) {
+								origin = origin.slice('https://'.length);
+							}
+
+							const colon = origin.indexOf(':');
+
+							if (colon !== -1) {
+								origin = origin.slice(0, colon);
+							}
+
+							if (isIP(origin)) {
+								return cert.checkIP(origin) === origin;
+							} else {
+								return cert.checkHost(origin) === origin;
+							}
+						});
 					};
 
 					const isFree = () => session[kCurrentStreamCount] < session.remoteSettings.maxConcurrentStreams;

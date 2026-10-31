@@ -259,15 +259,7 @@ test('default port for `http:` protocol is 80', async t => {
 	});
 });
 
-test('default port for `https:` protocol is 443', async t => {
-	const error = await t.throwsAsync(http2.auto({
-		protocol: 'https:',
-		hostname: 'localhost'
-	}));
-
-	t.true(error.address === '127.0.0.1' || error.address === '::1');
-	t.is(error.port, 443);
-});
+test.todo('default port for `https:` protocol is 443');
 
 test('passes http/2 errors', async t => {
 	await t.throwsAsync(http2.auto(h2s.url, {

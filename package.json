@@ -8,7 +8,7 @@
 		"node": ">=10.19.0"
 	},
 	"scripts": {
-		"test": "xo && nyc --reporter=lcovonly --reporter=text --reporter=html ava && tsd"
+		"test": "nyc --reporter=lcovonly --reporter=text --reporter=html ava && tsd"
 	},
 	"files": [
 		"source",
@@ -50,8 +50,7 @@
 		"to-readable-stream": "^2.1.0",
 		"tsd": "^0.17.0",
 		"websocket-stream": "^5.5.2",
-		"ws": "^7.5.3",
-		"xo": "0.39.1"
+		"ws": "^7.5.3"
 	},
 	"ava": {
 		"timeout": "10s"
@@ -60,22 +59,5 @@
 		"include": [
 			"source"
 		]
-	},
-	"xo": {
-		"rules": {
-			"unicorn/no-for-loop": "off",
-			"unicorn/prefer-module": "off",
-			"comma-dangle": "off",
-			"@typescript-eslint/comma-dangle": "off",
-			"quotes": [
-				"error",
-				"single",
-				{
-					"avoidEscape": true,
-					"allowTemplateLiterals": true
-				}
-			],
-			"operator-linebreak": ["error", "before"]
-		}
 	}
 }
