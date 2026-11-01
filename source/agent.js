@@ -474,9 +474,9 @@ class Agent extends EventEmitter {
 							}
 
 							if (isIP(origin)) {
-								return cert.checkIP(origin) === origin;
+								return cert.checkIP(origin) !== undefined;
 							} else {
-								return cert.checkHost(origin) === origin;
+								return cert.checkHost(origin) !== undefined;
 							}
 						});
 					};
