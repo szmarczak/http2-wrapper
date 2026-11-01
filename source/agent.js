@@ -396,9 +396,24 @@ class Agent extends EventEmitter {
 
 					const createConnection = computedOptions.createConnection || this.createConnection;
 
+					let error;
+
 					// A hacky workaround to enable async `createConnection`
 					socket = await createConnection.call(this, origin, computedOptions);
-					computedOptions.createConnection = () => socket;
+
+					// Node's design a mistake.
+					// A better solution would be to store the error, not crash.
+					socket.once('error', e => {
+						error = e;
+					});
+
+					computedOptions.createConnection = () => {
+						if (error !== undefined) {
+							throw error;
+						}
+
+						return socket;
+					};
 
 					const session = http2.connect(origin, computedOptions);
 					session[kCurrentStreamCount] = 0;
@@ -452,6 +467,10 @@ class Agent extends EventEmitter {
 
 							if (colon !== -1) {
 								origin = origin.slice(0, colon);
+							}
+
+							if (origin[0] === '[') {
+								origin = origin.slice(1, -1);
 							}
 
 							if (isIP(origin)) {
@@ -745,7 +764,11 @@ class Agent extends EventEmitter {
 		options.ALPNProtocols = ['h2'];
 
 		const port = origin.port || 443;
-		const host = origin.hostname;
+		let host = origin.hostname;
+
+		if (host[0] === '[') {
+			host = host.slice(1, -1);
+		}
 
 		if (typeof options.servername === 'undefined') {
 			options.servername = host;
@@ -761,7 +784,7 @@ class Agent extends EventEmitter {
 			};
 		}
 
-		return socket;
+		return delayAsyncDestroy(socket);
 	}
 
 	closeEmptySessions(maxCount = Number.POSITIVE_INFINITY) {
